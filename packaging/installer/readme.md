@@ -11,8 +11,9 @@ Choosing **only for me** installs without administrator rights and keeps
 Windsock out of everybody else's way. Choosing **for everyone** installs into
 Program Files and needs an administrator.
 
-Your history and settings live in `%LOCALAPPDATA%\Windsock` either way, and
-are left alone by an uninstall.
+Your history and settings live in `%LOCALAPPDATA%\Shariar Shuvo\Windsock`
+either way, deliberately outside the folder the installer owns, so an
+uninstall leaves them alone.
 
 ## Two features that ask for more
 

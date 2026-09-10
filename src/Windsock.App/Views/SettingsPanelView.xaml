@@ -77,9 +77,16 @@
                               AutomationProperties.Name="Start with Windows"
                               ToolTip="Start Windsock when you sign in, straight to the taskbar meter" />
 
-                    <controls:SettingHead
-                        Text="Start with Windows"
-                        Hint="Windsock starts when you sign in and goes straight to the taskbar meter, without opening a window. This is the same list Task Manager shows under Startup apps, and turning it off there turns it off here." />
+                    <StackPanel>
+                        <controls:SettingHead
+                            Text="Start with Windows"
+                            Hint="Windsock starts when you sign in and goes straight to the taskbar meter, without opening a window. This is the same list Task Manager shows under Startup apps, and turning it off there turns it off here." />
+
+                        <TextBlock Text="{Binding StartupNote}"
+                                   Style="{StaticResource DetailNoteStyle}"
+                                   Margin="0,6,0,0"
+                                   Visibility="{Binding StartupNote, Converter={StaticResource TextToVisibility}}" />
+                    </StackPanel>
                 </DockPanel>
             </Border>
 

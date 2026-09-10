@@ -180,7 +180,7 @@ module can read about thirty named registers and nothing else.
 Windsock has no accounts, no telemetry and no analytics. Nothing is sent to the
 author, and there is no server behind the application.
 
-Data is written to `%LOCALAPPDATA%\Windsock`:
+Data is written to `%LOCALAPPDATA%\Shariar Shuvo\Windsock`:
 
 ```
 Windsock.db        usage history, one row per minute

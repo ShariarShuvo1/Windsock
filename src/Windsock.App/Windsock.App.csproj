@@ -2,14 +2,23 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <!-- Deliberately the unversioned Windows target. Naming a version here
-         (net10.0-windows10.0.17763.0) would raise the platform floor to match
-         the README, but it also switches on the Windows SDK projections and
-         CsWinRT - a second interop stack, in a project that reaches native
-         through CsWin32 on purpose. The floor is instead stated in the README
-         and held by the runtime guards at the few call sites newer than
-         Windows 7, each of which explains itself. -->
+    <TargetFramework>net10.0-windows10.0.17763.0</TargetFramework>
+    <!-- This was deliberately the unversioned net10.0-windows until the Store
+         edition needed a StartupTask. That note said naming a version switches
+         on the Windows SDK projections and CsWinRT, a second interop stack in a
+         project that reaches native through CsWin32 on purpose, and that was a
+         fair trade while nothing needed it.
+
+         Windows.ApplicationModel.StartupTask is a WinRT class, not a flat Win32
+         entry point, so CsWin32 cannot reach it and no amount of P/Invoke will
+         do. It is also the only supported way for a packaged app to run at
+         login: the HKCU Run key the unpackaged edition writes is virtualised
+         away inside the MSIX container, which meant the Store edition's setting
+         turned on, read back as on, and did nothing.
+
+         17763 is 1809, the floor the README already states. Windsock.Core stays
+         on the unversioned target; the WinRT is confined to this project. -->
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <RootNamespace>Windsock.App</RootNamespace>
     <AssemblyName>Windsock</AssemblyName>

@@ -162,29 +162,47 @@ jobs:
           Set-Content $manifest $xml -Encoding utf8
           Write-Output "Package version set to $quad"
 
-      - name: Pack the MSIX
+      - name: Find the Windows SDK
         shell: pwsh
         run: |
-          # makeappx ships with the Windows SDK, which the runner already has.
-          # Newest SDK wins; the tool is stable across versions.
-          # Both Program Files roots. The SDK is usually under (x86), but not
-          # always - the development machine has only the 64-bit root, which is
-          # how a single-path lookup was found to be fragile.
           $roots = @(
             "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
             "$env:ProgramFiles\Windows Kits\10\bin"
           )
-          $makeappx = $roots |
+          $bin = $roots |
             Where-Object { Test-Path $_ } |
             ForEach-Object { Get-ChildItem $_ -Directory -ErrorAction SilentlyContinue } |
             Where-Object { $_.Name -match '^10\.' } |
             Sort-Object Name -Descending |
-            ForEach-Object { Join-Path $_.FullName "x64\makeappx.exe" } |
-            Where-Object { Test-Path $_ } |
+            ForEach-Object { Join-Path $_.FullName "x64" } |
+            Where-Object { Test-Path (Join-Path $_ "makeappx.exe") } |
             Select-Object -First 1
 
-          if (-not $makeappx) { throw "makeappx.exe not found under: $($roots -join ' ; ')" }
-          Write-Output "Using $makeappx"
+          if (-not $bin) { throw "Windows SDK x64 tools not found under: $($roots -join ' ; ')" }
+          foreach ($tool in "makeappx.exe", "makepri.exe") {
+            if (-not (Test-Path (Join-Path $bin $tool))) { throw "$tool missing from $bin" }
+          }
+
+          Write-Output "Using $bin"
+          "SDK_BIN=$bin" >> $env:GITHUB_ENV
+
+      - name: Index the package resources
+        shell: pwsh
+        run: |
+          $makepri = Join-Path $env:SDK_BIN "makepri.exe"
+
+          & $makepri createconfig /cf priconfig.xml /dq en-US /o
+          if ($LASTEXITCODE -ne 0) { throw "makepri createconfig failed with $LASTEXITCODE" }
+
+          & $makepri new /pr publish/store /cf priconfig.xml /of publish/store/resources.pri /o
+          if ($LASTEXITCODE -ne 0) { throw "makepri new failed with $LASTEXITCODE" }
+
+          Get-Item publish/store/resources.pri | Select-Object Name, Length
+
+      - name: Pack the MSIX
+        shell: pwsh
+        run: |
+          $makeappx = Join-Path $env:SDK_BIN "makeappx.exe"
 
           # Not into release/ - that folder becomes the public download list,
           # and an UNSIGNED msix cannot be installed by an ordinary user. It

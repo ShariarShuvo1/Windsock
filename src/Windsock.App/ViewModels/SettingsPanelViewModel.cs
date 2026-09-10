@@ -45,7 +45,7 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
 #endif
     private readonly UpdateService _updates;
     private readonly UsageRecorder _recorder;
-    private readonly WindowsStartup _startup;
+    private readonly IStartupSwitch _startup;
     private readonly IUsageHistoryStore _history;
     private bool _mirroring;
 
@@ -59,7 +59,7 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
         NetworkRouteCache routes,
 #endif
         UsageRecorder recorder,
-        WindowsStartup startup,
+        IStartupSwitch startup,
         UpdateService updates,
         IUsageHistoryStore history)
     {
@@ -122,7 +122,8 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
         SelectedClosing = settings.OnClose;
         IsRecording = recorder.IsRecording;
         recorder.RecordingChanged += OnRecordingChanged;
-        StartWithWindows = startup.IsEnabled;
+        StartWithWindows = startup.State == StartupState.On;
+        StartupNote = startup.Detail;
         Refresh();
     }
 
@@ -282,6 +283,13 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
     [ObservableProperty]
     public partial bool StartWithWindows { get; set; }
 
+    /// <summary>
+    /// Why the tick above will not stay on, when it will not. Empty when there
+    /// is nothing to say, which is the ordinary case.
+    /// </summary>
+    [ObservableProperty]
+    public partial string StartupNote { get; set; } = string.Empty;
+
     /// <summary>Every adapter, each with its own tick.</summary>
     [ObservableProperty]
     public partial IReadOnlyList<AdapterChoiceViewModel> Adapters { get; private set; }
@@ -303,9 +311,12 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
     /// </summary>
     public void Refresh()
     {
+        // Asking Windows takes a round trip in the packaged edition, so the
+        // cached answer goes up first and the fresh one follows.
         _mirroring = true;
-        StartWithWindows = _startup.IsEnabled;
+        StartWithWindows = _startup.State == StartupState.On;
         _mirroring = false;
+        _ = ReadStartupAsync();
 
         HashSet<ulong> chosen = [.. _settings.Adapters];
         bool takeEverything = chosen.Count == 0;
@@ -435,17 +446,39 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
             return;
         }
 
-        _startup.Set(value);
+        _ = WriteStartupAsync(value);
+    }
 
-        bool actual = _startup.IsEnabled;
+    /// <summary>
+    /// Asks Windows to change the setting, then shows what it actually became.
+    /// The tick is not taken as truth: a user who turned Windsock off under
+    /// Startup apps has the final say, and the tick goes back down.
+    /// </summary>
+    private async Task WriteStartupAsync(bool wanted)
+    {
+        StartupState state = await _startup.SetAsync(wanted).ConfigureAwait(true);
+        Show(state);
+    }
 
-        if (actual == value)
+    private async Task ReadStartupAsync()
+    {
+        StartupState state = await _startup.RefreshAsync().ConfigureAwait(true);
+        Show(state);
+    }
+
+    private void Show(StartupState state)
+    {
+        StartupNote = _startup.Detail;
+
+        bool on = state == StartupState.On;
+
+        if (on == StartWithWindows)
         {
             return;
         }
 
         _mirroring = true;
-        StartWithWindows = actual;
+        StartWithWindows = on;
         _mirroring = false;
     }
 

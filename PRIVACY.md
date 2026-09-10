@@ -25,7 +25,7 @@ it later.
 
 Everything Windsock keeps lives in one folder on your machine:
 
-    %LOCALAPPDATA%\Windsock\
+    %LOCALAPPDATA%\Shariar Shuvo\Windsock\
 
 - `Windsock.db` — one row per minute of total upload and download bytes.
   No addresses, no process names, no content. Recording can be switched off in
@@ -34,7 +34,10 @@ Everything Windsock keeps lives in one folder on your machine:
 - `logs\` — diagnostic logs, kept locally.
 
 Delete that folder and nothing of Windsock's remains. Uninstalling does not
-delete it automatically, so that reinstalling does not lose your history.
+delete it automatically, so that reinstalling does not lose your history. That
+is why it sits beside the program rather than inside it: the installer owns
+`%LOCALAPPDATA%\Windsock` and removes that folder entirely when you uninstall,
+and your history is deliberately not kept there.
 
 Windsock never uploads any of it. Exporting history to CSV writes a file where
 you choose; what happens to that file afterwards is entirely up to you.

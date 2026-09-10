@@ -4,15 +4,39 @@ namespace Windsock.Core.Tests;
 
 public sealed class WindsockPathsTests
 {
+    private static string LocalAppData => Environment.GetFolderPath(
+        Environment.SpecialFolder.LocalApplicationData,
+        Environment.SpecialFolderOption.DoNotVerify);
+
     [Fact]
     public void Root_LivesUnderLocalAppData()
     {
-        string localAppData = Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData,
-            Environment.SpecialFolderOption.DoNotVerify);
-
-        Assert.StartsWith(localAppData, WindsockPaths.Root, StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith(LocalAppData, WindsockPaths.Root, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Windsock", Path.GetFileName(WindsockPaths.Root));
+    }
+
+    /// <summary>
+    /// The installer packs with <c>--packId Windsock</c>, so Velopack owns
+    /// <c>%LOCALAPPDATA%\Windsock</c> and its uninstaller deletes that folder
+    /// whole. Putting the database directly under local app data therefore put
+    /// it somewhere it would be removed from, which is exactly what happened.
+    /// This asserts the publisher folder that keeps the two apart is still
+    /// there, because nothing else would notice if it went.
+    /// </summary>
+    [Fact]
+    public void Root_IsNotTheFolderTheInstallerOwns()
+    {
+        string installDirectory = Path.Combine(LocalAppData, "Windsock");
+
+        Assert.NotEqual(
+            installDirectory,
+            WindsockPaths.Root.TrimEnd(Path.DirectorySeparatorChar),
+            StringComparer.OrdinalIgnoreCase);
+
+        string? publisher = Path.GetDirectoryName(WindsockPaths.Root);
+        Assert.NotNull(publisher);
+        Assert.Equal(LocalAppData, Path.GetDirectoryName(publisher), StringComparer.OrdinalIgnoreCase);
+        Assert.Equal("Shariar Shuvo", Path.GetFileName(publisher));
     }
 
     [Fact]

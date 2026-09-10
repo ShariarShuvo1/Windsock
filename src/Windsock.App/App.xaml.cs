@@ -72,7 +72,7 @@ public partial class App : Application
 
         MainWindow window = _host.Services.GetRequiredService<MainWindow>();
         MainWindow = window;
-        if (!WindowsStartup.IsQuiet(e.Args) || !settings.Taskbar.Enabled)
+        if (!QuietStart.Wanted(e.Args) || !settings.Taskbar.Enabled)
         {
             window.Show();
         }
@@ -179,7 +179,23 @@ public partial class App : Application
         builder.Services.AddSingleton(theme);
 
         builder.Services.AddOptions<ThroughputMonitorOptions>();
+
+        // Run at login has two mechanisms and only one works per edition. The
+        // Run key is redirected into a private copy inside the MSIX container,
+        // so a packaged Windsock must use the StartupTask from its manifest or
+        // the setting turns on, reads back as on, and starts nothing. Chosen by
+        // what the process actually is rather than by build flag, so a packaged
+        // full edition would get the right one too.
         builder.Services.AddSingleton<WindowsStartup>();
+        if (PackageIdentity.Exists)
+        {
+            builder.Services.AddSingleton<IStartupSwitch, PackagedStartup>();
+        }
+        else
+        {
+            builder.Services.AddSingleton<IStartupSwitch>(sp => sp.GetRequiredService<WindowsStartup>());
+        }
+
         builder.Services.AddSingleton<UpdateService>();
         builder.Services.AddSingleton(_ => new IpHelperTotalsSource { Selection = [.. settings.Adapters] });
         builder.Services.AddSingleton<INetworkTotalsSource>(sp => sp.GetRequiredService<IpHelperTotalsSource>());

@@ -4,9 +4,16 @@ using Microsoft.Win32;
 namespace Windsock.Core.Startup;
 
 /// <summary>
-/// Whether Windows starts Windsock when the user signs in.
+/// Whether Windows starts Windsock when the user signs in, through the HKCU
+/// Run key.
 /// </summary>
-public sealed class WindowsStartup
+/// <remarks>
+/// The unpackaged edition only. A packaged Windsock gets
+/// <c>PackagedStartup</c> instead, because the container redirects this key
+/// into a private copy: the write succeeds, the read agrees with it, and
+/// Windows starts nothing. See <see cref="IStartupSwitch"/>.
+/// </remarks>
+public sealed class WindowsStartup : IStartupSwitch
 {
     /// <summary>Where Windows keeps the per-user list of things to start.</summary>
     public const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -32,6 +39,25 @@ public sealed class WindowsStartup
 
     /// <summary>Whether Windsock is on the list.</summary>
     public bool IsEnabled => Read() is not null;
+
+    /// <summary>
+    /// The registry is cheap enough to read every time, so this is never stale
+    /// and <see cref="RefreshAsync"/> has nothing to do.
+    /// </summary>
+    public StartupState State => IsEnabled ? StartupState.On : StartupState.Off;
+
+    /// <summary>Nothing to explain: this route is always available.</summary>
+    public string Detail => string.Empty;
+
+    /// <inheritdoc />
+    public Task<StartupState> RefreshAsync() => Task.FromResult(State);
+
+    /// <inheritdoc />
+    public Task<StartupState> SetAsync(bool wanted)
+    {
+        Set(wanted);
+        return Task.FromResult(State);
+    }
 
     /// <summary>The command line Windows is set to run, or null for none.</summary>
     public string? Read()

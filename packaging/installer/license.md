@@ -6,8 +6,9 @@
 or your computer is ever sent to the author. There is no server behind
 Windsock and no way for the project to learn that you installed it.
 
-Everything Windsock writes stays in `%LOCALAPPDATA%\Windsock`: your usage
-history, your settings, and rolling logs. Nothing is uploaded, sold or shared.
+Everything Windsock writes stays in `%LOCALAPPDATA%\Shariar Shuvo\Windsock`:
+your usage history, your settings, and rolling logs. Nothing is uploaded, sold
+or shared.
 
 Address locations on the world map are looked up **offline**, from a database
 shipped inside the application. Nothing is sent to any geolocation service.

@@ -3,8 +3,9 @@
 <!--
   The Microsoft Store package manifest, for the Store edition only.
 
-  The Store takes an .msix, not an installer: Windsock-Setup.exe is the GitHub
-  download and has nothing to do with this file. The package is uploaded
+  The Store takes an .msix, not an installer: Windsock-win-Setup.exe and
+  Windsock-win.msi are the GitHub downloads and have nothing to do with this
+  file. The package is uploaded
   unsigned and Microsoft signs it, which is the whole reason this route costs
   nothing where the EXE route needs a bought certificate.
 
@@ -22,8 +23,9 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap rescap">
+  IgnorableNamespaces="uap uap5 rescap">
 
   <Identity
     Name="ShariarShuvo.Windsock"
@@ -54,6 +56,12 @@
   </Resources>
 
   <Applications>
+    <!--
+      EntryPoint rather than the newer uap10:RuntimeBehavior and uap10:TrustLevel
+      pair, and deliberately so. Those attributes arrived in Windows 10 2004
+      (build 19041), and MinVersion above is 17763. Modernising this line would
+      quietly drop every Windows version between the two.
+    -->
     <Application
       Id="Windsock"
       Executable="Windsock.exe"
@@ -78,6 +86,36 @@
           Wide310x150Logo="Images\Wide310x150Logo.png" />
 
       </uap:VisualElements>
+
+      <Extensions>
+        <!--
+          Run at login, for the packaged edition only.
+
+          The unpackaged Windsock writes an HKCU Run value. Inside this
+          container that write is redirected into a private copy of the
+          registry, so it succeeds, reads back as written, and Windows starts
+          nothing. This declaration is the supported way, and it is also what
+          lists Windsock under Settings and Task Manager where a person expects
+          to find it and can turn it off.
+
+          Enabled is false because the app's own setting is off by default, and
+          it would be rude to add ourselves to someone's startup on install.
+          PackagedStartup switches it through Windows.ApplicationModel.StartupTask.
+
+          TaskId must match PackagedStartup.TaskId exactly. Windows matches on
+          this string and simply answers no when it does not, so a typo shows up
+          as the setting never working rather than as an error.
+        -->
+        <uap5:Extension
+          Category="windows.startupTask"
+          Executable="Windsock.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <uap5:StartupTask
+            TaskId="WindsockStartup"
+            Enabled="false"
+            DisplayName="Windsock" />
+        </uap5:Extension>
+      </Extensions>
     </Application>
   </Applications>
 

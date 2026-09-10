@@ -8,6 +8,11 @@ publish/
 *.user
 *.suo
 
+## Packaging output, left behind by a local run of the release steps
+package/
+priconfig.xml
+resources.pri
+
 ## Rider / Visual Studio / VS Code
 .vs/
 .idea/
