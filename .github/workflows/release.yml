@@ -156,11 +156,32 @@ jobs:
           while ($parts.Count -lt 3) { $parts += '0' }
           $quad = "{0}.{1}.{2}.0" -f $parts[0], $parts[1], $parts[2]
 
+          # Set the attribute on the Identity element, not by pattern.
+          #
+          # This was a regex once, 'Version="\d+\.\d+\.\d+\.\d+"', and it also
+          # matched MinVersion="10.0.17763.0" - because that string ends with
+          # Version="10.0.17763.0". Every package shipped claiming to target
+          # Windows 0.1.0.0, and Partner Center rejected the upload with
+          # "You cannot upload packages that target Windows MinVersion
+          # <= 10.0.17134.0". MaxVersionTested survived only by luck, ending in
+          # Tested= rather than Version=.
           $manifest = "publish/store/AppxManifest.xml"
-          $xml = Get-Content $manifest -Raw
-          $xml = $xml -replace 'Version="\d+\.\d+\.\d+\.\d+"', "Version=`"$quad`""
-          Set-Content $manifest $xml -Encoding utf8
-          Write-Output "Package version set to $quad"
+          $doc = [xml](Get-Content $manifest -Raw)
+          $doc.Package.Identity.Version = $quad
+          $doc.Save((Resolve-Path $manifest))
+
+          # The version is the only thing that step may change. Anything else
+          # is a bug, and this is the last place it can be caught cheaply.
+          $check = [xml](Get-Content $manifest -Raw)
+          $min = $check.Package.Dependencies.TargetDeviceFamily.MinVersion
+          if ($min -ne '10.0.17763.0') {
+            throw "MinVersion became '$min'; the manifest floor was rewritten"
+          }
+          if ([version]$min -le [version]'10.0.17134.0') {
+            throw "MinVersion $min is at or below the Store's floor of 10.0.17134.0"
+          }
+
+          Write-Output "Package version $($check.Package.Identity.Version), MinVersion $min"
 
       - name: Find the Windows SDK
         shell: pwsh
@@ -250,6 +271,11 @@ jobs:
           files: release/*
           draft: true
           generate_release_notes: true
+          # Spelled out rather than left to default to github.ref. On a tag push
+          # the default is right, but on workflow_dispatch github.ref is the
+          # branch, so a manual run would have tried to cut a release tagged
+          # "main". The workflow offers that trigger, so it has to work.
+          tag_name: v${{ steps.version.outputs.value }}
           name: Windsock ${{ steps.version.outputs.value }}
           body: |
             ## Which download
