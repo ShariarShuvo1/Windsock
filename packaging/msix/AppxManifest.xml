@@ -29,7 +29,7 @@
 
   <Identity
     Name="ShariarShuvo.Windsock"
-    Publisher="CN=AEF1F62A-49C8-4FA5-87FD-506086E44A7F"
+    Publisher="CN=AEF1F62A-49C8-4FA5-87FD-5060B6E44A7F"
     Version="0.1.0.0"
     ProcessorArchitecture="x64" />
 
