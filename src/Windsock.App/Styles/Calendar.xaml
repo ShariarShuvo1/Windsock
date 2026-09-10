@@ -1,0 +1,555 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:Windsock.App.Controls"
+                    xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework">
+
+    <!--
+        A calendar drawn in Windsock's own colours.
+
+        The stock one is not themed with the rest of the app: it paints a white
+        card with grey gridlines whatever the window is set to, which in dark
+        mode arrives as a bright rectangle in the middle of the screen. Every
+        brush below is a DynamicResource, so this one turns over with the theme
+        exactly as the tables and cards do.
+    -->
+
+    <!-- The month arrows either side of the heading. -->
+    <Style x:Key="CalendarNavStyle" TargetType="Button">
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="Transparent"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root"
+                                    Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.35" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- "September 2026", which steps out to months and then years. -->
+    <Style x:Key="CalendarHeaderStyle" TargetType="Button">
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="Transparent"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root"
+                                    Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        One day. Selected wins over today, which wins over the plain state, so
+        picking the current day does not leave it looking like two things.
+    -->
+    <Style x:Key="CalendarDayStyle" TargetType="primitives:CalendarDayButton">
+        <Setter Property="Width" Value="30" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Margin" Value="1" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:CalendarDayButton">
+                    <Grid>
+                        <Border x:Name="Fill"
+                                CornerRadius="6"
+                                Background="Transparent"
+                                BorderThickness="1.2"
+                                BorderBrush="Transparent"
+                                SnapsToDevicePixels="True" />
+
+                        <ContentPresenter x:Name="Label"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <!-- Days spilling in from the neighbouring months. -->
+                        <Trigger Property="IsInactive" Value="True">
+                            <Setter TargetName="Label"
+                                    Property="TextElement.Foreground"
+                                    Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fill"
+                                    Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsToday" Value="True">
+                            <Setter TargetName="Fill"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Label"
+                                    Property="TextElement.Foreground"
+                                    Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Fill"
+                                    Property="Background"
+                                    Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Fill"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Label"
+                                    Property="TextElement.Foreground"
+                                    Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsBlackedOut" Value="True">
+                            <Setter Property="Opacity" Value="0.3" />
+                            <Setter Property="IsHitTestVisible" Value="False" />
+                        </Trigger>
+
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.35" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A month or a year, in the stepped-out views. -->
+    <Style x:Key="CalendarMonthStyle" TargetType="primitives:CalendarButton">
+        <Setter Property="Width" Value="56" />
+        <Setter Property="Height" Value="38" />
+        <Setter Property="Margin" Value="2" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:CalendarButton">
+                    <Grid>
+                        <Border x:Name="Fill"
+                                CornerRadius="6"
+                                Background="Transparent"
+                                SnapsToDevicePixels="True" />
+
+                        <ContentPresenter x:Name="Label"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsInactive" Value="True">
+                            <Setter TargetName="Label"
+                                    Property="TextElement.Foreground"
+                                    Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Fill"
+                                    Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+
+                        <!-- The month or year holding the chosen day. -->
+                        <Trigger Property="HasSelectedDays" Value="True">
+                            <Setter TargetName="Fill"
+                                    Property="Background"
+                                    Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Label"
+                                    Property="TextElement.Foreground"
+                                    Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        The frame the calendar draws into: the heading row, then whichever of
+        the three views is showing. The grids are filled by the calendar itself,
+        so their shape has to match what it expects - seven columns of days
+        under a row of initials, and four by three for months and years.
+    -->
+    <Style x:Key="CalendarItemStyle" TargetType="primitives:CalendarItem">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="primitives:CalendarItem">
+                    <ControlTemplate.Resources>
+                        <DataTemplate x:Key="{x:Static primitives:CalendarItem.DayTitleTemplateResourceKey}">
+                            <TextBlock Text="{Binding}"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,4"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </DataTemplate>
+                    </ControlTemplate.Resources>
+
+                    <Border Background="Transparent" SnapsToDevicePixels="True">
+                        <Grid x:Name="PART_Root">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Button x:Name="PART_PreviousButton"
+                                        Grid.Column="0"
+                                        Style="{StaticResource CalendarNavStyle}"
+                                        AutomationProperties.Name="Previous">
+                                    <Path Data="M 5 0 L 0 4.5 L 5 9"
+                                          Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                                          StrokeThickness="1.4"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round" />
+                                </Button>
+
+                                <Button x:Name="PART_HeaderButton"
+                                        Grid.Column="1"
+                                        Style="{StaticResource CalendarHeaderStyle}" />
+
+                                <Button x:Name="PART_NextButton"
+                                        Grid.Column="2"
+                                        Style="{StaticResource CalendarNavStyle}"
+                                        AutomationProperties.Name="Next">
+                                    <Path Data="M 0 0 L 5 4.5 L 0 9"
+                                          Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                                          StrokeThickness="1.4"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round" />
+                                </Button>
+                            </Grid>
+
+                            <Grid x:Name="PART_MonthView" Grid.Row="1" HorizontalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                            </Grid>
+
+                            <Grid x:Name="PART_YearView"
+                                  Grid.Row="1"
+                                  Visibility="Hidden"
+                                  HorizontalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding DisplayMode, RelativeSource={RelativeSource AncestorType=Calendar}}"
+                                     Value="Year">
+                            <Setter TargetName="PART_MonthView" Property="Visibility" Value="Hidden" />
+                            <Setter TargetName="PART_YearView" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+
+                        <DataTrigger Binding="{Binding DisplayMode, RelativeSource={RelativeSource AncestorType=Calendar}}"
+                                     Value="Decade">
+                            <Setter TargetName="PART_MonthView" Property="Visibility" Value="Hidden" />
+                            <Setter TargetName="PART_YearView" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AppCalendarStyle" TargetType="Calendar">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CalendarItemStyle" Value="{StaticResource CalendarItemStyle}" />
+        <Setter Property="CalendarDayButtonStyle" Value="{StaticResource CalendarDayStyle}" />
+        <Setter Property="CalendarButtonStyle" Value="{StaticResource CalendarMonthStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Calendar">
+                    <primitives:CalendarItem x:Name="PART_CalendarItem"
+                                             Style="{TemplateBinding CalendarItemStyle}"
+                                             Background="{TemplateBinding Background}"
+                                             BorderThickness="0" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        The time field, stripped back. The themed text box brings a clear
+        button with it, which inside a field this narrow leaves the four digits
+        of a time with nowhere to sit.
+    -->
+    <Style x:Key="TimeFieldStyle" TargetType="TextBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <ScrollViewer x:Name="PART_ContentHost"
+                                  Focusable="False"
+                                  VerticalAlignment="Center"
+                                  HorizontalScrollBarVisibility="Hidden"
+                                  VerticalScrollBarVisibility="Hidden" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        The field itself: closed it reads as one of the toolbar pills, open it
+        drops a calendar and a time box. The time is a plain field rather than a
+        pair of spinners - "1430" and done beats eight clicks on an arrow.
+    -->
+    <Style TargetType="{x:Type controls:DateTimeBox}">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="MinWidth" Value="150" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:DateTimeBox}">
+                    <Grid>
+                        <ToggleButton x:Name="PART_Toggle"
+                                      Cursor="Hand"
+                                      AutomationProperties.Name="{Binding Path=(AutomationProperties.Name), RelativeSource={RelativeSource TemplatedParent}}"
+                                      Focusable="True"
+                                      FocusVisualStyle="{x:Null}"
+                                      IsChecked="{Binding IsOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Root"
+                                            Background="{Binding Background, RelativeSource={RelativeSource AncestorType={x:Type controls:DateTimeBox}}}"
+                                            CornerRadius="6"
+                                            Padding="10,0,8,0"
+                                            SnapsToDevicePixels="True">
+                                        <ContentPresenter VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Root"
+                                                    Property="Background"
+                                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Root"
+                                                    Property="Background"
+                                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{TemplateBinding DisplayText}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{TemplateBinding Foreground}" />
+
+                                <Path Grid.Column="1"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Data="M 0.5 0.5 H 11.5 V 11.5 H 0.5 Z M 0.5 3.5 H 11.5"
+                                      Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                                      StrokeThickness="1.1" />
+                            </Grid>
+                        </ToggleButton>
+
+                        <Popup x:Name="PART_Popup"
+                               PlacementTarget="{Binding ElementName=PART_Toggle}"
+                               Placement="Bottom"
+                               VerticalOffset="6"
+                               StaysOpen="False"
+                               AllowsTransparency="True"
+                               PopupAnimation="Fade"
+                               IsOpen="{Binding IsOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                            <Border Style="{DynamicResource FlyoutStyle}" Padding="10">
+                                <StackPanel>
+                                    <Calendar x:Name="PART_Calendar"
+                                              Style="{StaticResource AppCalendarStyle}"
+                                              AutomationProperties.Name="Choose a day" />
+
+                                    <Border Height="1"
+                                            Margin="0,8"
+                                            Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0"
+                                                   Grid.Column="0"
+                                                   Text="Time"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Margin="2,0,10,0"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                        <Border Grid.Row="0"
+                                                Grid.Column="1"
+                                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                                CornerRadius="6"
+                                                Width="66"
+                                                Height="30">
+                                            <TextBox x:Name="PART_Time"
+                                                     Style="{StaticResource TimeFieldStyle}"
+                                                     MaxLength="5"
+                                                     AutomationProperties.Name="Time of day"
+                                                     ToolTip="Type a time on a 12 hour clock, for example 2:30" />
+                                        </Border>
+
+                                        <!--
+                                            The half of the day, as a button that
+                                            flips rather than a list of two.
+                                        -->
+                                        <Button x:Name="PART_Meridiem"
+                                                Grid.Row="0"
+                                                Grid.Column="2"
+                                                Style="{DynamicResource ToolbarButtonStyle}"
+                                                Content="{Binding Meridiem, RelativeSource={RelativeSource TemplatedParent}}"
+                                                Height="30"
+                                                MinWidth="46"
+                                                Margin="6,0,0,0"
+                                                AutomationProperties.Name="Half of the day"
+                                                ToolTip="Click to switch between morning and afternoon" />
+
+                                        <Button x:Name="PART_Now"
+                                                Grid.Row="0"
+                                                Grid.Column="3"
+                                                Style="{DynamicResource ToolbarButtonStyle}"
+                                                Content="Now"
+                                                Height="30"
+                                                Margin="6,0,0,0"
+                                                HorizontalAlignment="Right"
+                                                AutomationProperties.Name="Set to now"
+                                                ToolTip="Use the current date and time" />
+
+                                        <Button x:Name="PART_Done"
+                                                Grid.Row="1"
+                                                Grid.Column="0"
+                                                Grid.ColumnSpan="4"
+                                                Style="{DynamicResource PrimaryButtonStyle}"
+                                                Content="Done"
+                                                Height="30"
+                                                Margin="0,8,0,0"
+                                                HorizontalAlignment="Stretch"
+                                                AutomationProperties.Name="Done"
+                                                ToolTip="Close the picker" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="PART_Toggle" Property="Background"
+                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

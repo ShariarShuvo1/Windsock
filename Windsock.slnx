@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Windsock.App/Windsock.App.csproj" />
+    <Project Path="src/Windsock.Core/Windsock.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Windsock.Core.Tests/Windsock.Core.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,277 @@
+name: release
+
+# Cut a release by pushing a tag: git tag v0.2.0 && git push origin v0.2.0
+#
+# What comes out, and why none of it is interchangeable:
+#
+#   Windsock-win-Setup.exe      the full edition, installs and updates itself
+#   Windsock-win-Portable.zip   the same full edition, unzip and run, no updates
+#   Windsock-win.msi            the same full edition again, through a wizard,
+#                               and the only one that can install for all users
+#                               (vpk pack emits all three of the above in one step)
+#   Windsock-store-portable.zip the Store edition, for anyone who wants it
+#                               from here rather than from the Store
+#   SHA256SUMS.txt              so a download can be checked
+#   the update feed             the files the installed copy checks against
+#
+# And, as a workflow artifact rather than a download, Windsock-store.msix -
+# the Microsoft Store package, uploaded to Partner Center by hand because
+# Partner Center is not something to automate blindly. It is kept off the
+# release page deliberately: unsigned until Microsoft signs it, so nobody
+# could install it from here anyway.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, without the leading v"
+        required: true
+
+permissions:
+  # Needed to create the release and attach files to it.
+  contents: write
+  # The two below are what build provenance costs: an OIDC token to prove to
+  # Sigstore which workflow is asking, and permission to record the result.
+  # Nothing else, and nothing that can touch the repository.
+  id-token: write
+  attestations: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          # Velopack builds a delta against the previous release, so it wants
+          # the history rather than a shallow copy of one commit.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          $version = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "${{ github.event.inputs.version }}"
+          } else {
+            "${{ github.ref_name }}" -replace '^v', ''
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+          Write-Output "Building $version"
+
+      # The gate. A release that fails its own tests is not a release.
+      - name: Test both editions
+        run: |
+          dotnet test Windsock.slnx --configuration Release
+          dotnet test Windsock.slnx --configuration Release -p:StoreBuild=true
+
+      - name: Install the packaging tool
+        run: dotnet tool install --global vpk
+
+      # ------------------------------------------------ the full edition
+      - name: Publish full
+        run: >
+          dotnet publish src/Windsock.App/Windsock.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:DebugType=none
+          -p:PublishDocumentationFiles=false
+          -p:PublishReferencesDocumentationFiles=false
+          --output publish/full
+
+      - name: Pack the installer
+        run: >
+          vpk pack
+          --packId Windsock
+          --packVersion ${{ steps.version.outputs.value }}
+          --packDir publish/full
+          --mainExe Windsock.exe
+          --packAuthors "Shariar Shuvo"
+          --packTitle Windsock
+          --icon src/Windsock.App/Assets/Windsock.ico
+          --shortcuts Desktop,StartMenuRoot
+          --splashImage packaging/installer/splash.png
+          --splashProgressColor "#2DC1FC"
+          --msi true
+          --instLocation Either
+          --msiBanner packaging/installer/logo.bmp
+          --msiLogo packaging/installer/banner.bmp
+          --instWelcome packaging/installer/welcome.md
+          --instLicense packaging/installer/license.md
+          --instReadme packaging/installer/readme.md
+          --instConclusion packaging/installer/conclusion.md
+          --outputDir release
+
+      # No portable step for the full edition: `vpk pack` above already emits
+      # Windsock-win-Portable.zip beside the installer. Measured in a local dry
+      # run - adding one produced a second, identically sized copy under a
+      # different name.
+      #
+      # It cannot update itself, because Velopack needs the installed layout,
+      # and the app already knows: UpdateService reports Unsupported for a copy
+      # it did not install and offers nothing.
+
+      # ----------------------------------------------- the Store edition
+      - name: Publish store
+        run: >
+          dotnet publish src/Windsock.App/Windsock.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:StoreBuild=true
+          -p:DebugType=none
+          -p:PublishDocumentationFiles=false
+          -p:PublishReferencesDocumentationFiles=false
+          --output publish/store
+
+      - name: Zip the store edition
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish/store/* `
+            -DestinationPath release/Windsock-store-portable.zip -CompressionLevel Optimal
+
+      - name: Stage the package manifest
+        shell: pwsh
+        run: |
+          # The manifest and its tiles sit beside the exe at the package root.
+          Copy-Item packaging/msix/AppxManifest.xml publish/store/ -Force
+          Copy-Item packaging/msix/Images publish/store/ -Recurse -Force
+
+          # Four parts, fourth always zero - the Store reserves the revision
+          # field and rejects a package that fills it in.
+          $version = "${{ steps.version.outputs.value }}"
+          $parts = $version.Split('.')
+          while ($parts.Count -lt 3) { $parts += '0' }
+          $quad = "{0}.{1}.{2}.0" -f $parts[0], $parts[1], $parts[2]
+
+          $manifest = "publish/store/AppxManifest.xml"
+          $xml = Get-Content $manifest -Raw
+          $xml = $xml -replace 'Version="\d+\.\d+\.\d+\.\d+"', "Version=`"$quad`""
+          Set-Content $manifest $xml -Encoding utf8
+          Write-Output "Package version set to $quad"
+
+      - name: Pack the MSIX
+        shell: pwsh
+        run: |
+          # makeappx ships with the Windows SDK, which the runner already has.
+          # Newest SDK wins; the tool is stable across versions.
+          # Both Program Files roots. The SDK is usually under (x86), but not
+          # always - the development machine has only the 64-bit root, which is
+          # how a single-path lookup was found to be fragile.
+          $roots = @(
+            "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
+            "$env:ProgramFiles\Windows Kits\10\bin"
+          )
+          $makeappx = $roots |
+            Where-Object { Test-Path $_ } |
+            ForEach-Object { Get-ChildItem $_ -Directory -ErrorAction SilentlyContinue } |
+            Where-Object { $_.Name -match '^10\.' } |
+            Sort-Object Name -Descending |
+            ForEach-Object { Join-Path $_.FullName "x64\makeappx.exe" } |
+            Where-Object { Test-Path $_ } |
+            Select-Object -First 1
+
+          if (-not $makeappx) { throw "makeappx.exe not found under: $($roots -join ' ; ')" }
+          Write-Output "Using $makeappx"
+
+          # Not into release/ - that folder becomes the public download list,
+          # and an UNSIGNED msix cannot be installed by an ordinary user. It
+          # would be a support question, not a download.
+          New-Item -ItemType Directory package -Force | Out-Null
+          & $makeappx pack /d publish/store /p package/Windsock-store.msix /o
+          if ($LASTEXITCODE -ne 0) { throw "makeappx failed with $LASTEXITCODE" }
+
+          Get-Item package/Windsock-store.msix | Select-Object Name, Length
+
+      - name: Keep the MSIX for Partner Center
+        uses: actions/upload-artifact@v4
+        with:
+          # A workflow artifact rather than a release asset: only the publisher
+          # needs it, and it goes to Partner Center rather than to users.
+          name: Windsock-store-msix
+          path: package/Windsock-store.msix
+          if-no-files-found: error
+
+      - name: Write the checksums
+        shell: pwsh
+        run: |
+          # Listed before anything is written, so the file never tries to
+          # contain a hash of itself.
+          $files = Get-ChildItem release -File
+          $lines = $files | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          }
+          $lines | Set-Content release/SHA256SUMS.txt -Encoding ascii
+          Write-Output "Hashed $($files.Count) file(s)"
+          Get-Content release/SHA256SUMS.txt
+
+      - name: Attest the builds
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/Windsock-win-Setup.exe
+            release/Windsock-win-Portable.zip
+            release/Windsock-win.msi
+            release/Windsock-store-portable.zip
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          draft: true
+          generate_release_notes: true
+          name: Windsock ${{ steps.version.outputs.value }}
+          body: |
+            ## Which download
+
+            | File | What it is |
+            | --- | --- |
+            | **Windsock-win-Setup.exe** | Start here. The full edition, installed for you alone with no administrator prompt, updating itself from this page afterwards. Includes the process table, the network map and processor temperature. |
+            | **Windsock-win.msi** | The same full edition through a wizard, and the only download that can install for everyone on the machine. Installing for everyone needs an administrator. Updates itself either way. |
+            | **Windsock-win-Portable.zip** | The same full edition without an installer. Unzip and run. Does not update itself. |
+            | **Windsock-store-portable.zip** | The Microsoft Store edition, without the process table or processor temperature. Unzip and run. Does not update itself. |
+
+            The installer and the MSI put the same application in the same
+            place. Take the MSI if you want to read the licence first, install
+            for every account on the machine, or deploy it across an
+            organisation. Otherwise take the installer.
+
+            Everything else attached below is the update feed and the checksums.
+            You do not need to download those.
+
+            Windows will warn that the publisher is unrecognised. Windsock is
+            not code signed: a certificate costs money this project does not
+            take. The Microsoft Store copy is signed by Microsoft if you would
+            rather have that.
+
+            ## Checking what you downloaded
+
+            `SHA256SUMS.txt` lists every file above, so you can check one
+            arrived intact:
+
+            ```powershell
+            Get-FileHash Windsock-win-Setup.exe -Algorithm SHA256
+            ```
+
+            Every release also carries a build provenance attestation, signed
+            by GitHub, tying the binary to the workflow run and the commit it
+            was built from. With the [GitHub CLI](https://cli.github.com):
+
+            ```
+            gh attestation verify Windsock-win-Setup.exe --repo ShariarShuvo1/Windsock
+            ```
+
+            That check does not depend on this page being honest, which is the
+            point of it.

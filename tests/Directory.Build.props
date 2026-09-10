@@ -1,0 +1,20 @@
+<Project>
+
+  <!-- Layer on top of the repository-wide settings rather than replacing them:
+       MSBuild stops at the nearest Directory.Build.props, so the parent has to
+       be imported explicitly. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove($(MSBuildThisFile), $(MSBuildThisFileDirectory)..))" />
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Test-only relaxations">
+    <!-- CA1707: Method_Scenario_Expectation naming is the xUnit convention.
+         IDE0005: needs a documentation file, which test assemblies do not emit. -->
+    <NoWarn>$(NoWarn);CA1707;IDE0005</NoWarn>
+  </PropertyGroup>
+
+</Project>

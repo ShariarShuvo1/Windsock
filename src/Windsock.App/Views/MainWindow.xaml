@@ -1,0 +1,113 @@
+<Window x:Class="Windsock.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:Windsock.App.Controls"
+        mc:Ignorable="d"
+        Title="Windsock"
+        Width="900"
+        Height="780"
+        MinWidth="380"
+        MinHeight="470"
+        Background="{DynamicResource WindowGroundBrush}"
+        Cursor="Arrow"
+        WindowStartupLocation="CenterScreen">
+
+    <!--
+        The cursor is stated on the window because nothing else states it. A
+        control that wants a hand sets one and, being the innermost thing under
+        the pointer, wins; but where nothing sets a cursor at all the framework
+        leaves the last one alone, so a hand picked up over a tile or a button
+        stayed a hand across the whole page. This is the floor it falls back to.
+    -->
+
+    <!--
+        Sections stack top-down with the window ground showing between them,
+        dividing the window exactly between them.
+
+        The window itself does not scroll. It used to: the whole page was in a
+        scroller, so reaching the bottom of a table scrolled the meter and the
+        tabs off the top of the screen along with it. A panel that needs more
+        room than it has scrolls inside its own body instead, which leaves the
+        chart and the tabs where they were put.
+    -->
+    <Grid Margin="14">
+            <Grid.RowDefinitions>
+                <!--
+                    Collapsing the overview has to give its height back, or the
+                    section below would stay pinned under an empty gap the size
+                    of the card that is no longer there.
+
+                    Sized from the code behind rather than by a trigger on the
+                    state: the handle between the two writes a height straight
+                    onto these rows, and a value written straight on outranks
+                    anything a style says for the rest of the window's life.
+                    Collapse after a drag would then be ignored by the very rows
+                    that had been dragged.
+
+                    The overview opens at exactly the height its contents need
+                    and stays there: a share of the window would have it growing
+                    with every window that grows, and the panel below is the half
+                    with a list in it - the half that can actually use the room.
+                    Dragging the handle is how it gets more, and the same figure
+                    is the floor that drag stops at.
+                -->
+                <RowDefinition x:Name="OverviewRow" Height="230" MinHeight="230" />
+
+                <RowDefinition Height="Auto" />
+
+                <!-- Everything that is left, which is where spare height is
+                     worth the most: the overview shows a fixed amount of
+                     information, and the panel below is a list. -->
+                <RowDefinition x:Name="PanelRow" Height="*" MinHeight="150" />
+            </Grid.RowDefinitions>
+
+            <ContentControl x:Name="OverviewHost" Grid.Row="0" />
+
+            <!--
+                Drag to decide how much of the window the overview gets.
+
+                Hidden rather than collapsed once the overview is shut: hidden
+                keeps the row, and that row is the gap between the card and the
+                tabs. Collapsed took the gap away with the grip and left the two
+                touching.
+            -->
+            <GridSplitter Grid.Row="1"
+                          Height="14"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Center"
+                          Background="Transparent"
+                          ResizeBehavior="PreviousAndNext"
+                          ResizeDirection="Rows"
+                          AutomationProperties.Name="Resize the overview"
+                          ToolTip="Drag to give the overview more or less room">
+                <GridSplitter.Style>
+                    <Style TargetType="GridSplitter">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Content.DataContext.IsExpanded, ElementName=OverviewHost}"
+                                         Value="False">
+                                <Setter Property="Visibility" Value="Hidden" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </GridSplitter.Style>
+                <GridSplitter.Template>
+                    <ControlTemplate TargetType="GridSplitter">
+                        <Border Background="Transparent" Cursor="SizeNS">
+                            <Border Width="46"
+                                    Height="3"
+                                    CornerRadius="2"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+                        </Border>
+                    </ControlTemplate>
+                </GridSplitter.Template>
+            </GridSplitter>
+
+            <ContentControl x:Name="WorkspaceHost" Grid.Row="2" />
+    </Grid>
+
+</Window>

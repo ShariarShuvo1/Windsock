@@ -1,0 +1,756 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+                    xmlns:controls="clr-namespace:Windsock.App.Controls"
+                    xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf">
+
+    <!--
+        The meter itself, and the controls the Taskbar tab configures it with.
+
+        The meter's template is defined once and used three times: by the window
+        that sits in the taskbar, and by the two swatches beside its settings
+        that show it against a dark and a light bar. A preview drawn by the same
+        code as the thing it previews cannot drift away from it.
+    -->
+
+    <!--
+        One reading: what it is, the figure, and its unit, kept together as one
+        group against the right edge of its slot.
+
+        Together is the point. An earlier version spread the label and the figure
+        to opposite ends of the slot so that figures of different lengths would
+        line up in a column - which they did, with a hand's width of empty bar
+        between the arrow and the number it belonged to. Reading a pair means
+        seeing them as a pair.
+    -->
+    <DataTemplate x:Key="MeterSlotTemplate" DataType="{x:Type vm:MeterSlotViewModel}">
+        <!--
+            Every part reads from the cell rather than from the meter: two cells
+            on one meter may be different sizes, weights and colours, because
+            each answers its own question - and each sits at whichever end of
+            its place it was told to.
+        -->
+        <controls:SlotRow LeftCount="{Binding PartsOnTheLeft}"
+                          VerticalAlignment="Center"
+                          Margin="0,0,8,0">
+            <!--
+                A picture of the part of the machine, or the short name for it.
+                Both are the mark, so both take the mark colour and the mark
+                size; a mark carrying weight is filled rather than bolder,
+                because a picture has no bold. One place in the row holds both,
+                so the row has three parts however the mark is drawn.
+            -->
+            <Grid Margin="0,0,4,0" VerticalAlignment="Center">
+            <fluent:SymbolIcon Symbol="{Binding Mark, Converter={StaticResource MarkToSymbol}}"
+                               IconVariant="{Binding Weight, Converter={StaticResource WeightToVariant}}"
+                               Foreground="{Binding LabelInk}"
+                               FontSize="{Binding SupportSize}"
+                               VerticalAlignment="Center">
+                <fluent:SymbolIcon.Style>
+                    <Style TargetType="fluent:SymbolIcon">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding MarkIsIcon}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </fluent:SymbolIcon.Style>
+            </fluent:SymbolIcon>
+
+            <TextBlock Text="{Binding Label}"
+                       Foreground="{Binding LabelInk}"
+                       FontSize="{Binding SupportSize}"
+                       FontWeight="{Binding Weight}"
+                       VerticalAlignment="Center">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility"
+                                Value="{Binding Label, Converter={StaticResource TextToVisibility}}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding MarkIsIcon}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            </Grid>
+
+            <TextBlock Text="{Binding Value}"
+                       Foreground="{Binding Figure}"
+                       FontSize="{Binding Size}"
+                       FontWeight="{Binding Weight}"
+                       VerticalAlignment="Center" />
+
+            <TextBlock Text="{Binding Unit}"
+                       Foreground="{Binding Support}"
+                       Visibility="{Binding Unit, Converter={StaticResource TextToVisibility}}"
+                       FontSize="{Binding SupportSize}"
+                       VerticalAlignment="Center"
+                       Margin="3,0,0,0" />
+        </controls:SlotRow>
+    </DataTemplate>
+
+    <!--
+        The whole meter: as many rows and columns of readings as the reader has
+        asked for. A uniform grid, so every slot is the same size and the
+        columns line up down the bar.
+    -->
+    <DataTemplate x:Key="MeterTemplate" DataType="{x:Type vm:TaskbarMeterViewModel}">
+        <!--
+            Pulled back by the room each reading carries on its right, so the
+            last column does not leave a strip of empty bar after it. Every
+            column keeps its gap; only the one at the end has nothing to be
+            apart from.
+        -->
+        <ItemsControl ItemsSource="{Binding Slots}"
+                      ItemTemplate="{StaticResource MeterSlotTemplate}"
+                      FontFamily="Segoe UI"
+                      VerticalAlignment="Stretch"
+                      Margin="0,0,-8,0"
+                      Focusable="False">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="{Binding Rows}" Columns="{Binding Columns}" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+        </ItemsControl>
+    </DataTemplate>
+
+    <!--
+        A switch, for the settings that are simply on or off.
+
+        WPF has no switch of its own, and a check box is the wrong shape for
+        this: a tick says "this is included in a set", a switch says "this is
+        running". Everything the Taskbar tab turns on takes effect the moment it
+        is turned on, which is the second of those.
+    -->
+    <Style x:Key="ToggleSwitchStyle" TargetType="ToggleButton">
+        <Setter Property="Focusable" Value="True" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Width" Value="42" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Background="Transparent" Width="42" Height="24">
+                        <!--
+                            The focus ring is drawn outside the track and only
+                            for the keyboard. An earlier version drew it as a
+                            thick accent rectangle that stayed on after a click
+                            and read as part of the control rather than as a
+                            focus mark.
+                        -->
+                        <Border x:Name="Focus"
+                                CornerRadius="13"
+                                BorderBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                                BorderThickness="1"
+                                Visibility="Collapsed" />
+
+                        <Border x:Name="Track"
+                                Width="38"
+                                Height="20"
+                                CornerRadius="10"
+                                Background="{DynamicResource ControlAltFillColorSecondaryBrush}"
+                                BorderBrush="{DynamicResource TextFillColorSecondaryBrush}"
+                                BorderThickness="1" />
+
+                        <Ellipse x:Name="Thumb"
+                                 Width="12"
+                                 Height="12"
+                                 Fill="{DynamicResource TextFillColorPrimaryBrush}"
+                                 HorizontalAlignment="Left"
+                                 VerticalAlignment="Center"
+                                 Margin="6,0,0,0" />
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                            <Setter TargetName="Thumb" Property="Margin" Value="0,0,6,0" />
+                            <!-- Against a filled track the thumb has to be the
+                                 window's own ground rather than a text colour,
+                                 or it disappears into the accent. -->
+                            <Setter TargetName="Thumb" Property="Fill" Value="{DynamicResource SolidBackgroundFillColorBaseBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Thumb" Property="Width" Value="14" />
+                            <Setter TargetName="Thumb" Property="Height" Value="14" />
+                            <Setter TargetName="Thumb" Property="Margin" Value="5,0,0,0" />
+                        </Trigger>
+
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsChecked" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Thumb" Property="Margin" Value="0,0,5,0" />
+                        </MultiTrigger>
+
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Focus" Property="Visibility" Value="Visible" />
+                        </Trigger>
+
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The name and explanation on the left of a settings row. -->
+    <Style x:Key="SettingNameStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="SettingNoteStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Margin" Value="0,3,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!--
+        A heading between groups of settings. Not a card of its own: it labels
+        the cards under it, and giving it a surface would make it look like one
+        more setting rather than the name of the group.
+    -->
+    <Style x:Key="SettingGroupStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="3,14,0,7" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+    </Style>
+
+    <!--
+        One cell of the slot editor: a picker for what that position on the bar
+        shows, sitting where it will sit on the bar.
+    -->
+    <Style x:Key="SlotCellStyle" TargetType="Border">
+        <Setter Property="MinWidth" Value="150" />
+        <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorTertiaryBrush}" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="8" />
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--
+        The cell a new row or column would arrive in, standing in the grid
+        before it exists. Shaped and placed exactly like a slot, and outlined
+        rather than filled, so it reads as the space about to be filled rather
+        than as a slot that has lost its contents.
+
+        The whole cell is the button. A pair of small steppers in a box beside
+        the grid says "here is a setting"; a cell you press where the cell will
+        appear says what pressing it does.
+    -->
+    <Style x:Key="SlotAddStyle" TargetType="Button">
+        <Setter Property="MinWidth" Value="150" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Focusable" Value="True" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Face"
+                            CornerRadius="6"
+                            Background="Transparent"
+                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="Background"
+                                    Value="{DynamicResource SolidBackgroundFillColorTertiaryBrush}" />
+                            <Setter TargetName="Face"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="Foreground"
+                                    Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+
+                        <!--
+                            At the limit it stays where it is, greyed: the space
+                            disappearing as the last row is added would move the
+                            grid under the hand that was reaching for it.
+                        -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.3" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The plus in the middle of that cell, and the word under it. -->
+    <Style x:Key="SlotAddSignStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="19" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+    </Style>
+
+    <!--
+        Taking a whole row or column away. It sits under the plus, in the cell
+        that is about that row or column, and says what it does: a bare cross
+        there reads as "close this", which is not a thing a column can be.
+    -->
+    <Style x:Key="SlotTakeStyle" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Margin" Value="0,6,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Face"
+                            CornerRadius="4"
+                            Padding="6,2"
+                            Background="Transparent"
+                            SnapsToDevicePixels="True">
+                        <TextBlock x:Name="Words"
+                                   Text="{TemplateBinding Content}"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            <Setter TargetName="Words"
+                                    Property="Foreground"
+                                    Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SlotAddCaptionStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,2,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+
+        <!--
+            The line is kept whether or not there are words on it. Only the
+            first cell of a strip is captioned, and an empty line taking no room
+            would leave its plus sitting higher than the others.
+        -->
+        <Setter Property="MinHeight" Value="13" />
+        <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+    </Style>
+
+    <!--
+        One part of a cell in the editor: the mark, the figure or the unit.
+
+        Each is a button of its own, because each is configured on its own: the
+        reader points at the thing they want to change rather than hunting for
+        its name in a list of settings. Drawn as the meter draws it - same
+        colour, same weight - so the cell is a picture of what the taskbar will
+        show rather than a description of it.
+    -->
+    <Style x:Key="CellPartStyle" TargetType="ToggleButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Face"
+                            CornerRadius="4"
+                            Padding="3,2"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="1"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            <Setter TargetName="Face"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A part that is switched off: still there, still pressable, greyed. -->
+    <Style x:Key="CellPartOffStyle" TargetType="TextBlock">
+        <Setter Property="Opacity" Value="0.35" />
+        <Setter Property="TextDecorations" Value="Strikethrough" />
+    </Style>
+
+    <!-- One colour a part may be painted. -->
+    <Style x:Key="InkStyle" TargetType="Button">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Margin" Value="0,0,5,5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Face"
+                            CornerRadius="5"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                            Background="{TemplateBinding Background}"
+                            SnapsToDevicePixels="True" />
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The heading inside a part's popover. -->
+    <!--
+        The two colours that are not a colour: the taskbar own text colour, and
+        whichever colour the reading already has elsewhere in Windsock. They are
+        written out rather than shown as swatches, because neither is one colour
+        - both are a rule about what colour to use, and a rule reads as words.
+    -->
+    <Style x:Key="PartChoiceStyle" TargetType="Button">
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Padding" Value="9,0" />
+        <Setter Property="Margin" Value="0,0,5,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Face"
+                            CornerRadius="5"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        The same as a choice, but one that stays down: what is under it is
+        shown while it is, which is what tells a reader the sheet has more in
+        it than the row of colours above.
+    -->
+    <Style x:Key="PartToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Padding" Value="9,0" />
+        <Setter Property="Margin" Value="0,0,5,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Face"
+                            CornerRadius="5"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="Background"
+                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                            <Setter TargetName="Face"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Putting one part of one cell back the way it started. Quiet: it sits in
+        the corner of every sheet, and a reader looking at three of them at once
+        should be reading the choices rather than the ways out of them.
+    -->
+    <Style x:Key="PartResetStyle" TargetType="Button">
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Padding" Value="7,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Face"
+                            CornerRadius="4"
+                            Background="Transparent"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="Background"
+                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                        </Trigger>
+
+                        <!--
+                            Gone rather than greyed while there is nothing to
+                            put back: a way out of a choice nobody made is one
+                            more thing to read in a sheet already full of them.
+                        -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        A slider in the app's own flat drawing rather than the one WPF ships,
+        which is a decade older than everything around it. Used for mixing a
+        colour by hand and for setting how wide the meter is; what it counts is
+        set where it is used, since those are not the same numbers.
+    -->
+    <Style x:Key="FlatSliderStyle" TargetType="Slider">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="IsMoveToPointEnabled" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid>
+                        <Border Height="4"
+                                CornerRadius="2"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource ControlFillColorSecondaryBrush}" />
+
+                        <Track x:Name="PART_Track">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge"
+                                              Focusable="False"
+                                              Opacity="0">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Border Background="Transparent" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseRepeatButton>
+
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge"
+                                              Focusable="False"
+                                              Opacity="0">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Border Background="Transparent" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseRepeatButton>
+
+                            <Track.Thumb>
+                                <Thumb Width="14" Height="14">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Ellipse Fill="{DynamicResource TextFillColorPrimaryBrush}"
+                                                     Stroke="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                     StrokeThickness="1" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        The letter beside a colour slider. The same values the cell mixer sets
+        inline, named once so the two mixers cannot drift apart.
+    -->
+    <Style x:Key="MixLabelStyle" TargetType="TextBlock">
+        <Setter Property="Width" Value="14" />
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+    </Style>
+
+    <Style x:Key="PartHeadStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,10,0,5" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+    </Style>
+
+    <!--
+        Emptying a slot: a cross in the corner of the cell it empties, which is
+        where a thing is dismissed from. It says the same as choosing "Nothing"
+        from that slot's own list, and it is gone while the slot is already
+        blank - a control that would do nothing is worse than no control.
+    -->
+    <Style x:Key="SlotDropStyle" TargetType="Button">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Face"
+                            CornerRadius="4"
+                            Background="Transparent"
+                            SnapsToDevicePixels="True">
+                        <Path x:Name="Cross"
+                              Data="M 0 0 L 7 7 M 7 0 L 0 7"
+                              Stroke="{DynamicResource TextFillColorTertiaryBrush}"
+                              StrokeThickness="1.3"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face"
+                                    Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            <Setter TargetName="Cross"
+                                    Property="Stroke"
+                                    Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SlotAddressStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="2,0,0,5" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+    </Style>
+
+    <!-- A stepper for the row and column counts: minus, the number, plus. -->
+    <Style x:Key="StepperButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="26" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Focusable" Value="True" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Face"
+                            CornerRadius="5"
+                            Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Face" Property="Background" Value="{DynamicResource RowHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.35" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

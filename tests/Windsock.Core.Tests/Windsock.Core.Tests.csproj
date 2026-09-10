@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Windsock.Core.Tests</RootNamespace>
+    <!-- xUnit v3 runs on Microsoft.Testing.Platform; test applications are
+         executables under MTP. The `dotnet test` opt-in lives in global.json. -->
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Windsock.Core\Windsock.Core.csproj" />
+  </ItemGroup>
+
+</Project>

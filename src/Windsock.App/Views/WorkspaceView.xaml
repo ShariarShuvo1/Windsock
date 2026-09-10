@@ -1,0 +1,103 @@
+<UserControl x:Class="Windsock.App.Views.WorkspaceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             mc:Ignorable="d"
+             d:DesignWidth="880"
+             d:DesignHeight="240">
+
+    <!--
+        The lower half of the window: one tab per panel, each panel filling the
+        card below the strip.
+
+        System comes first and is therefore the one that opens. The machine as a
+        whole is the wider question - what it is, how hard it is working - and
+        the tabs after it narrow: which process, over what period, under what
+        settings.
+
+        The panels are handed in rather than declared here: they own view models
+        with their own lifetimes, which is the container's business, not the
+        markup's.
+    -->
+    <!--
+        No card behind the panels. A table drawn on a card is a light surface on
+        a lighter one, and every row stripe, heading and figure in it loses
+        contrast to the surface it is standing on; on the window's own ground the
+        same table reads the way it does in a process window. Only the band
+        holding the tabs keeps a surface of its own, because a row of buttons
+        does need something to sit on.
+    -->
+    <controls:TabStrip x:Name="Tabs"
+                       Style="{StaticResource TabStripStyle}"
+                       Padding="0,14,0,0"
+                       AutomationProperties.Name="Panels">
+        <!--
+            An icon each, because a tab strip is what the eye comes back to and
+            four words in the same weight give it nothing to aim at. Each one
+            says what the panel is about rather than decorating it: the machine,
+            a list of programs, time gone by, and the settings.
+        -->
+        <TabItem x:Name="SystemTab" AutomationProperties.Name="System">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <fluent:SymbolIcon Symbol="Desktop"
+                                       FontSize="15"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                    <TextBlock Text="System" VerticalAlignment="Center" />
+                </StackPanel>
+            </TabItem.Header>
+        </TabItem>
+
+        <TabItem x:Name="ProcessTab" AutomationProperties.Name="Process">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <fluent:SymbolIcon Symbol="AppsList"
+                                       FontSize="15"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                    <TextBlock Text="Process" VerticalAlignment="Center" />
+                </StackPanel>
+            </TabItem.Header>
+        </TabItem>
+
+        <TabItem x:Name="HistoryTab" AutomationProperties.Name="History">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <fluent:SymbolIcon Symbol="History"
+                                       FontSize="15"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                    <TextBlock Text="History" VerticalAlignment="Center" />
+                </StackPanel>
+            </TabItem.Header>
+        </TabItem>
+
+        <TabItem x:Name="TaskbarTab" AutomationProperties.Name="Taskbar">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <fluent:SymbolIcon Symbol="PanelBottom"
+                                       FontSize="15"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                    <TextBlock Text="Taskbar" VerticalAlignment="Center" />
+                </StackPanel>
+            </TabItem.Header>
+        </TabItem>
+
+        <TabItem x:Name="SettingsTab" AutomationProperties.Name="Settings">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <fluent:SymbolIcon Symbol="Settings"
+                                       FontSize="15"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                    <TextBlock Text="Settings" VerticalAlignment="Center" />
+                </StackPanel>
+            </TabItem.Header>
+        </TabItem>
+    </controls:TabStrip>
+</UserControl>

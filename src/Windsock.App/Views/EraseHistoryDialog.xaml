@@ -1,0 +1,85 @@
+﻿<Window x:Class="Windsock.App.Views.EraseHistoryDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+        mc:Ignorable="d"
+        Title="Delete history"
+        Width="450"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+
+    <!--
+        Asked before, not undone after. There is no copy of the history kept
+        anywhere else, so this is the one thing in Windsock that cannot be taken
+        back - which is why the amount about to go is spelled out and why the
+        button that does it says what it does rather than "OK".
+    -->
+    <Grid Margin="22,20,22,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <fluent:SymbolIcon Symbol="Warning"
+                               FontSize="18"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"
+                               Foreground="{DynamicResource HotBrush}" />
+
+            <TextBlock Text="Delete the whole history?"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,0,0,18">
+            <TextBlock x:Name="Amount"
+                       FontSize="13"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,8"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+            <TextBlock Text="Every minute Windsock has recorded goes, along with the record of when it was watching. There is no copy kept anywhere else and this cannot be undone."
+                       FontSize="12.5"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+            <TextBlock x:Name="Keeping"
+                       FontSize="12.5"
+                       Margin="0,8,0,0"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       Text="Export it from the History tab first if you want to keep a copy." />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <!--
+                Keeping it is the safe answer, so it is the one already under
+                the finger and the one Escape gives.
+            -->
+            <Button Content="Keep it"
+                    IsCancel="True"
+                    IsDefault="True"
+                    MinWidth="104"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Click="OnKeep"
+                    AutomationProperties.Name="Keep the history" />
+
+            <Button Content="Delete everything"
+                    MinWidth="140"
+                    Height="32"
+                    Click="OnDelete"
+                    AutomationProperties.Name="Delete the whole history" />
+        </StackPanel>
+    </Grid>
+</Window>

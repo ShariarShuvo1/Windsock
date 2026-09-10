@@ -1,0 +1,325 @@
+<UserControl x:Class="Windsock.App.Views.ThroughputOverviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ThroughputOverviewViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="320">
+
+    <Border>
+        <Border.Style>
+            <Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
+                <!-- Stretches to its row while open; collapsed, it takes only
+                     the height its header needs. -->
+                <Setter Property="VerticalAlignment" Value="Stretch" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsExpanded}" Value="False">
+                        <Setter Property="VerticalAlignment" Value="Top" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!--
+                Card header. A row while the card is wide enough for the title
+                and both pickers side by side, otherwise the pickers drop to
+                their own line rather than overlapping the title.
+            -->
+            <DockPanel Grid.Row="0" LastChildFill="True">
+                <!--
+                    Docked outside the wrapping row on purpose: when the pickers
+                    drop to a second line, this stays on the first, where a
+                    section control belongs.
+                -->
+                <ToggleButton DockPanel.Dock="Right"
+                              VerticalAlignment="Top"
+                              Margin="8,0,0,0"
+                              Style="{StaticResource SectionCollapseStyle}"
+                              IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                              AutomationProperties.Name="Collapse section"
+                              ToolTip="Collapse or expand this section" />
+
+                <controls:AdaptiveRow Breakpoint="380" Spacing="10">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <fluent:SymbolIcon Symbol="Pulse"
+                                       FontSize="15"
+                                       Foreground="{DynamicResource AccentBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,7,0" />
+                    <TextBlock Text="LIVE THROUGHPUT"
+                               Style="{StaticResource CaptionTextStyle}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!--
+                    One slot, two occupants: the controls while the card is open
+                    and the rates while it is shut. They share a cell rather than
+                    sitting side by side because the row lays out two children,
+                    and because only one of them is ever wanted.
+                -->
+                <Grid>
+                <!--
+                    The two rates, small, for when the card is shut. Folding the
+                    section away should hide the detail, not the answer: a meter
+                    that stops saying how fast anything is going has stopped
+                    being a meter. The controls take this place while the card is
+                    open, and these take it back when it closes.
+                -->
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Right"
+                            Visibility="{Binding IsExpanded, Converter={StaticResource InverseBooleanToVisibility}}">
+                    <fluent:SymbolIcon Symbol="ArrowDownload"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource DownloadBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0" />
+
+                    <TextBlock VerticalAlignment="Center" FontSize="13">
+                        <Run Text="{Binding DownloadValue, Mode=OneWay}"
+                             FontWeight="SemiBold"
+                             Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <Run Text="{Binding DownloadUnit, Mode=OneWay}"
+                             Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </TextBlock>
+
+                    <fluent:SymbolIcon Symbol="ArrowUpload"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource UploadBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="18,0,6,0" />
+
+                    <TextBlock VerticalAlignment="Center" FontSize="13">
+                        <Run Text="{Binding UploadValue, Mode=OneWay}"
+                             FontWeight="SemiBold"
+                             Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <Run Text="{Binding UploadUnit, Mode=OneWay}"
+                             Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <!-- Stacked: sits under the title, so align with it. -->
+                            <Setter Property="HorizontalAlignment" Value="Left" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRow, RelativeSource={RelativeSource AncestorType=controls:AdaptiveRow}}"
+                                             Value="True">
+                                    <Setter Property="HorizontalAlignment" Value="Right" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <controls:DurationBox Style="{StaticResource DurationBoxStyle}"
+                                          Margin="0,0,8,0"
+                                          PlaceholderText="Live"
+                                          Value="{Binding SampleInterval, Mode=TwoWay}"
+                                          Minimum="{Binding MinimumSampleInterval}"
+                                          Maximum="{Binding MaximumSampleInterval}"
+                                          AutomationProperties.Name="Sample interval"
+                                          ToolTip="How often the counters are read. Leave empty for the live default. Changing this clears the chart history." />
+
+                    <controls:Picker Style="{StaticResource PickerStyle}"
+                              MinWidth="92"
+                              ItemsSource="{Binding Families}"
+                              ItemTemplate="{StaticResource OptionLabelTemplate}"
+                              SelectedValuePath="Family"
+                              SelectedValue="{Binding SelectedFamily, Mode=TwoWay}"
+                              AutomationProperties.Name="Unit family"
+                              ToolTip="Count in bytes or in bits. Also decides what Auto scales through." />
+
+                    <controls:Picker Style="{StaticResource PickerStyle}"
+                              MinWidth="96"
+                              Margin="8,0,0,0"
+                              ItemsSource="{Binding Scales}"
+                              ItemTemplate="{StaticResource OptionLabelTemplate}"
+                              SelectedValuePath="Scale"
+                              SelectedValue="{Binding SelectedScale, Mode=TwoWay}"
+                              AutomationProperties.Name="Unit scale"
+                              ToolTip="Auto picks the best magnitude, or pin one." />
+                </StackPanel>
+                </Grid>
+                </controls:AdaptiveRow>
+            </DockPanel>
+
+            <!--
+                Row while there is room, stacked below the breakpoint. The lead
+                column holds both readouts; the chart takes whatever is left.
+            -->
+            <controls:AdaptiveRow Grid.Row="1"
+                                  Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibility}}"
+                                  Breakpoint="600"
+                                  LeadWidth="228"
+                                  Spacing="26"
+                                  Margin="0,14,0,0">
+
+                <StackPanel VerticalAlignment="Center" Margin="-7,0,0,0">
+                    <ToggleButton Style="{StaticResource SeriesToggleStyle}"
+                                  IsChecked="{Binding IsDownloadVisible, Mode=TwoWay}"
+                                  Margin="0,0,0,2"
+                                  AutomationProperties.Name="Show download series"
+                                  ToolTip="Click to hide or show this series on the chart">
+                      <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,1">
+                            <fluent:SymbolIcon Symbol="ArrowDownload"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource DownloadBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,7,0" />
+                            <TextBlock Text="DOWNLOAD"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <!-- Fixed height so a size change never reflows the block. -->
+                        <StackPanel Orientation="Horizontal" Height="50">
+                            <TextBox Text="{Binding DownloadValue, Mode=OneWay}"
+                                     Style="{StaticResource ReadoutTextStyle}"
+                                     FontSize="{Binding DownloadFontSize}"
+                                     AutomationProperties.Name="Download rate"
+                                     VerticalAlignment="Bottom" />
+                            <TextBox Text="{Binding DownloadUnit, Mode=OneWay}"
+                                     Style="{StaticResource ReadoutUnitTextStyle}"
+                                     VerticalAlignment="Bottom" />
+                        </StackPanel>
+                      </StackPanel>
+                    </ToggleButton>
+
+                    <ToggleButton Style="{StaticResource SeriesToggleStyle}"
+                                  IsChecked="{Binding IsUploadVisible, Mode=TwoWay}"
+                                  AutomationProperties.Name="Show upload series"
+                                  ToolTip="Click to hide or show this series on the chart">
+                      <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,1">
+                            <fluent:SymbolIcon Symbol="ArrowUpload"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource UploadBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,7,0" />
+                            <TextBlock Text="UPLOAD"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Height="50">
+                            <TextBox Text="{Binding UploadValue, Mode=OneWay}"
+                                     Style="{StaticResource ReadoutTextStyle}"
+                                     FontSize="{Binding UploadFontSize}"
+                                     AutomationProperties.Name="Upload rate"
+                                     VerticalAlignment="Bottom" />
+                            <TextBox Text="{Binding UploadUnit, Mode=OneWay}"
+                                     Style="{StaticResource ReadoutUnitTextStyle}"
+                                     VerticalAlignment="Bottom" />
+                        </StackPanel>
+                      </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
+
+                <controls:DetachHost WindowTitle="Throughput"
+                                     Note="The chart is open in a window of its own.">
+                    <Grid MinHeight="156">
+                        <controls:ThroughputChart x:Name="Chart"
+                                                  DownloadSeries="{Binding DownloadSeries}"
+                                                  UploadSeries="{Binding UploadSeries}"
+                                                  Revision="{Binding SeriesRevision}"
+                                                  SampleIntervalSeconds="{Binding SampleIntervalSeconds}"
+                                                  MinimumVisibleSamples="20"
+                                                  ShowDownload="{Binding IsDownloadVisible}"
+                                                  ShowUpload="{Binding IsUploadVisible}"
+                                                  Family="{Binding SelectedFamily}"
+                                                  Scale="{Binding SelectedScale}"
+                                                  DownloadBrush="{DynamicResource DownloadBrush}"
+                                                  UploadBrush="{DynamicResource UploadBrush}"
+                                                  GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                  AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                  SurfaceBrush="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                                                  ToolTip="Scroll to zoom the time axis" />
+
+                        <Canvas x:Name="PopoverLayer" IsHitTestVisible="False">
+                            <Border x:Name="Popover"
+                                    Style="{StaticResource PopoverStyle}"
+                                    Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding HoverTimeLabel}"
+                                               Style="{StaticResource CaptionTextStyle}" />
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,7,0,0"
+                                                Visibility="{Binding IsDownloadVisible, Converter={StaticResource BooleanToVisibility}}">
+                                        <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                 Fill="{DynamicResource DownloadBrush}" Margin="0,0,7,0" />
+                                        <TextBlock Text="{Binding HoverDownload}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
+                                                Visibility="{Binding IsUploadVisible, Converter={StaticResource BooleanToVisibility}}">
+                                        <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                 Fill="{DynamicResource UploadBrush}" Margin="0,0,7,0" />
+                                        <TextBlock Text="{Binding HoverUpload}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    </StackPanel>
+
+                                    <!--
+                                        Who was moving it. Absent rather than empty
+                                        when Windsock cannot say - an unattributed point
+                                        should look like no answer, not like nobody.
+                                    -->
+                                    <StackPanel Margin="0,9,0,0"
+                                                Visibility="{Binding HasHoverShares, Converter={StaticResource BooleanToVisibility}}">
+                                        <TextBlock Text="TOP PROCESSES"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Margin="0,0,0,4" />
+
+                                        <ItemsControl ItemsSource="{Binding HoverShares}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,2,0,0" MinWidth="150">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{Binding Name}"
+                                                                   FontSize="11.5"
+                                                                   MaxWidth="130"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Rate}"
+                                                                   FontSize="11.5"
+                                                                   FontWeight="SemiBold"
+                                                                   Margin="12,0,0,0"
+                                                                   Typography.NumeralAlignment="Tabular"
+                                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Canvas>
+                    </Grid>
+                </controls:DetachHost>
+
+            </controls:AdaptiveRow>
+        </Grid>
+    </Border>
+</UserControl>

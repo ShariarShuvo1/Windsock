@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Windsock",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/Windsock.App/bin/Debug/net10.0-windows/Windsock.exe",
+      "cwd": "${workspaceFolder}/src/Windsock.App",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "Windsock (attach)",
+      "type": "coreclr",
+      "request": "attach"
+    }
+  ]
+}

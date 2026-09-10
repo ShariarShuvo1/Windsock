@@ -1,0 +1,355 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:Windsock.App.Controls">
+
+    <!--
+        The System tab. Four tiles that can be read across in a glance, and
+        under them one panel of everything the machine will say about whichever
+        tile is chosen.
+
+        Flat surfaces throughout - a tile is a colour and an edge, never a
+        gradient. The one colour each tile carries is its own hue, which is what
+        makes the row readable before any of the captions are.
+    -->
+
+    <!-- The figure on a tile. Sized by the view model as the value changes. -->
+    <Style x:Key="TileFigureStyle" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        <Setter Property="VerticalAlignment" Value="Bottom" />
+        <Setter Property="LineHeight" Value="38" />
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+    </Style>
+
+    <Style x:Key="TileUnitStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="VerticalAlignment" Value="Bottom" />
+        <Setter Property="Margin" Value="3,0,0,4" />
+    </Style>
+
+    <!-- The reading in a tile's corner: a temperature, where one can be had. -->
+    <Style x:Key="TileBadgeStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorTertiaryBrush}" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="Padding" Value="6,2" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="TileDetailStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Margin" Value="0,7,0,0" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!--
+        A tile. A radio button rather than a plain one, so choosing a tile is
+        the framework's idea of choosing rather than four buttons agreeing among
+        themselves - and so the four are one group to a screen reader and to the
+        arrow keys.
+
+        The whole tile lives in the template rather than in each tile's own
+        markup, and the one thing that differs between the four - their hue - is
+        handed in through Tag. Four copies of this laid out by hand would be four
+        places to keep in step.
+    -->
+    <Style x:Key="SystemTileStyle" TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="GroupName" Value="SystemParts" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Shell"
+                            Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="9"
+                            Padding="14,10,14,11"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="26" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- What this is, and how hot it is running. -->
+                            <Grid Grid.Row="0">
+                                <TextBlock Text="{Binding Caption}"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Left" />
+
+                                <Border x:Name="Badge"
+                                        Style="{StaticResource TileBadgeStyle}"
+                                        HorizontalAlignment="Right">
+                                    <TextBlock x:Name="BadgeText"
+                                               Text="{Binding Badge}"
+                                               FontSize="10.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </Border>
+                            </Grid>
+
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,4,0,0">
+                                <TextBlock Text="{Binding Value}"
+                                           FontSize="{Binding FontSize}"
+                                           Style="{StaticResource TileFigureStyle}" />
+
+                                <TextBlock Text="{Binding Unit}" Style="{StaticResource TileUnitStyle}" />
+                            </StackPanel>
+
+                            <!--
+                                Two minutes of the same figure. A tile says what
+                                is happening; the line says whether that is
+                                usual.
+                            -->
+                            <controls:Sparkline Grid.Row="2"
+                                                Margin="0,4,0,0"
+                                                Values="{Binding History}"
+                                                Revision="{Binding Revision}"
+                                                Ceiling="100"
+                                                Stroke="{TemplateBinding Tag}"
+                                                Fill="{DynamicResource MeterTrackBrush}" />
+
+                            <TextBlock Grid.Row="3"
+                                       Text="{Binding Detail}"
+                                       Style="{StaticResource TileDetailStyle}" />
+                        </Grid>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Badge}" Value="">
+                            <Setter TargetName="Badge" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+
+                        <!-- Warm enough to be worth the reader's eye. -->
+                        <DataTrigger Binding="{Binding IsHot}" Value="True">
+                            <Setter TargetName="BadgeText"
+                                    Property="Foreground"
+                                    Value="{DynamicResource HotBrush}" />
+                        </DataTrigger>
+
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Shell"
+                                    Property="Background"
+                                    Value="{DynamicResource SolidBackgroundFillColorSecondaryBrush}" />
+                        </Trigger>
+
+                        <!--
+                            The chosen tile is underlined in its own hue rather
+                            than in the accent, so the mark and the tile agree
+                            about which part of the machine this is.
+                        -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Shell"
+                                    Property="Background"
+                                    Value="{DynamicResource SolidBackgroundFillColorSecondaryBrush}" />
+                            <Setter TargetName="Shell" Property="BorderThickness" Value="1,1,1,2.5" />
+                            <Setter TargetName="Shell" Property="BorderBrush" Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                        </Trigger>
+
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Shell"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        A surface inside the detail panel. One step up from the card behind it,
+        which is enough to group a set of readings without drawing a box around
+        every one of them.
+    -->
+    <Style x:Key="DetailCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorBaseBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="14,12" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- A label above a figure, inside the detail panel. -->
+    <Style x:Key="DetailCaptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+        <Setter Property="Margin" Value="0,0,0,3" />
+    </Style>
+
+    <Style x:Key="DetailValueStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="DetailNoteStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+    </Style>
+
+    <!--
+        A meter with its name on the left and its reading on the right. The
+        name column is fixed so that a column of them lines up, and the reading
+        column is fixed so the bars all end in the same place.
+    -->
+    <DataTemplate x:Key="CoreMeterTemplate">
+        <Grid Margin="0,0,14,5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="22" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="34" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="{Binding Label}"
+                       FontSize="10.5"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+
+            <controls:MeterBar Grid.Column="1"
+                               Height="8"
+                               VerticalAlignment="Center"
+                               Fraction="{Binding Fraction}"
+                               Fill="{DynamicResource ProcessorBrush}"
+                               Track="{DynamicResource MeterTrackBrush}" />
+
+            <TextBlock Grid.Column="2"
+                       Text="{Binding Value}"
+                       FontSize="10.5"
+                       Margin="7,0,0,0"
+                       TextAlignment="Right"
+                       VerticalAlignment="Center"
+                       Typography.NumeralAlignment="Tabular"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Grid>
+    </DataTemplate>
+
+    <!--
+        The label column is as wide as the longest label in the list rather than
+        a fixed width, and every row shares that width so the bars still line
+        up. A fixed column either wastes half the card on short names or leaves
+        no room for the bar in a narrow window.
+    -->
+    <DataTemplate x:Key="EngineMeterTemplate">
+        <Grid Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" SharedSizeGroup="MeterLabel" />
+                <ColumnDefinition Width="*" MinWidth="30" />
+                <ColumnDefinition Width="Auto" SharedSizeGroup="MeterValue" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="{Binding Label}"
+                       FontSize="11.5"
+                       MaxWidth="170"
+                       Margin="0,0,10,0"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+            <controls:MeterBar Grid.Column="1"
+                               Height="8"
+                               VerticalAlignment="Center"
+                               Fraction="{Binding Fraction}"
+                               Fill="{DynamicResource GraphicsBrush}"
+                               Track="{DynamicResource MeterTrackBrush}" />
+
+            <TextBlock Grid.Column="2"
+                       Text="{Binding Value}"
+                       FontSize="11.5"
+                       MinWidth="32"
+                       Margin="8,0,0,0"
+                       TextAlignment="Right"
+                       VerticalAlignment="Center"
+                       Typography.NumeralAlignment="Tabular"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:Key="VolumeTemplate">
+        <Grid Margin="0,7,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" SharedSizeGroup="VolumeLabel" />
+                <ColumnDefinition Width="*" MinWidth="30" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0"
+                        MaxWidth="200"
+                        Margin="0,0,12,0"
+                        VerticalAlignment="Center">
+                <TextBlock Text="{Binding Label}"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                <TextBlock Text="{Binding Format}"
+                           FontSize="10.5"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            </StackPanel>
+
+            <controls:MeterBar Grid.Column="1"
+                               Height="9"
+                               Margin="0,0,12,0"
+                               VerticalAlignment="Center"
+                               Fraction="{Binding Fraction}"
+                               Fill="{DynamicResource StorageBrush}"
+                               Track="{DynamicResource MeterTrackBrush}" />
+
+            <TextBlock Grid.Column="2"
+                       Text="{Binding Free}"
+                       FontSize="11.5"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:Key="MemoryModuleTemplate">
+        <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" SharedSizeGroup="ModuleSlot" />
+                <ColumnDefinition Width="Auto" SharedSizeGroup="ModuleSize" />
+                <ColumnDefinition Width="Auto" SharedSizeGroup="ModuleSpeed" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="{Binding Slot}"
+                       FontSize="12"
+                       MaxWidth="220"
+                       Margin="0,0,16,0"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+            <TextBlock Grid.Column="1"
+                       Text="{Binding Size}"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Margin="0,0,16,0"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+            <TextBlock Grid.Column="2"
+                       Text="{Binding Speed}"
+                       FontSize="12"
+                       Margin="0,0,16,0"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+            <TextBlock Grid.Column="3"
+                       Text="{Binding Part}"
+                       FontSize="12"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+        </Grid>
+    </DataTemplate>
+
+</ResourceDictionary>

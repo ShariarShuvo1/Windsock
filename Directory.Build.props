@@ -1,0 +1,70 @@
+﻿<Project>
+
+  <!-- Settings shared by every project in the repository. -->
+
+  <PropertyGroup Label="Language">
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Quality">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Missing XML comments are a style nag, not a defect. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Which edition is being built.
+
+    Windsock ships in two: the full one, and a smaller one for the Microsoft
+    Store. The Store cannot take what the full one needs - a kernel trace
+    session for per-process rates, and a kernel driver for processor
+    temperature - so the Store edition is built without those features rather
+    than with them switched off. Nothing is shipped that is not used: the
+    packages behind them are referenced conditionally too, so the driver is not
+    merely disabled in a Store build, it is absent from it.
+
+    Build the Store edition with -p:StoreBuild=true. Plain builds are the full
+    edition, so nothing has to remember a flag to get the usual thing.
+  -->
+  <PropertyGroup Label="Edition">
+    <StoreBuild Condition="'$(StoreBuild)' == ''">false</StoreBuild>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(StoreBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);STORE</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Supply chain">
+    <!-- Fail the build on any known-vulnerable package, direct or transitive. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+    <!-- Reproducible output; embeds source revision when built by CI. -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Identity">
+    <Product>Windsock</Product>
+    <Company>Shariar Shuvo</Company>
+    <Authors>Shariar Shuvo</Authors>
+    <!-- A fixed year rather than today's. The build is declared deterministic,
+         and a copyright that reads from the clock quietly breaks that: the same
+         commit would produce a different assembly on either side of New Year.
+         It also has to agree with LICENSE, which cannot know the date either. -->
+    <Copyright>Copyright (c) 2026 Shariar Shuvo</Copyright>
+    <Version>0.1.0</Version>
+    <RepositoryUrl>https://github.com/ShariarShuvo1/Windsock</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/ShariarShuvo1/Windsock</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+</Project>

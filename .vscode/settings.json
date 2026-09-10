@@ -1,0 +1,6 @@
+{
+  "dotnet.defaultSolution": "Windsock.slnx",
+  "files.eol": "\r\n",
+  "editor.formatOnSave": true,
+  "omnisharp.enableEditorConfigSupport": true
+}

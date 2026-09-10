@@ -1,0 +1,86 @@
+﻿<Window x:Class="Windsock.App.Views.TaskbarMeterWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:TaskbarMeterViewModel}"
+        Title="Windsock meter"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        AllowsTransparency="True"
+        Background="Transparent"
+        SizeToContent="Manual"
+        Width="118"
+        Height="40"
+        Left="-32000"
+        Top="-32000"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="Grayscale">
+
+    <!--
+        The meter that sits in the Windows taskbar.
+
+        Transparent, and painting nothing of its own. The taskbar behind it is
+        acrylic over the wallpaper, so there is no colour this could be filled
+        with that would match it; the only way to look like part of the bar is
+        to draw the figures and nothing else.
+
+        Text is rendered in greyscale rather than ClearType on purpose. ClearType
+        tunes subpixels against a known background, and this window has none -
+        left on, the figures pick up coloured fringes wherever the wallpaper
+        underneath happens to be bright.
+
+        Placement, size and the parenting into Explorer's window are not here.
+        They belong to the service that owns this window, because they have to
+        be redone as the taskbar changes and this has no way of knowing that.
+    -->
+    <Grid x:Name="Root" Background="Transparent" ToolTip="{Binding Tooltip}">
+        <!--
+            A ground of the reader's own, under everything else and transparent
+            unless one was asked for. Rounded to the same radius as the hover
+            wash above it, so a filled meter reads as one of the taskbar's own
+            buttons rather than as a rectangle laid over the bar.
+        -->
+        <Border CornerRadius="{Binding Corner}" Background="{Binding Ground}" />
+
+        <!--
+            The taskbar lights its own buttons under the pointer, so the meter
+            does too. Without it the figures read as something painted on the
+            bar rather than something that answers a click.
+
+            Only where a click actually does something, though. Set to do
+            nothing, the meter is a readout rather than a button, and lighting
+            it under the pointer would promise a press that goes nowhere. Both
+            conditions have to hold, so the trigger is a multi one.
+        -->
+        <Border CornerRadius="{Binding Corner}" Background="{Binding Hover}">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Opacity" Value="0" />
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Window}}"
+                                           Value="True" />
+                                <Condition Binding="{Binding LightsOnHover}" Value="True" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Opacity" Value="1" />
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+        </Border>
+
+        <ContentControl x:Name="Readings"
+                        Content="{Binding}"
+                        ContentTemplate="{StaticResource MeterTemplate}"
+                        Margin="4,0,7,0"
+                        Focusable="False" />
+    </Grid>
+</Window>

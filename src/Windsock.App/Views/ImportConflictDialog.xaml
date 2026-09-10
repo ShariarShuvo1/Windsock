@@ -1,0 +1,102 @@
+<Window x:Class="Windsock.App.Views.ImportConflictDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+        mc:Ignorable="d"
+        Title="Import"
+        Width="470"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+
+    <!--
+        Asked rather than decided. Whether the file or the recorded history is
+        the better answer for a minute is not something the code can know, and
+        picking silently either loses readings or doubles them.
+    -->
+    <Grid Margin="22,20,22,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <fluent:SymbolIcon Symbol="Warning"
+                               FontSize="18"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"
+                               Foreground="{DynamicResource AccentBrush}" />
+
+            <TextBlock Text="Some of this file is already recorded"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,0,0,18">
+            <TextBlock x:Name="Summary"
+                       FontSize="12.5"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+            <Border Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                    CornerRadius="7"
+                    Padding="14,11">
+                <StackPanel>
+                    <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,0,0,7">
+                        <Run Text="Skip them" FontWeight="SemiBold"
+                             Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <Run Text=" keeps what Windsock recorded and adds only the minutes it has never seen."
+                             Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </TextBlock>
+
+                    <TextBlock FontSize="12" TextWrapping="Wrap">
+                        <Run Text="Overwrite them" FontWeight="SemiBold"
+                             Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <Run Text=" replaces those recorded minutes with the file's version. This cannot be undone."
+                             Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!--
+            Skip first and accented: it is the choice that cannot lose anything,
+            so it is the one to reach for without reading twice.
+        -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="SkipButton"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Content="Skip them"
+                    MinWidth="104"
+                    Margin="0,0,8,0"
+                    IsDefault="True"
+                    Click="OnSkip"
+                    AutomationProperties.Name="Skip them" />
+
+            <Button x:Name="OverwriteButton"
+                    Style="{StaticResource ToolbarButtonStyle}"
+                    Content="Overwrite them"
+                    MinWidth="120"
+                    Margin="0,0,8,0"
+                    Click="OnOverwrite"
+                    AutomationProperties.Name="Overwrite them" />
+
+            <Button x:Name="CancelButton"
+                    Style="{StaticResource ToolbarButtonStyle}"
+                    Content="Cancel"
+                    MinWidth="84"
+                    IsCancel="True"
+                    Click="OnCancel"
+                    AutomationProperties.Name="Cancel import" />
+        </StackPanel>
+    </Grid>
+</Window>

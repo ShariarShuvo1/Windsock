@@ -1,0 +1,22 @@
+﻿<Application x:Class="Windsock.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ThemeMode="System"
+             ShutdownMode="OnMainWindowClose">
+    <!-- ThemeMode="System" opts into the WPF Fluent theme and follows the
+         user's light/dark setting. Windsock's own palette is merged at runtime by
+         ThemeManager, which swaps it whenever that setting changes. The startup
+         window is resolved from the DI container in App.xaml.cs. -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Styles/TextStyles.xaml" />
+                <ResourceDictionary Source="Styles/Controls.xaml" />
+                <ResourceDictionary Source="Styles/Table.xaml" />
+                <ResourceDictionary Source="Styles/System.xaml" />
+                <ResourceDictionary Source="Styles/Taskbar.xaml" />
+                <ResourceDictionary Source="Styles/Calendar.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

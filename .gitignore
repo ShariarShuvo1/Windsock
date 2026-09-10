@@ -1,0 +1,47 @@
+## Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+publish/
+*.user
+*.suo
+
+## Rider / Visual Studio / VS Code
+.vs/
+.idea/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+!.vscode/settings.json
+
+## Test + coverage
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+*.coverage
+*.trx
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+## Local runtime data (should never live in the repo)
+*.db
+*.db-shm
+*.db-wal
+logs/
+
+## WPF build scratch. The XAML compiler writes a throwaway copy of the project
+## beside the real one on every build and does not always clean it up. It is
+## generated, it changes name each time, and committing one confuses everything
+## that reads the project file.
+*_wpftmp.csproj
+
+## OS noise
+Thumbs.db
+desktop.ini

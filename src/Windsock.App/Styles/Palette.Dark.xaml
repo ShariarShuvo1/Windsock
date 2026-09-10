@@ -1,0 +1,105 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Dark-theme palette, taken from the mark itself. The icon is three flat
+        segments tapering across a deep navy ground (#0E2231): the two leading
+        ones in cyan (#2DC1FC, hue 197) and the trailing one in pale ice
+        (#D9F0FD). Download therefore carries the mark's own cyan exactly, and
+        upload takes its warm counterpoint at hue 36, which stays
+        distinguishable under the common forms of colour blindness where a
+        green/red pair would not.
+
+        The light palette redefines these same keys at a lower lightness. Only
+        lightness changes between the two, so the app keeps one identity.
+    -->
+
+    <Color x:Key="BrandNavyColor">#FF0E2231</Color>
+    <Color x:Key="BrandIceColor">#FFD9F0FD</Color>
+
+    <!-- Section accent. Hue 187 sits inside the mark's cyan family (which
+         measures 197-206 across its three segments) but clear of the download
+         series, so a section icon reads as brand rather than as a data
+         series. Deliberately not the mark's own cyan: if the two matched, a
+         section heading and a line on the chart would be the same colour
+         saying different things. -->
+    <Color x:Key="AccentColor">#FF4DD0E1</Color>
+
+    <Color x:Key="DownloadColor">#FF2DC1FC</Color>
+    <Color x:Key="UploadColor">#FFFFB74D</Color>
+
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="DownloadBrush" Color="{StaticResource DownloadColor}" />
+    <SolidColorBrush x:Key="UploadBrush" Color="{StaticResource UploadColor}" />
+    <SolidColorBrush x:Key="BrandBrush" Color="{StaticResource BrandIceColor}" />
+
+    <!--
+        Table rows. The stock subtle fills are pitched for a hover on a button
+        and are too faint to band a table with; these are set so the stripe is
+        legible at a glance while each interactive state stays a clear step
+        above the one below it: stripe, hover, selection.
+    -->
+    <SolidColorBrush x:Key="RowStripeBrush" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="RowHoverBrush" Color="#26FFFFFF" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#404DD0E1" />
+
+    <!--
+        The three surfaces the window is built from, deepest first: the ground
+        the cards sit on, the band that heads a card, and the card itself. Each
+        is a clear step above the one before it, so nothing needs an outline to
+        say where it begins.
+
+        The ground has to be deeper than the band. Level with it, the top edge
+        of a card disappears into the window and the tabs stop reading as a
+        header at all.
+    -->
+    <SolidColorBrush x:Key="WindowGroundBrush" Color="#FF141414" />
+    <SolidColorBrush x:Key="SectionHeaderBrush" Color="#FF242424" />
+
+    <!--
+        The graph's own ground, which is a well sunk into the card rather than
+        part of it: a step below the card so the drawing has an edge, and a step
+        below the nodes so they still sit on top of something.
+    -->
+    <SolidColorBrush x:Key="CanvasGroundBrush" Color="#FF181818" />
+
+    <!-- The world map: land a shade above the sea it sits in, coastlines a
+         shade above that, and the country under the pointer picked out. Its own
+         tones rather than borrowed ones, because a map is the one drawing where
+         the background carries meaning. -->
+    <SolidColorBrush x:Key="MapLandBrush" Color="#FF262626" />
+    <SolidColorBrush x:Key="MapCoastBrush" Color="#FF3F3F3F" />
+    <SolidColorBrush x:Key="MapLandLitBrush" Color="#FF33474B" />
+
+    <!-- The busiest country, when the map is shaded by traffic. Everything
+         else is mixed between this and the plain land. -->
+    <SolidColorBrush x:Key="MapBusyBrush" Color="#FF294A50" />
+
+
+    <!--
+        One hue per part of the machine, so a tile is recognisable before its
+        caption is read. Chosen around the accent's cyan rather than against
+        it: cyan for the processor, which is the app's own colour and the tile
+        a reader looks at first, then green, violet and amber at the same
+        lightness so no one tile shouts louder than the others.
+    -->
+    <Color x:Key="ProcessorColor">#FF4DD0E1</Color>
+    <Color x:Key="GraphicsColor">#FF81C784</Color>
+    <Color x:Key="MemoryColor">#FFB39DDB</Color>
+    <Color x:Key="StorageColor">#FFFFB74D</Color>
+
+    <SolidColorBrush x:Key="ProcessorBrush" Color="{StaticResource ProcessorColor}" />
+    <SolidColorBrush x:Key="GraphicsBrush" Color="{StaticResource GraphicsColor}" />
+    <SolidColorBrush x:Key="MemoryBrush" Color="{StaticResource MemoryColor}" />
+    <SolidColorBrush x:Key="StorageBrush" Color="{StaticResource StorageColor}" />
+
+    <!--
+        The unfilled part of a meter. Dim enough to read as a groove rather
+        than as a second value.
+    -->
+    <SolidColorBrush x:Key="MeterTrackBrush" Color="#26FFFFFF" />
+
+    <!-- A reading that has crossed from busy into hot. -->
+    <SolidColorBrush x:Key="HotBrush" Color="#FFFF8A65" />
+
+</ResourceDictionary>

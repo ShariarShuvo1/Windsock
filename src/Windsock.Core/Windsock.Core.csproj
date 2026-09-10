@@ -1,0 +1,57 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Headless logic: collection, storage, aggregation.
+       Deliberately references no UI framework so it stays unit-testable and so
+       the presentation layer can be replaced without touching this project. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Deliberately the unversioned Windows target. Naming a version here
+         (net10.0-windows10.0.17763.0) would raise the platform floor to match
+         the README, but it also switches on the Windows SDK projections and
+         CsWinRT - a second interop stack, in a project that reaches native
+         through CsWin32 on purpose. The floor is instead stated in the README
+         and held by the runtime guards at the few call sites newer than
+         Windows 7, each of which explains itself. -->
+    <RootNamespace>Windsock.Core</RootNamespace>
+    <!-- Required by the CsWin32 source generator, which emits pointer-based
+         interop for the IP Helper structures. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The recorder and the store are exercised directly by the test project
+         rather than through a running host, which would need real timers and a
+         real minute to elapse. -->
+    <InternalsVisibleTo Include="Windsock.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The world outline and the address table, shipped beside the exe rather
+         than embedded in it: the table is thirty-five megabytes and is read a
+         few kilobytes at a time through a memory map, so it must stay a file. -->
+    <Content Include="Data\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(StoreBuild)' != 'true'">
+    <!-- Signed PawnIO modules, from the official 0.2.11 release. They are the
+         kernel half of the processor temperature: the driver will only run a
+         module namazso signed, so these are carried verbatim and cannot be
+         rebuilt here. The PawnIO installer does not lay them down - it ships
+         the driver and its library and nothing else - so the caller supplies
+         the blob. LGPL-2.1; COPYING travels with them and is not embedded.
+
+         Absent from the Store edition, which ships without the feature. -->
+    <EmbeddedResource Include="Resources\PawnIo\*.bin" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all" />
+
+  </ItemGroup>
+
+</Project>

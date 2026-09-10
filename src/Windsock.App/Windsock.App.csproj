@@ -1,0 +1,71 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Deliberately the unversioned Windows target. Naming a version here
+         (net10.0-windows10.0.17763.0) would raise the platform floor to match
+         the README, but it also switches on the Windows SDK projections and
+         CsWinRT - a second interop stack, in a project that reaches native
+         through CsWin32 on purpose. The floor is instead stated in the README
+         and held by the runtime guards at the few call sites newer than
+         Windows 7, each of which explains itself. -->
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Windsock.App</RootNamespace>
+    <AssemblyName>Windsock</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationIcon>Assets\Windsock.ico</ApplicationIcon>
+    <!-- Required by the CsWin32 source generator, which emits pointer-based
+         interop for the shell's file information structure. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Windsock is English-only; skip satellite resource assemblies. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Runtime tuning">
+    <!-- Workstation GC keeps the working set small, which matters for a
+         process that is meant to run all day. Server GC would allocate a heap
+         and a dedicated thread per core for no benefit here. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <!-- Microsoft Fluent System Icons (MIT). Matches the Windows 11 icon
+         language natively, so the app does not look like it borrowed its
+         iconography from another platform. -->
+    <PackageReference Include="FluentIcons.Wpf" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Sinks.Debug" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Velopack" />
+    <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The licence travels with the binary, in both editions.
+
+      MIT asks that the copyright notice be included in "all copies", and a
+      copy a reader installed is a copy. Publishing without it left the licence
+      in the repository and nowhere near the thing it licenses. The notices
+      file goes with it for the same reason: DB-IP's data is CC BY 4.0, and
+      attribution that only exists on GitHub is attribution the person actually
+      running the software cannot see.
+
+      Linked with a .txt extension because LICENSE has none, and a file Windows
+      cannot open is a file nobody reads.
+    -->
+    <Content Include="..\..\LICENSE" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Windsock.Core\Windsock.Core.csproj" />
+  </ItemGroup>
+
+</Project>

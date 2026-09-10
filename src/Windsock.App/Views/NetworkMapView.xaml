@@ -1,0 +1,630 @@
+﻿<UserControl x:Class="Windsock.App.Views.NetworkMapView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:NetworkMapViewModel}">
+
+    <!--
+        The map with no window around it. The same control serves the window it
+        can be opened in and the card it sits in on the Process tab, so there is
+        one of it to keep right rather than two that drift apart.
+    -->
+    <UserControl.Resources>
+        <!--
+            The popover shows whichever kind of node the pointer is over, chosen
+            by type. The map has one kind the process window does not - the
+            program itself - and the other three say the same things here as
+            they do there.
+        -->
+        <DataTemplate DataType="{x:Type vm:ProcessNodeViewModel}">
+            <StackPanel MaxWidth="360">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="{Binding Icon}"
+                           Width="20"
+                           Height="20"
+                           Margin="0,0,9,0"
+                           VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.Style>
+                            <Style TargetType="Image">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Image.Style>
+                    </Image>
+
+                    <TextBlock Text="{Binding Label}"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding RateText}"
+                           FontSize="12"
+                           Margin="0,7,0,0"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Sockets}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Places}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding FilePath}" />
+                <TextBlock Style="{StaticResource PopoverNoteStyle}" Text="{Binding Hint}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:PeerNodeViewModel}">
+            <StackPanel MaxWidth="330">
+                <TextBlock Text="{Binding Label}"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                <!--
+                    Only when there are rates to state. Without them RateText
+                    falls back to the socket count, which the line below already
+                    says.
+                -->
+                <TextBlock Text="{Binding RateText}"
+                           FontSize="12"
+                           Margin="0,6,0,0"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasRates}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Where}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Sockets}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Ports}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Sites}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Addresses}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Distance}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Latency}" />
+
+                <!--
+                    Who is reaching it. On the map every program talking to one
+                    place is drawn as that one place, so this is where the
+                    programs come back - as icons, because a row of icons is
+                    recognised where a list has to be read.
+                -->
+                <ItemsControl ItemsSource="{Binding Reachers}" Margin="0,7,0,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="0,3,12,0">
+                                <Image Source="{Binding Icon}"
+                                       Width="14"
+                                       Height="14"
+                                       Margin="0,0,5,0"
+                                       VerticalAlignment="Center"
+                                       RenderOptions.BitmapScalingMode="HighQuality">
+                                    <Image.Style>
+                                        <Style TargetType="Image">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Image.Style>
+                                </Image>
+
+                                <TextBlock Text="{Binding Name}"
+                                           FontSize="11.5"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Style="{StaticResource PopoverNoteStyle}" Text="{Binding Hint}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:HopNodeViewModel}">
+            <StackPanel MaxWidth="330">
+                <TextBlock Text="{Binding Title}" Style="{StaticResource CaptionTextStyle}" />
+
+                <TextBlock Text="{Binding Label}"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Margin="0,5,0,0"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding AddressLine}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Where}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Latency}" />
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Carries}" />
+                <TextBlock Style="{StaticResource PopoverNoteStyle}" Text="{Binding Hint}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type controls:GraphNote}">
+            <StackPanel MaxWidth="360">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="{Binding Icon}"
+                           Width="20"
+                           Height="20"
+                           Margin="0,0,9,0"
+                           VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.Style>
+                            <Style TargetType="Image">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Image.Style>
+                    </Image>
+
+                    <TextBlock Text="{Binding Title}"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                </StackPanel>
+
+                <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Body}" />
+
+                <!--
+                    Which places those are, wrapped rather than trimmed: a
+                    country with eight servers on it should say all eight.
+                -->
+                <TextBlock Text="{Binding Detail}"
+                           FontSize="11.5"
+                           Margin="0,6,0,0"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Detail}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Border Style="{StaticResource CardStyle}" Padding="0">
+            <Grid>
+                <Border Background="{DynamicResource CanvasGroundBrush}"
+                        CornerRadius="8"
+                        SnapsToDevicePixels="True" />
+
+                <!--
+                    Fits further out than the process window does. A machine is
+                    a picture thousands of pixels across, and seeing the whole
+                    of it at once is the thing this window is for; the names
+                    come back as soon as the reader zooms into a corner of it.
+                -->
+                <controls:PanZoomHost x:Name="Viewport" Radius="8" Inset="0,0,0,36" SmallestFit="0.2">
+                    <controls:NetworkGraphView x:Name="Graph"
+                                               Tree="{Binding Graph}"
+                                               Caption="{Binding Caption}"
+                                               Subtitle="{Binding Subtitle}"
+                                               Hint="{Binding Hint}"
+                                               IsLive="{Binding IsLive}"
+                                               ShowSignals="{Binding ShowSignals}"
+                                               ShowLabels="{Binding ShowLabels}"
+                                               ShowAllLabels="{Binding ShowAllLabels}"
+                                               ShowHeat="{Binding ShowHeat}"
+                                               LandBusyBrush="{DynamicResource MapBusyBrush}"
+                                               EmptyMessage="Nothing on this machine has a connection open"
+                                               PeerStyle="{StaticResource GraphPeerNodeStyle}"
+                                               HopStyle="{StaticResource GraphHopNodeStyle}"
+                                               ProcessStyle="{StaticResource GraphProcessNodeStyle}"
+                                               NodeStyle="{StaticResource GraphHubNodeStyle}"
+                                               PopoverStyle="{StaticResource GraphPopoverStyle}"
+                                               PeerTemplate="{StaticResource GraphPeerNodeTemplate}"
+                                               HopTemplate="{StaticResource GraphHopNodeTemplate}"
+                                               ProcessTemplate="{StaticResource GraphProcessNodeTemplate}"
+                                               NoteTemplate="{StaticResource GraphMachineNodeTemplate}"
+                                               IsWorld="{Binding IsWorld}"
+                                               World="{Binding World}"
+                                               Home="{Binding Home}"
+                                               CountryNotes="{Binding CountryNotes}"
+                                               WorldPeerStyle="{StaticResource GraphWorldPeerStyle}"
+                                               WorldHopStyle="{StaticResource GraphWorldHopStyle}"
+                                               WorldProcessStyle="{StaticResource GraphWorldProcessStyle}"
+                                               LandBrush="{DynamicResource MapLandBrush}"
+                                               LandLitBrush="{DynamicResource MapLandLitBrush}"
+                                               CoastBrush="{DynamicResource MapCoastBrush}"
+                                               SendBrush="{DynamicResource UploadBrush}"
+                                               ReceiveBrush="{DynamicResource DownloadBrush}"
+                                               AccentBrush="{DynamicResource AccentBrush}"
+                                               TrackBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                               QuietBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                               AutomationProperties.Name="Network map" />
+                </controls:PanZoomHost>
+
+                <!--
+                    What the map is showing, and the controls that belong to it,
+                    floating along the bottom of the picture rather than taking
+                    a strip of height above it. Nothing here has a ground of its
+                    own, so a drag that starts between them still pans the
+                    canvas underneath.
+                -->
+                <Grid VerticalAlignment="Bottom" Margin="12,0,6,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="0,0,10,0"
+                                IsHitTestVisible="False">
+                        <TextBlock VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   AutomationProperties.Name="What the map is showing">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontSize" Value="12" />
+                                    <Setter Property="Text" Value="{Binding Summary}" />
+                                    <Setter Property="Foreground"
+                                            Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsFollowing}" Value="True">
+                                            <Setter Property="Foreground"
+                                                    Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!--
+                            Said once, quietly, and only when it is true: without
+                            the kernel trace the rates on this map are per
+                            program rather than per site.
+                        -->
+                        <TextBlock Text="{Binding RateNotice}"
+                                   FontSize="12"
+                                   Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+
+                        <!-- Whose map this is, while it is on screen. -->
+                        <TextBlock Text="{Binding MapCredit}"
+                                   FontSize="12"
+                                   Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <!--
+                            Everything that only has to be decided once lives
+                            behind this, so the picture keeps the room.
+                        -->
+                        <ToggleButton Style="{StaticResource ToolbarButtonStyle}"
+                                      Padding="8,0"
+                                      Margin="0,0,6,0"
+                                      IsChecked="{Binding IsSettingsOpen, Mode=TwoWay}"
+                                      AutomationProperties.Name="Graph settings"
+                                      ToolTip="Live, names, loopback and the world map">
+                            <fluent:SymbolIcon Symbol="Settings" FontSize="15" />
+                        </ToggleButton>
+
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="0,0,6,0"
+                                Command="{Binding ShowEverythingCommand}"
+                                Visibility="{Binding IsFollowing, Converter={StaticResource BooleanToVisibility}}"
+                                AutomationProperties.Name="Show everything"
+                                ToolTip="Stop following this branch and show the whole map again" >
+                                <Button.Content>
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ArrowReset"
+                                                           FontSize="14"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,7,0" />
+                                        <TextBlock Text="Show everything" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button.Content>
+                        </Button>
+
+                        <Button x:Name="FitButton"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="0,0,6,0"
+                                AutomationProperties.Name="Fit the map"
+                                ToolTip="Frame the whole thing. Press again to go back to the view you had. Drag to move it, scroll to zoom, double-click to fit." >
+                                <Button.Content>
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ZoomFit"
+                                                           FontSize="14"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,7,0" />
+                                        <TextBlock Text="Fit" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button.Content>
+                        </Button>
+
+                        <!--
+                            Beside the rest of the map's own controls rather
+                            than floating in a corner of the picture, because it
+                            belongs with them: what is on the map, how it is
+                            framed, and how much room it has.
+                        -->
+                        <Button x:Name="FullScreenButton"
+                                Style="{StaticResource GraphCornerStyle}"
+                                Command="{Binding ToggleFullScreenCommand}"
+                                AutomationProperties.Name="Full screen"
+                                ToolTip="Give the map the whole window. Escape brings the rest back." />
+                    </StackPanel>
+                </Grid>
+
+                <!--
+                    The switches, out of the way until they are wanted. The panel is always
+                    in the tree so it can slide rather than appear, and is collapsed while
+                    shut so nothing in it can be tabbed to or clicked through.
+                -->
+                <Border x:Name="Drawer">
+                    <Border.RenderTransform>
+                        <TranslateTransform X="26" />
+                    </Border.RenderTransform>
+
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource GraphDrawerStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSettingsOpen}" Value="True">
+                                    <DataTrigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                                    <DiscreteObjectKeyFrame KeyTime="0:0:0">
+                                                        <DiscreteObjectKeyFrame.Value>
+                                                            <Visibility>Visible</Visibility>
+                                                        </DiscreteObjectKeyFrame.Value>
+                                                    </DiscreteObjectKeyFrame>
+                                                </ObjectAnimationUsingKeyFrames>
+
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 To="1"
+                                                                 Duration="0:0:0.14" />
+
+                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                 To="0"
+                                                                 Duration="0:0:0.22">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <CubicEase EasingMode="EaseOut" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.EnterActions>
+
+                                    <DataTrigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 To="0"
+                                                                 Duration="0:0:0.12" />
+
+                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                 To="26"
+                                                                 Duration="0:0:0.14" />
+
+                                                <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                                    <DiscreteObjectKeyFrame KeyTime="0:0:0.14">
+                                                        <DiscreteObjectKeyFrame.Value>
+                                                            <Visibility>Collapsed</Visibility>
+                                                        </DiscreteObjectKeyFrame.Value>
+                                                    </DiscreteObjectKeyFrame>
+                                                </ObjectAnimationUsingKeyFrames>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.ExitActions>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+
+                    <DockPanel LastChildFill="True">
+                        <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,2">
+                            <ToggleButton DockPanel.Dock="Right"
+                                          Style="{StaticResource GraphDrawerCloseStyle}"
+                                          IsChecked="{Binding IsSettingsOpen, Mode=TwoWay}"
+                                          AutomationProperties.Name="Close the graph settings"
+                                          ToolTip="Close" />
+
+                            <TextBlock Text="GRAPH" Style="{StaticResource GraphDrawerHeadStyle}" />
+                        </DockPanel>
+
+                        <Border DockPanel.Dock="Top"
+                                Height="1"
+                                Margin="10,4,10,2"
+                                Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                        <!--
+                            The switches scroll when the window is too short to
+                            hold them. The drawer takes only the height it needs
+                            up to whatever the window has, so on a tall window
+                            there is nothing to scroll and no bar to see.
+                        -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Padding="0,0,2,0">
+                            <StackPanel>
+
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="Live"
+                                                  IsChecked="{Binding IsLive, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Live" />
+
+                                        <controls:SettingHead Hint="Keep the picture up to date as the machine talks. The Pause button above the table does the same thing, and turns this off with it." Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="Names"
+                                                  IsChecked="{Binding ShowNames, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Names" />
+
+                                        <controls:SettingHead Hint="Call each far end by its name where one is known, rather than its address." Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="Signals"
+                                                  IsChecked="{Binding ShowSignals, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Signals" />
+
+                                        <controls:SettingHead Hint="Draw the traffic travelling each road. Off holds the picture still." Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="Routes"
+                                                  IsChecked="{Binding ShowRoutes, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Routes" />
+
+                                        <controls:SettingHead Hint="Draw the way to each far end, hop by hop. Off shows only where the traffic ends up." Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal"
+                                                Visibility="{Binding IsWorld, Converter={StaticResource InverseBooleanToVisibility}}">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="Loopback"
+                                                  IsChecked="{Binding ShowLoopback, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Loopback" />
+
+                                        <controls:SettingHead Hint="Show programs talking to this machine itself. Off leaves only what reaches the network." Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <Border Height="1"
+                                            Margin="10,10,10,2"
+                                            Visibility="{Binding HasWorld, Converter={StaticResource BooleanToVisibility}}"
+                                            Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                                    <TextBlock Text="EARTH"
+                                               Style="{StaticResource GraphDrawerHeadStyle}"
+                                            Visibility="{Binding HasWorld, Converter={StaticResource BooleanToVisibility}}"
+                                               Margin="10,6,0,0" />
+
+                                    <!--
+                                        The table above the map asks the same
+                                        question of the same reading, so the
+                                        map answers it too unless told not to.
+                                    -->
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="Follow the table"
+                                                  IsChecked="{Binding FollowTable, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Follow the table" />
+
+                                        <controls:SettingHead Hint="Draw only the programs the search and filters above are showing. Off draws the whole machine whatever the table is doing." Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal"
+                                                Visibility="{Binding HasWorld, Converter={StaticResource BooleanToVisibility}}">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="World map"
+                                                  IsChecked="{Binding IsWorld, Mode=TwoWay}"
+                                                  AutomationProperties.Name="World map" />
+
+                                        <controls:SettingHead Hint="Lay the picture out on the earth, with every far end where its address says it is." Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="One dot per city"
+                                                  IsChecked="{Binding ByCity, Mode=TwoWay}"
+                                                  AutomationProperties.Name="One dot per city" />
+
+                                        <controls:SettingHead Hint="Hold every server in the same city together, so the map is about where the traffic goes rather than who answers it. Hovering a city names the servers in it." Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="Country names"
+                                                  IsChecked="{Binding ShowLabels, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Country names" />
+
+                                        <controls:SettingHead Hint="Write the name of every country that has something on it." Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Margin="26,8,10,8" Orientation="Horizontal">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <!--
+                                                        Two conditions: there has to be a map, and it has to be
+                                                        naming anything at all.
+                                                    -->
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding IsWorld}" Value="True" />
+                                                            <Condition Binding="{Binding ShowLabels}" Value="True" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="Every country"
+                                                  IsChecked="{Binding ShowAllLabels, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Every country" />
+
+                                        <controls:SettingHead Hint="Name the rest of the world too, wherever the name fits inside the country. Zoom in and more appear." Margin="6,0,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Content="Shade by traffic"
+                                                  IsChecked="{Binding ShowHeat, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Shade by traffic" />
+
+                                        <controls:SettingHead Hint="Fill each country by how much of your traffic goes there." Margin="6,0,0,0" />
+                                    </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

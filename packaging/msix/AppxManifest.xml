@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  The Microsoft Store package manifest, for the Store edition only.
+
+  The Store takes an .msix, not an installer: Windsock-Setup.exe is the GitHub
+  download and has nothing to do with this file. The package is uploaded
+  unsigned and Microsoft signs it, which is the whole reason this route costs
+  nothing where the EXE route needs a bought certificate.
+
+  Identity is not ours to choose. Name and Publisher below are the exact
+  strings Partner Center assigned when the name "Windsock" was reserved, read
+  off Product management -> Product identity. A package whose identity differs
+  by one character is rejected at upload, so do not tidy these.
+
+  Version must be four parts and the fourth must be zero - the Store reserves
+  the revision field. The release workflow overwrites this line with the tag's
+  version; the literal here keeps the file valid on its own so the package can
+  be built and installed locally for testing.
+-->
+
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="ShariarShuvo.Windsock"
+    Publisher="CN=AEF1F62A-49C8-4FA5-87FD-506086E44A7F"
+    Version="0.1.0.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Windsock</DisplayName>
+    <PublisherDisplayName>Shariar Shuvo</PublisherDisplayName>
+    <Logo>Images\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <!--
+      1809 is the floor the README states and the runtime guards hold. Nothing
+      in the Store edition reaches past it: the features that need more recent
+      Windows are the ones this edition is built without.
+    -->
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.17763.0"
+      MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="Windsock"
+      Executable="Windsock.exe"
+      EntryPoint="Windows.FullTrustApplication">
+
+      <!--
+        BackgroundColor is sampled from the icon's own ground (#0E2231), so the
+        rounded square in the tile images meets the tile behind it without a
+        seam. The tile assets carry transparent padding for the same reason -
+        the glyph floats on the tile rather than sitting on a badge.
+      -->
+      <uap:VisualElements
+        DisplayName="Windsock"
+        Description="A network speed meter for the Windows 11 taskbar. Live upload and download rates on the taskbar itself, per-process network usage, and per-minute history you can chart and export."
+        BackgroundColor="#0E2231"
+        Square150x150Logo="Images\Square150x150Logo.png"
+        Square44x44Logo="Images\Square44x44Logo.png">
+
+        <uap:DefaultTile
+          Square71x71Logo="Images\Square71x71Logo.png"
+          Square310x310Logo="Images\Square310x310Logo.png"
+          Wide310x150Logo="Images\Wide310x150Logo.png" />
+
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!--
+      A WPF desktop application is full trust by definition; this is the
+      declaration that says so rather than a request for anything extra. It is
+      "restricted" in name only - every packaged desktop app declares it, and
+      it is granted on submission without review.
+
+      Nothing else is declared. The Store edition takes no trace session and no
+      driver, so it asks for no capability that would need justifying.
+    -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+</Package>
