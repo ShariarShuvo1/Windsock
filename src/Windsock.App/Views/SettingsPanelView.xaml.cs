@@ -12,8 +12,13 @@ public partial class SettingsPanelView : UserControl
         DataContext = viewModel;
 
 #if STORE
-        // No Process tab, so nothing sends the packets this governs.
-        Cards.Children.Remove(RoutesCard);
+        // No route tracing, so nothing sends the packets this governs. Taken
+        // out of the group it sits in rather than hidden, so nothing in it is
+        // left bound to a setting this edition does not have.
+        if (RoutesCard.Parent is Panel group)
+        {
+            group.Children.Remove(RoutesCard);
+        }
 #endif
         Loaded += (_, _) => viewModel.Refresh();
         IsVisibleChanged += (_, e) =>

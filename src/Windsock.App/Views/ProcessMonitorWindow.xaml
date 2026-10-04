@@ -13,7 +13,7 @@
         Height="740"
         MinWidth="620"
         MinHeight="560"
-        Background="{DynamicResource WindowGroundBrush}"
+        Background="{DynamicResource SurfaceBrush}"
         Cursor="Arrow"
         WindowStartupLocation="CenterOwner">
 
@@ -101,7 +101,7 @@
         One window per process, independent of the main one and of each other,
         so several can be opened and compared side by side.
     -->
-    <Grid Margin="14">
+    <Grid Margin="16">
         <Grid.RowDefinitions>
             <!--
                 Collapsing the card has to give its height back, or the table
@@ -259,8 +259,8 @@
                                        FontSize="11.5"
                                        HorizontalAlignment="Right"
                                        TextWrapping="Wrap">
-                                <Run Text="PID " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                <Run Text="{Binding ProcessId, Mode=OneWay}"
+                                <Run Text="{Binding IdentityLabel, Mode=OneWay}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                <Run Text="{Binding IdentityValue, Mode=OneWay}"
                                      Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 <Run Text="   started " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                 <Run Text="{Binding Started, Mode=OneWay}"
@@ -730,10 +730,10 @@
             narrow the table from the table they narrow.
         -->
         <Border Grid.Row="0"
-                Margin="2,2,2,0"
-                Padding="12,9"
-                CornerRadius="7"
-                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+                Margin="0,0,0,12"
+                Padding="14,9"
+                CornerRadius="8"
+                Background="{DynamicResource AccentSoftBrush}">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="Visibility" Value="Visible" />
@@ -754,8 +754,8 @@
                 <TextBlock Text="{Binding RateNotice}"
                            VerticalAlignment="Center"
                            TextWrapping="Wrap"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                           FontSize="12.5"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
             </StackPanel>
         </Border>
 
@@ -765,19 +765,23 @@
             writes back, so two windows open side by side can read in different
             units without arguing.
         -->
-        <Grid Grid.Row="1" Margin="2,10,2,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <!--
+            Three sets, each wrapping as a unit: what the table does, what units
+            it reads in, and the count of sockets at the far end. A narrow
+            window stacks them from one left edge rather than splitting a set
+            across two lines.
+        -->
+        <!--
+            The toolbar and the table on one card, the way every table in the
+            app sits: drawn behind the two rows rather than around them, so the
+            rows stay rows of this grid.
+        -->
+        <Border Grid.Row="1" Grid.RowSpan="2" Style="{StaticResource TableCardStyle}" />
 
-            <!-- Wrapped rather than in a row: a narrow window has to put these
-                 on two lines, and a row that cannot wrap runs the last of them
-                 off the edge where they cannot be reached at all. -->
-            <WrapPanel Grid.Column="0" Margin="0,0,0,-6">
+        <controls:FlowRow Grid.Row="1" Margin="12,12,8,10" Spacing="8" LineSpacing="8">
+            <controls:FlowRow Spacing="8" LineSpacing="8">
                 <!-- A verb, not a state: the same button the other two tables offer. -->
                 <Button Style="{StaticResource ToolbarButtonStyle}"
-                        Margin="0,0,10,6"
                         Command="{Binding ToggleLiveCommand}"
                         AutomationProperties.Name="{Binding LiveLabel}"
                         ToolTip="Hold this window still - the graph and the table both - so it can be read. Nothing stops being measured while it is paused.">
@@ -800,34 +804,12 @@
                 </Button>
 
                 <CheckBox Style="{StaticResource ToolbarCheckStyle}"
-                          Margin="0,0,10,6"
                           Content="Names"
                           IsChecked="{Binding ShowNames, Mode=TwoWay}"
                           AutomationProperties.Name="Show names"
                           ToolTip="Call each far end by its name where one is known. Unticked, every far end is shown as the address it really is." />
 
-                <controls:Picker Style="{StaticResource PickerStyle}"
-                                 MinWidth="92"
-                                 Margin="0,0,8,6"
-                                 ItemsSource="{Binding Families}"
-                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                 SelectedValuePath="Family"
-                                 SelectedValue="{Binding SelectedFamily, Mode=TwoWay}"
-                                 AutomationProperties.Name="Unit family"
-                                 ToolTip="Count in bytes or in bits, in this window only" />
-
-                <controls:Picker Style="{StaticResource PickerStyle}"
-                                 MinWidth="96"
-                                 Margin="0,0,10,6"
-                                 ItemsSource="{Binding Scales}"
-                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                 SelectedValuePath="Scale"
-                                 SelectedValue="{Binding SelectedScale, Mode=TwoWay}"
-                                 AutomationProperties.Name="Unit scale"
-                                 ToolTip="Auto picks the best magnitude, or pin one" />
-
                 <Button Style="{StaticResource ToolbarButtonStyle}"
-                        Margin="0,0,0,6"
                         Command="{Binding ResetViewCommand}"
                         Visibility="{Binding IsCustomised, Converter={StaticResource BooleanToVisibility}}"
                         ToolTip="Put the column filters and the sort back to their defaults" >
@@ -840,20 +822,38 @@
                                 <TextBlock Text="Reset view" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button.Content>
-                            </Button>
-            </WrapPanel>
+                </Button>
+            </controls:FlowRow>
 
-            <TextBlock Grid.Column="1"
+            <controls:FlowRow Spacing="8" LineSpacing="8">
+                <controls:Picker Style="{StaticResource PickerStyle}"
+                                 MinWidth="92"
+                                 ItemsSource="{Binding Families}"
+                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                 SelectedValuePath="Family"
+                                 SelectedValue="{Binding SelectedFamily, Mode=TwoWay}"
+                                 AutomationProperties.Name="Unit family"
+                                 ToolTip="Count in bytes or in bits, in this window only" />
+
+                <controls:Picker Style="{StaticResource PickerStyle}"
+                                 MinWidth="96"
+                                 ItemsSource="{Binding Scales}"
+                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                 SelectedValuePath="Scale"
+                                 SelectedValue="{Binding SelectedScale, Mode=TwoWay}"
+                                 AutomationProperties.Name="Unit scale"
+                                 ToolTip="Auto picks the best magnitude, or pin one" />
+            </controls:FlowRow>
+
+            <TextBlock controls:FlowRow.Trailing="True"
                        Text="{Binding SocketSummary}"
                        VerticalAlignment="Center"
-                       HorizontalAlignment="Right"
-                       Margin="10,0,0,0"
                        FontSize="12"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-        </Grid>
+        </controls:FlowRow>
 
         <!-- Everything Windows will say about each socket. -->
-        <Grid Grid.Row="2" Margin="0,10,0,0">
+        <Grid Grid.Row="2" Margin="6,0,6,6">
 
             <DataGrid x:Name="Table"
                       Style="{StaticResource TableStyle}"

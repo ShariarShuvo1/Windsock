@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Windsock.App.Services;
+using Windsock.Core.Apps;
 using Windsock.Core.Formatting;
 using Windsock.Core.Geography;
 using Windsock.Core.Networking;
@@ -13,8 +14,14 @@ using Windsock.Core.Processes;
 namespace Windsock.App.ViewModels;
 
 /// <summary>
-/// Backs one process monitor window: what a single process is doing, live.
+/// Backs one details window: what a single app - every process of it - or a
+/// single process is doing, live.
 /// </summary>
+/// <remarks>
+/// An app's window follows the app, not the processes it had when it opened:
+/// a process that starts is taken in, one that ends is let go, and the window
+/// says the app has closed only when the last of them has.
+/// </remarks>
 public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposable
 {
     private const double ReadoutMaximumFontSize = 30;
@@ -39,15 +46,22 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
     private readonly Dictionary<string, DateTimeOffset> _closed = [];
     private readonly Dictionary<string, PeerNodeViewModel> _peers = new(StringComparer.Ordinal);
 
-    private Dictionary<EndpointKey, EndpointTraffic> _traffic = [];
-    private Dictionary<EndpointKey, EndpointTraffic> _earlier = [];
+    /// <summary>How many places the graph draws on their own; see <see cref="PlaceShortlist"/>.</summary>
+    private const int MostPlaces = 40;
+    private readonly PeerNodeViewModel _rest = new(PlaceShortlist.RestKey, long.MaxValue);
+    private List<PeerNodeViewModel> _shown = [];
+
+    private readonly EndpointMeter _meter;
+    private readonly RecentAppFigures _figures;
+    private readonly string? _appKey;
+    private HashSet<int> _processes = [];
+    private ProcessIdentity _identity;
 
     private readonly Dictionary<string, HopNodeViewModel> _hops = new(StringComparer.Ordinal);
 
     private long _sightings;
     private object? _followed;
     private int _pending;
-    private DateTimeOffset _measuredAt;
     private int _talking;
     private int _listening;
     private double _send;
@@ -60,15 +74,25 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
     private IDisposable? _watch;
     private bool _disposed;
 
+    /// <summary>
+    /// Watches the process <paramref name="processId"/>, or, when
+    /// <paramref name="appKey"/> is given (from <see cref="RunningApps.KeyOf"/>),
+    /// every process of that app. <paramref name="identity"/> is the process, or
+    /// one of the app's; <paramref name="name"/> and <paramref name="icon"/> are
+    /// what the window shows for it.
+    /// </summary>
     public ProcessMonitorViewModel(
         int processId,
+        string? appKey,
         ProcessIdentity identity,
+        string name,
+        ImageSource? icon,
         ProcessUsageMonitor monitor,
         IProcessConnectionDetailSource details,
         IProcessEndpointSource endpoints,
         NetworkRouteCache routes,
         HostNameCache hosts,
-        ProcessIconCache icons,
+        RecentAppFigures figures,
         IpLocations? places,
         WorldMap? world,
         RateFamily family,
@@ -80,9 +104,13 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(routes);
         ArgumentNullException.ThrowIfNull(hosts);
-        ArgumentNullException.ThrowIfNull(icons);
+        ArgumentNullException.ThrowIfNull(figures);
 
-        ProcessId = processId;
+        ProcessId = appKey is null ? processId : 0;
+        _appKey = appKey;
+        _identity = identity;
+        _figures = figures;
+        _meter = new EndpointMeter(endpoints);
         _monitor = monitor;
         _details = details;
         _endpoints = endpoints;
@@ -92,12 +120,16 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         World = world;
         _dispatcher = dispatcher;
 
-        Name = identity.Name;
-        Description = string.IsNullOrWhiteSpace(identity.Description) ? identity.Name : identity.Description!;
+        Name = name;
+        Description = appKey is not null
+            ? RunningApps.KindOf(appKey) == AppKind.Package ? "App from the Microsoft Store or a package" : identity.Name
+            : string.IsNullOrWhiteSpace(identity.Description) ? identity.Name : identity.Description!;
         _path = identity.FilePath;
         FilePath = identity.FilePath ?? "Path not readable";
         CanReveal = FileReveal.Exists(identity.FilePath);
-        Icon = icons.Find(identity.FilePath);
+        Icon = icon;
+        IdentityLabel = appKey is null ? "PID " : "Processes ";
+        IdentityValue = appKey is null ? processId.ToString(CultureInfo.CurrentCulture) : "—";
         Families = [.. RateUnits.Families.Select(option => new FamilyOption(option, RateUnits.Name(option)))];
         Scales = [.. RateUnits.Scales.Select(option => new ScaleOption(option, RateUnits.Name(family, option)))];
         SelectedFamily = family;
@@ -107,7 +139,9 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
             ? startedAt.ToLocalTime().ToString("d MMM yyyy, h:mm:ss tt", CultureInfo.CurrentCulture)
             : "—";
 
-        Title = string.Format(CultureInfo.CurrentCulture, "{0} — {1}", Name, processId);
+        Title = appKey is null
+            ? string.Format(CultureInfo.CurrentCulture, "{0} — {1}", Name, processId)
+            : Name;
         Connections = [];
         Peers = [];
 
@@ -151,21 +185,76 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         ReceiveFontSize = ReadoutMaximumFontSize;
         SentTotal = "0 B";
         ReceivedTotal = "0 B";
-        RateNotice = monitor.RateState == TrafficSourceState.Running
-            ? string.Empty
-            : monitor.RateDetail ?? string.Empty;
+        RateNotice = string.Empty;
         _watch = _monitor.Watch();
+        ReadNotice();
 
         _monitor.Updated += OnUpdated;
+        _monitor.RateStateChanged += OnRateStateChanged;
+        _figures.Changed += OnFiguresChanged;
         _hosts.Resolved += OnNamesResolved;
         _routes.RouteChanged += OnRouteFound;
-        _endpoints.Watch(processId);
 
+        Follow(appKey is null ? [processId] : Mine(_monitor.Latest).Select(usage => usage.ProcessId));
         Refresh();
     }
 
-    /// <summary>The process being watched.</summary>
+    /// <summary>The process being watched, or zero when the window watches an app.</summary>
     public int ProcessId { get; }
+
+    /// <summary>Whether the window watches an app rather than one process.</summary>
+    public bool IsApp => _appKey is not null;
+
+    /// <summary>What the line under the name counts: the process id, or an app's processes.</summary>
+    public string IdentityLabel { get; }
+
+    /// <summary>The process id, or how many processes the app is running.</summary>
+    [ObservableProperty]
+    public partial string IdentityValue { get; private set; }
+
+    /// <summary>This window's processes out of a reading.</summary>
+    private IEnumerable<ProcessUsage> Mine(IReadOnlyList<ProcessUsage> rows)
+    {
+        Dictionary<int, string>? keys = _appKey is null ? null : RunningApps.KeysFor(rows);
+
+        foreach (ProcessUsage row in rows)
+        {
+            if (keys is null
+                ? row.ProcessId == ProcessId
+                : RunningApps.KeyComparer.Equals(keys[row.ProcessId], _appKey))
+            {
+                yield return row;
+            }
+        }
+    }
+
+    /// <summary>Takes in processes that joined and lets go of those that left.</summary>
+    private void Follow(IEnumerable<int> processIds)
+    {
+        HashSet<int> now = [.. processIds];
+
+        foreach (int joined in now.Where(id => !_processes.Contains(id)))
+        {
+            _endpoints.Watch(joined);
+        }
+
+        foreach (int left in _processes.Where(id => !now.Contains(id)))
+        {
+            _endpoints.Unwatch(left);
+        }
+
+        _processes = now;
+    }
+
+    private void OnFiguresChanged(object? sender, EventArgs e) =>
+        _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            if (!_disposed)
+            {
+                Restate();
+                ReadNotice();
+            }
+        }));
 
     /// <summary>What to call the window.</summary>
     public string Title { get; }
@@ -316,10 +405,11 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
     public partial bool ShowSignals { get; set; } = true;
 
     /// <summary>
-    /// Whether the way to each far end is drawn, or only the far end.
+    /// Whether the way to each far end is drawn, or only the far end. Off
+    /// until asked for, as on the Apps page's map.
     /// </summary>
     [ObservableProperty]
-    public partial bool ShowRoutes { get; set; } = true;
+    public partial bool ShowRoutes { get; set; }
 
     /// <summary>Whether the countries with something on them are named.</summary>
     [ObservableProperty]
@@ -478,16 +568,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
             return;
         }
 
-        ProcessUsage? mine = null;
-
-        foreach (ProcessUsage row in rows)
-        {
-            if (row.ProcessId == ProcessId)
-            {
-                mine = row;
-                break;
-            }
-        }
+        List<ProcessUsage> mine = [.. Mine(rows)];
 
         _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => Apply(mine)));
     }
@@ -579,7 +660,9 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
     {
         List<string> wanted = [];
 
-        foreach (PeerNodeViewModel peer in Peers)
+        // Only what is drawn, and nothing at all with routes off: a route is
+        // found by sending to the place, which nobody asked for then.
+        foreach (PeerNodeViewModel peer in ShowRoutes ? _shown : [])
         {
             foreach (string address in peer.Probes)
             {
@@ -597,7 +680,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         {
             return;
         }
-        List<PeerNodeViewModel> ordered = [.. Peers];
+        List<PeerNodeViewModel> ordered = [.. _shown];
         ordered.Sort(static (left, right) => left.Seen.CompareTo(right.Seen));
 
         List<RouteLeaf> leaves = new(ordered.Count);
@@ -655,7 +738,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         {
             _hops.Remove(gone);
         }
-        string places = ordered.Count switch
+        string places = Peers.Count switch
         {
             0 => string.Empty,
             1 => "Talking to 1 place",
@@ -683,7 +766,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
 
         foreach (string key in node.Reach)
         {
-            if (_peers.TryGetValue(key, out PeerNodeViewModel? beyond))
+            if (Drawn(key) is { } beyond)
             {
                 send += beyond.SendRate;
                 receive += beyond.ReceiveRate;
@@ -712,7 +795,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
 
     private object Dress(RouteNode node, bool muted, HashSet<string> seen)
     {
-        if (node.LeafKey is { } key && _peers.TryGetValue(key, out PeerNodeViewModel? peer))
+        if (node.LeafKey is { } key && Drawn(key) is { } peer)
         {
             peer.IsSelected = ReferenceEquals(peer, _followed);
             peer.IsMuted = muted;
@@ -828,6 +911,14 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         }
     }
 
+    /// <summary>A drawn place by its key, the folded rest included.</summary>
+    private PeerNodeViewModel? Drawn(string key) =>
+        _peers.TryGetValue(key, out PeerNodeViewModel? peer)
+            ? peer
+            : string.Equals(key, PlaceShortlist.RestKey, StringComparison.Ordinal) && _shown.Contains(_rest)
+                ? _rest
+                : null;
+
     private bool Owns(RouteNode node) => _followed switch
     {
         PeerNodeViewModel peer => node.LeafKey is { } key && string.Equals(key, peer.Key, StringComparison.Ordinal),
@@ -861,44 +952,119 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         ? "<1 ms"
         : string.Format(CultureInfo.CurrentCulture, "{0:N0} ms", round.TotalMilliseconds);
 
-    private void Apply(ProcessUsage? usage)
+    private void Apply(List<ProcessUsage> usage)
     {
         if (_disposed || !IsLive)
         {
             return;
         }
 
-        if (usage is { } row)
+        if (usage.Count > 0)
         {
             HasExited = false;
-            SendRate = row.SendBytesPerSecond;
-            ReceiveRate = row.ReceiveBytesPerSecond;
+            _send = 0;
+            _receive = 0;
+            _sent = 0;
+            _received = 0;
 
-            _send = row.SendBytesPerSecond;
-            _receive = row.ReceiveBytesPerSecond;
-            _sent = row.BytesSent;
-            _received = row.BytesReceived;
+            foreach (ProcessUsage row in usage)
+            {
+                _send += row.SendBytesPerSecond;
+                _receive += row.ReceiveBytesPerSecond;
+                _sent += row.BytesSent;
+                _received += row.BytesReceived;
+
+                if (row.Identity.FilePath is not null)
+                {
+                    _identity = row.Identity;
+                }
+            }
+
+            if (IsApp)
+            {
+                Follow(usage.Select(row => row.ProcessId));
+                IdentityValue = usage.Count.ToString("N0", CultureInfo.CurrentCulture);
+            }
 
             Restate();
         }
         else
         {
             HasExited = true;
-            SendRate = 0;
-            ReceiveRate = 0;
             _send = 0;
             _receive = 0;
+
+            if (IsApp)
+            {
+                Follow([]);
+                IdentityValue = "0";
+            }
+
             Restate();
-            RateNotice = "This process has exited. The last reading is still shown.";
         }
 
+        ReadNotice();
         Refresh();
     }
 
+    private void OnRateStateChanged(object? sender, EventArgs e) =>
+        _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            Restate();
+            ReadNotice();
+        }));
+
+    /// <summary>
+    /// Says why rates are not shown, and that the process has gone, both when
+    /// both are true: the one must not hide the other.
+    /// </summary>
+    private void ReadNotice()
+    {
+        bool measured = _monitor.RateState == TrafficSourceState.Running;
+        string reason = measured
+            ? string.Empty
+            : Counted() is not null
+                ? "Rates are Windows' count for this app over the last five minutes; how much goes to each place is not measured without a trace."
+                : _monitor.RateDetail ?? string.Empty;
+        string gone = IsApp ? "This app has closed." : "This process has exited.";
+
+        RateNotice = HasExited
+            ? measured
+                ? gone + " The last reading is still shown."
+                : (gone + " " + reason).Trim()
+            : reason;
+    }
+
+    /// <summary>Windows' recent figure for this app, when nothing measures it and Windows has one.</summary>
+    private AppUsageRecord? Counted() =>
+        IsApp && !HasExited && _monitor.RateState != TrafficSourceState.Running ? _figures.For(_identity) : null;
+
     private void Restate()
     {
-        (string sendValue, string sendUnit) = RateFormatter.Split(_send, SelectedFamily, SelectedScale);
-        (string receiveValue, string receiveUnit) = RateFormatter.Split(_receive, SelectedFamily, SelectedScale);
+        // With nothing counting this process's bytes, its rates and totals are
+        // not known, and a dash says so where a zero would claim it was idle.
+        bool measured = _monitor.RateState == TrafficSourceState.Running;
+
+        // An app nobody measures still has Windows' count for it.
+        AppUsageRecord? counted = Counted();
+        double send = counted is { } sentRecord ? sentRecord.BytesSent / RecentAppFigures.Seconds : _send;
+        double receive = counted is { } receivedRecord ? receivedRecord.BytesReceived / RecentAppFigures.Seconds : _receive;
+        bool known = measured || counted is not null;
+
+        SendRate = known ? send : 0;
+        ReceiveRate = known ? receive : 0;
+
+        (string sendValue, string sendUnit) = known
+            ? RateFormatter.Split(send, SelectedFamily, SelectedScale)
+            : (MeterReadout.Unknown, string.Empty);
+        (string receiveValue, string receiveUnit) = known
+            ? RateFormatter.Split(receive, SelectedFamily, SelectedScale)
+            : (MeterReadout.Unknown, string.Empty);
 
         SendValue = sendValue;
         SendUnit = sendUnit;
@@ -906,8 +1072,13 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         ReceiveValue = receiveValue;
         ReceiveUnit = receiveUnit;
         ReceiveFontSize = _receiveSizer.Update(receiveValue.Length);
-        SentTotal = SizeFormatter.Format(_sent);
-        ReceivedTotal = SizeFormatter.Format(_received);
+        SentTotal = measured ? SizeFormatter.Format(_sent) : MeterReadout.Unknown;
+        ReceivedTotal = measured ? SizeFormatter.Format(_received) : MeterReadout.Unknown;
+
+        if (_rest.HasRates)
+        {
+            _rest.RateText = Rates(_rest.ReceiveRate, _rest.SendRate, SelectedFamily, SelectedScale);
+        }
 
         foreach (PeerNodeViewModel peer in Peers)
         {
@@ -938,7 +1109,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
 
     partial void OnIsWorldChanged(bool value) => Redraw();
 
-    partial void OnShowRoutesChanged(bool value) => Redraw();
+    partial void OnShowRoutesChanged(bool value) => Regraph();
 
     partial void OnShowNamesChanged(bool value)
     {
@@ -959,9 +1130,13 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         }
 
         _reading = true;
-        int processId = ProcessId;
+        HashSet<int> processIds = [.. _processes];
 
-        _ = Task.Run(() => _details.Read(processId)).ContinueWith(
+        // One process reads its own sockets; an app reads the tables once and
+        // keeps its processes', rather than every table once per process.
+        _ = Task.Run(() => processIds.Count == 1
+            ? _details.Read(processIds.First())
+            : (IReadOnlyList<ProcessConnection>)[.. _details.ReadAll().Where(connection => processIds.Contains(connection.ProcessId))]).ContinueWith(
             task =>
             {
                 _reading = false;
@@ -1109,15 +1284,11 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
             return;
         }
 
-        _endpoints.CopyEndpoints(ProcessId, _traffic);
-
-        DateTimeOffset now = DateTimeOffset.Now;
-        double seconds = (now - _measuredAt).TotalSeconds;
-        _measuredAt = now;
-        bool usable = seconds is > 0.2 and < 30;
-
-        foreach ((EndpointKey key, EndpointTraffic traffic) in _traffic)
+        foreach (EndpointReading reading in _meter.Measure(_processes))
         {
+            EndpointKey key = reading.Key;
+            EndpointTraffic traffic = reading.Total;
+
             if (!key.HasAddress)
             {
                 continue;
@@ -1137,17 +1308,9 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
             draft.Sent += traffic.BytesSent;
             draft.Received += traffic.BytesReceived;
             draft.Measured = true;
-
-            if (!usable || !_earlier.TryGetValue(key, out EndpointTraffic before))
-            {
-                continue;
-            }
-
-            draft.Send += Math.Max(0, traffic.BytesSent - before.BytesSent) / seconds;
-            draft.Receive += Math.Max(0, traffic.BytesReceived - before.BytesReceived) / seconds;
+            draft.Send += reading.SendBytesPerSecond;
+            draft.Receive += reading.ReceiveBytesPerSecond;
         }
-
-        (_earlier, _traffic) = (_traffic, _earlier);
     }
 
     private void Publish(Dictionary<string, Draft> drafts)
@@ -1175,6 +1338,15 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
             int byWeight = right.Weight.CompareTo(left.Weight);
             return byWeight != 0 ? byWeight : string.CompareOrdinal(left.Label, right.Label);
         });
+
+        // Every place is listed; only the busiest are drawn one by one.
+        _shown = PlaceShortlist.Choose(
+            nodes,
+            MostPlaces,
+            _shown,
+            _followed,
+            _rest,
+            (receive, send) => Rates(receive, send, SelectedFamily, SelectedScale));
 
         Peers = nodes;
         Regraph();
@@ -1249,13 +1421,15 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
 
         _disposed = true;
         _monitor.Updated -= OnUpdated;
+        _monitor.RateStateChanged -= OnRateStateChanged;
+        _figures.Changed -= OnFiguresChanged;
         _hosts.Resolved -= OnNamesResolved;
         _routes.RouteChanged -= OnRouteFound;
 
         _watch?.Dispose();
         _watch = null;
         _routes.Release(this);
-        _endpoints.Unwatch(ProcessId);
+        Follow([]);
     }
 
     private sealed class Draft

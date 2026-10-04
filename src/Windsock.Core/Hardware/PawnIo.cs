@@ -5,20 +5,6 @@ using Microsoft.Win32;
 
 namespace Windsock.Core.Hardware;
 
-/// <summary>Whether the PawnIO channel is open, and if not, why not.</summary>
-public enum PawnIoState
-{
-    Stopped,
-
-    Running,
-
-    NotInstalled,
-
-    RequiresElevation,
-
-    Unavailable,
-}
-
 internal sealed partial class PawnIo : IDisposable
 {
     private const string DevicePath = @"\\?\GLOBALROOT\Device\PawnIO";

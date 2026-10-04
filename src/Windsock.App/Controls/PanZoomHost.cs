@@ -161,11 +161,28 @@ public sealed class PanZoomHost : Decorator
         double roomWidth = Math.Max(1, ActualWidth - inset.Left - inset.Right);
         double roomHeight = Math.Max(1, ActualHeight - inset.Top - inset.Bottom);
 
-        double scale = Math.Min(roomWidth / content.Width, roomHeight / content.Height);
-        scale = Math.Clamp(scale, floor, LargestFit);
-        Point pan = new(
-            inset.Left + ((roomWidth - (content.Width * scale)) / 2),
-            inset.Top + ((roomHeight - (content.Height * scale)) / 2));
+        double scale;
+        Point pan;
+
+        if (child is IViewAnchor { IsFramedOnAnchor: true } held)
+        {
+            // Room for the farther side either way, so the anchor is the middle.
+            Point anchor = held.Anchor;
+            double across = 2 * Math.Max(anchor.X, content.Width - anchor.X);
+            double down = 2 * Math.Max(anchor.Y, content.Height - anchor.Y);
+
+            scale = Math.Clamp(Math.Min(roomWidth / Math.Max(1, across), roomHeight / Math.Max(1, down)), floor, LargestFit);
+            pan = new Point(
+                inset.Left + (roomWidth / 2) - (anchor.X * scale),
+                inset.Top + (roomHeight / 2) - (anchor.Y * scale));
+        }
+        else
+        {
+            scale = Math.Clamp(Math.Min(roomWidth / content.Width, roomHeight / content.Height), floor, LargestFit);
+            pan = new Point(
+                inset.Left + ((roomWidth - (content.Width * scale)) / 2),
+                inset.Top + ((roomHeight - (content.Height * scale)) / 2));
+        }
         Aim(scale, pan, at: !_fitted);
 
         _touched = false;

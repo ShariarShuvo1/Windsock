@@ -37,6 +37,13 @@ public sealed class AdaptiveRow : Panel
             typeof(AdaptiveRow),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsMeasure));
 
+    public static readonly DependencyProperty LeadMinimumWidthProperty =
+        DependencyProperty.Register(
+            nameof(LeadMinimumWidth),
+            typeof(double),
+            typeof(AdaptiveRow),
+            new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
     private static readonly DependencyPropertyKey IsRowPropertyKey =
         DependencyProperty.RegisterReadOnly(
             nameof(IsRow),
@@ -90,6 +97,16 @@ public sealed class AdaptiveRow : Panel
         set => SetValue(LeadFillsProperty, value);
     }
 
+    /// <summary>
+    /// With <see cref="LeadFills"/>, the least room the lead may be left beside
+    /// the second child before the two stack instead.
+    /// </summary>
+    public double LeadMinimumWidth
+    {
+        get => (double)GetValue(LeadMinimumWidthProperty);
+        set => SetValue(LeadMinimumWidthProperty, value);
+    }
+
     protected override Size MeasureOverride(Size availableSize)
     {
         if (InternalChildren.Count == 0)
@@ -99,8 +116,15 @@ public sealed class AdaptiveRow : Panel
 
         UIElement lead = InternalChildren[0];
 
-        if (InternalChildren.Count == 1)
+        // A second child that is collapsed is no second child at all: laid out
+        // as a pair, it still took the gap and left a strip of nothing.
+        if (InternalChildren.Count == 1 || InternalChildren[1].Visibility == Visibility.Collapsed)
         {
+            if (InternalChildren.Count > 1)
+            {
+                InternalChildren[1].Measure(default);
+            }
+
             lead.Measure(availableSize);
             return lead.DesiredSize;
         }
@@ -108,10 +132,6 @@ public sealed class AdaptiveRow : Panel
         UIElement fill = InternalChildren[1];
         double available = availableSize.Width;
         _isRow = double.IsInfinity(available) || available >= Breakpoint;
-        if (IsRow != _isRow)
-        {
-            IsRow = _isRow;
-        }
 
         if (_isRow && LeadFills && !double.IsInfinity(available))
         {
@@ -121,9 +141,27 @@ public sealed class AdaptiveRow : Panel
             double taken = Math.Min(fill.DesiredSize.Width, available);
             double room = Math.Max(0, available - taken - Spacing);
 
-            lead.Measure(new Size(room, availableSize.Height));
+            // Unless the rest is too little to be worth having: a title cut to
+            // its first letter beside a toolbar is worse than the toolbar on a
+            // line of its own.
+            if (room >= LeadMinimumWidth)
+            {
+                if (!IsRow)
+                {
+                    IsRow = true;
+                }
 
-            return new Size(available, Math.Max(lead.DesiredSize.Height, fill.DesiredSize.Height));
+                lead.Measure(new Size(room, availableSize.Height));
+
+                return new Size(available, Math.Max(lead.DesiredSize.Height, fill.DesiredSize.Height));
+            }
+
+            _isRow = false;
+        }
+
+        if (IsRow != _isRow)
+        {
+            IsRow = _isRow;
         }
 
         if (_isRow)
@@ -165,7 +203,7 @@ public sealed class AdaptiveRow : Panel
 
         UIElement lead = InternalChildren[0];
 
-        if (InternalChildren.Count == 1)
+        if (InternalChildren.Count == 1 || InternalChildren[1].Visibility == Visibility.Collapsed)
         {
             lead.Arrange(new Rect(finalSize));
             return finalSize;

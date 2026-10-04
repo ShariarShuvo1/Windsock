@@ -8,4 +8,10 @@ namespace Windsock.App.Controls;
 public interface IViewAnchor
 {
     Point Anchor { get; }
+
+    /// <summary>
+    /// Whether a fit puts the anchor in the middle of the view, rather than
+    /// the middle of the whole picture.
+    /// </summary>
+    bool IsFramedOnAnchor { get; }
 }

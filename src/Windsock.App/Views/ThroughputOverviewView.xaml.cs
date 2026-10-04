@@ -20,28 +20,36 @@ public partial class ThroughputOverviewView : UserControl
 
         _viewModel = viewModel;
         DataContext = viewModel;
+
+        // The view model outlives the window; a pause does not.
+        viewModel.Resume();
         Chart.VisibleSampleCount = viewModel.DefaultVisibleSamples;
 
         Chart.HoverChanged += OnChartHoverChanged;
-        IsVisibleChanged += (_, args) =>
-        {
-            if (args.NewValue is true)
-            {
-                _viewModel.Start();
-            }
-            else
-            {
-                _viewModel.Stop();
-            }
-        };
 
-        Unloaded += (_, _) => _viewModel.Stop();
+        // Live while it can be seen: on the page, or out in a window of its own.
+        // Following the page alone froze a lifted chart the moment another tile
+        // or section was chosen, because the page it came from was no longer
+        // showing.
+        IsVisibleChanged += (_, _) => Follow();
+        ChartHost.DetachedChanged += (_, _) => Follow();
+
+        Unloaded += (_, _) =>
+        {
+            ChartHost.Recall();
+            _viewModel.Stop();
+        };
     }
 
-    private void ResetZoom()
+    private void Follow()
     {
-        Chart.BeginAnimation(ThroughputChart.VisibleSampleCountProperty, null);
-        Chart.VisibleSampleCount = _viewModel.DefaultVisibleSamples;
+        if (IsVisible || ChartHost.IsDetached)
+        {
+            _viewModel.Start();
+            return;
+        }
+
+        _viewModel.Stop();
     }
 
     private void OnChartHoverChanged(object? sender, ChartHoverEventArgs e)

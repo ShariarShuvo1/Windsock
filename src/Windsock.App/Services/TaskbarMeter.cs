@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using Windsock.App.ViewModels;
 using Windsock.App.Views;
+using Windsock.Core.Connectivity;
 using Windsock.Core.Formatting;
 using Windsock.Core.Hardware;
 using Windsock.Core.Networking;
@@ -34,6 +35,7 @@ public sealed partial class TaskbarMeter : IDisposable
     private const double Padding = 4;
     private readonly ThroughputMonitor _network;
     private readonly SystemMonitor _machine;
+    private readonly ConnectionMonitor _connection;
     private readonly WindsockSettings _settings;
     private readonly Dispatcher _dispatcher;
     private readonly ILogger<TaskbarMeter> _logger;
@@ -51,10 +53,12 @@ public sealed partial class TaskbarMeter : IDisposable
     private bool _disposed;
     private double _download;
     private double _upload;
+    private ConnectionState _state;
 
     public TaskbarMeter(
         ThroughputMonitor network,
         SystemMonitor machine,
+        ConnectionMonitor connection,
         WindsockSettings settings,
         Dispatcher dispatcher,
         ILogger<TaskbarMeter> logger)
@@ -63,6 +67,7 @@ public sealed partial class TaskbarMeter : IDisposable
 
         _network = network;
         _machine = machine;
+        _connection = connection;
         _settings = settings;
         _dispatcher = dispatcher;
         _logger = logger;
@@ -221,12 +226,16 @@ public sealed partial class TaskbarMeter : IDisposable
             if (wanted)
             {
                 _network.SampleTaken += OnNetworkSample;
+                _connection.StateChanged += OnConnectionChanged;
                 _download = _network.Latest.DownloadBytesPerSecond;
                 _upload = _network.Latest.UploadBytesPerSecond;
+                _state = _connection.State;
             }
             else
             {
                 _network.SampleTaken -= OnNetworkSample;
+                _connection.StateChanged -= OnConnectionChanged;
+                _state = default;
             }
         }
 
@@ -350,6 +359,12 @@ public sealed partial class TaskbarMeter : IDisposable
         Queue();
     }
 
+    private void OnConnectionChanged(object? sender, ConnectionState state)
+    {
+        _state = state;
+        Queue();
+    }
+
     private void OnMachineSample(object? sender, SystemSnapshot snapshot)
     {
         _snapshot = snapshot;
@@ -370,7 +385,7 @@ public sealed partial class TaskbarMeter : IDisposable
     private void Draw()
     {
         _pending = false;
-        _meter?.Update(new MeterReading(_download, _upload, _snapshot));
+        _meter?.Update(new MeterReading(_download, _upload, _snapshot) { Connection = _state });
     }
 
     private void OnResized(object? sender, EventArgs e) => Station();

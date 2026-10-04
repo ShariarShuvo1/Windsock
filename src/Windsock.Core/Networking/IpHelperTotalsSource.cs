@@ -12,6 +12,8 @@ public sealed class IpHelperTotalsSource : INetworkTotalsSource, INetworkAdapter
 {
     // IF_OPER_STATUS.IfOperStatusUp
     private const uint OperationalStatusUp = 1;
+    private readonly Lock _gate = new();
+    private readonly AdapterLedger _ledger = new();
     private volatile ulong[] _selection = [];
 
     /// <summary>
@@ -64,49 +66,59 @@ public sealed class IpHelperTotalsSource : INetworkTotalsSource, INetworkAdapter
         return adapters;
     }
 
+    /// <summary>
+    /// Everything the counted adapters have moved since this source was made.
+    /// </summary>
+    /// <remarks>
+    /// Not the sum of their counters: see <see cref="AdapterLedger"/> for why
+    /// that sum jumps by an adapter's whole lifetime when it comes back up.
+    /// </remarks>
     public unsafe NetworkTotals ReadTotals()
     {
-        MIB_IF_TABLE2* table = null;
-        WIN32_ERROR result = PInvoke.GetIfTable2(&table);
-
-        if (result != WIN32_ERROR.NO_ERROR || table is null)
+        lock (_gate)
         {
-            return default;
-        }
+            MIB_IF_TABLE2* table = null;
+            WIN32_ERROR result = PInvoke.GetIfTable2(&table);
 
-        ulong[] selection = _selection;
-
-        try
-        {
-            long received = 0;
-            long sent = 0;
-
-            ReadOnlySpan<MIB_IF_ROW2> rows = table->Table.AsSpan((int)table->NumEntries);
-
-            foreach (ref readonly MIB_IF_ROW2 row in rows)
+            // Nothing read is nothing moved. Returning zero here would make the
+            // next good reading look like everything since this source began.
+            if (result != WIN32_ERROR.NO_ERROR || table is null)
             {
-                if (!Counts(
-                        (uint)row.OperStatus,
-                        row.InterfaceAndOperStatusFlags.HardwareInterface,
-                        row.InterfaceAndOperStatusFlags.FilterInterface))
-                {
-                    continue;
-                }
-
-                if (selection.Length > 0 && Array.IndexOf(selection, row.InterfaceLuid.Value) < 0)
-                {
-                    continue;
-                }
-
-                received += (long)row.InOctets;
-                sent += (long)row.OutOctets;
+                return _ledger.Total;
             }
 
-            return new NetworkTotals(received, sent);
-        }
-        finally
-        {
-            PInvoke.FreeMibTable(table);
+            ulong[] selection = _selection;
+
+            try
+            {
+                ReadOnlySpan<MIB_IF_ROW2> rows = table->Table.AsSpan((int)table->NumEntries);
+
+                _ledger.Begin();
+
+                foreach (ref readonly MIB_IF_ROW2 row in rows)
+                {
+                    if (!Counts(
+                            (uint)row.OperStatus,
+                            row.InterfaceAndOperStatusFlags.HardwareInterface,
+                            row.InterfaceAndOperStatusFlags.FilterInterface))
+                    {
+                        continue;
+                    }
+
+                    if (selection.Length > 0 && Array.IndexOf(selection, row.InterfaceLuid.Value) < 0)
+                    {
+                        continue;
+                    }
+
+                    _ledger.Count(row.InterfaceLuid.Value, (long)row.InOctets, (long)row.OutOctets);
+                }
+
+                return _ledger.End();
+            }
+            finally
+            {
+                PInvoke.FreeMibTable(table);
+            }
         }
     }
 }

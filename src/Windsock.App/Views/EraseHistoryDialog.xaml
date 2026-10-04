@@ -11,7 +11,7 @@
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
-        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+        Background="{DynamicResource SurfaceBrush}">
 
     <!--
         Asked before, not undone after. There is no copy of the history kept
@@ -48,7 +48,7 @@
                        Margin="0,0,0,8"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
-            <TextBlock Text="Every minute Windsock has recorded goes, along with the record of when it was watching. There is no copy kept anywhere else and this cannot be undone."
+            <TextBlock Text="Every minute Windsock has recorded goes, along with the record of when it was watching and each app's usage copied from Windows. There is no copy kept anywhere else and this cannot be undone."
                        FontSize="12.5"
                        TextWrapping="Wrap"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -58,7 +58,7 @@
                        Margin="0,8,0,0"
                        TextWrapping="Wrap"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                       Text="Export it from the History tab first if you want to keep a copy." />
+                       Text="Export it from the History section first if you want to keep a copy." />
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">

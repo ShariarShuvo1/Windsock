@@ -4,9 +4,9 @@
     <!--
         Light-theme palette. Same hues as the dark palette (the mark's cyan at
         197, and 36 against it), taken several steps darker so they hold
-        contrast against the near-white Fluent surfaces instead of washing out.
-        The mark's own values are too light to use here: cyan #2DC1FC on white
-        is close to unreadable, which is the whole reason this file exists.
+        contrast against pale surfaces instead of washing out. The mark's own
+        values are too light to use here: cyan #2DC1FC on white is close to
+        unreadable, which is the whole reason this file exists.
     -->
 
     <Color x:Key="BrandNavyColor">#FF0E2231</Color>
@@ -29,53 +29,61 @@
         Table rows. Dark on light rather than light on dark, and weaker: the
         same contrast ratio reads as heavier over a pale surface.
     -->
-    <SolidColorBrush x:Key="RowStripeBrush" Color="#0D000000" />
-    <SolidColorBrush x:Key="RowHoverBrush" Color="#1A000000" />
-    <SolidColorBrush x:Key="AccentSoftBrush" Color="#3300838F" />
+    <SolidColorBrush x:Key="RowStripeBrush" Color="#08102030" />
+    <SolidColorBrush x:Key="RowHoverBrush" Color="#12102030" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#2600838F" />
 
     <!--
-        The same three surfaces, deepest first. Over a pale ground the steps are
+        The same surfaces, deepest first. Here the card is the lightest thing on
+        screen and the ground the darkest, which is the same order of depth the
+        dark palette has with lightness running the other way. The steps are
         smaller: the eye reads the same contrast ratio as heavier on light than
         it does on dark.
     -->
-    <SolidColorBrush x:Key="WindowGroundBrush" Color="#FFE4E4E4" />
-    <SolidColorBrush x:Key="SectionHeaderBrush" Color="#FFEFEFEF" />
+    <SolidColorBrush x:Key="WindowGroundBrush" Color="#FFE3E7EC" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFF2F4F7" />
+    <SolidColorBrush x:Key="CardBrush" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="CardHoverBrush" Color="#FFF7F9FB" />
+    <!-- The shapes a page shows in place of what it is still waiting for. -->
+    <SolidColorBrush x:Key="BoneBrush" Color="#FFE1E5EA" />
+    <!-- A figure set on its own ground, a shade off the page, where a rule would otherwise part it from its neighbours. -->
+    <SolidColorBrush x:Key="PlateBrush" Color="#FFE9ECF0" />
+    <SolidColorBrush x:Key="CardStrokeBrush" Color="#1A0E2231" />
+    <SolidColorBrush x:Key="CanvasGroundBrush" Color="#FFF4F6F9" />
 
-    <!--
-        The graph's own ground, sunk into the card the same way. Below the card
-        and below the nodes, and still clear of the window behind it so the well
-        reads as part of the card rather than a hole through it.
-    -->
-    <SolidColorBrush x:Key="CanvasGroundBrush" Color="#FFEDEDED" />
+    <SolidColorBrush x:Key="PopupBrush" Color="#FFFFFFFF" />
 
     <!-- The world map: land a shade below the sea it sits in, coastlines below
          that, and the country under the pointer picked out. -->
-    <SolidColorBrush x:Key="MapLandBrush" Color="#FFDCDCDC" />
-    <SolidColorBrush x:Key="MapCoastBrush" Color="#FFB4B4B4" />
-    <SolidColorBrush x:Key="MapLandLitBrush" Color="#FFC3E1E5" />
+    <SolidColorBrush x:Key="MapLandBrush" Color="#FFDDE2E8" />
+    <SolidColorBrush x:Key="MapCoastBrush" Color="#FFB5BEC8" />
+    <SolidColorBrush x:Key="MapLandLitBrush" Color="#FFC3E1E8" />
 
     <!-- The busiest country, when the map is shaded by traffic. Everything
          else is mixed between this and the plain land. -->
-    <SolidColorBrush x:Key="MapBusyBrush" Color="#FFAFD8DE" />
-
+    <SolidColorBrush x:Key="MapBusyBrush" Color="#FFAED6DF" />
 
     <!--
-        The same four hues, taken darker in the same way the accent is, so each
-        tile keeps its identity against a near-white surface instead of washing
-        out into it.
+        The same five hues, taken darker in the same way the accent is, so each
+        tile keeps its identity against a white card instead of washing out
+        into it.
     -->
-    <Color x:Key="ProcessorColor">#FF00838F</Color>
-    <Color x:Key="GraphicsColor">#FF2E7D32</Color>
-    <Color x:Key="MemoryColor">#FF6A3AB2</Color>
-    <Color x:Key="StorageColor">#FFC77700</Color>
+    <Color x:Key="NetworkColor">#FF0288D1</Color>
+    <Color x:Key="ProcessorColor">#FF3F5BD9</Color>
+    <Color x:Key="GraphicsColor">#FF1E8A4C</Color>
+    <Color x:Key="MemoryColor">#FF7B3FC4</Color>
+    <Color x:Key="StorageColor">#FFC2185B</Color>
 
+    <SolidColorBrush x:Key="NetworkBrush" Color="{StaticResource NetworkColor}" />
     <SolidColorBrush x:Key="ProcessorBrush" Color="{StaticResource ProcessorColor}" />
     <SolidColorBrush x:Key="GraphicsBrush" Color="{StaticResource GraphicsColor}" />
     <SolidColorBrush x:Key="MemoryBrush" Color="{StaticResource MemoryColor}" />
     <SolidColorBrush x:Key="StorageBrush" Color="{StaticResource StorageColor}" />
 
-    <SolidColorBrush x:Key="MeterTrackBrush" Color="#1F000000" />
+    <SolidColorBrush x:Key="MeterTrackBrush" Color="#170E2231" />
 
     <SolidColorBrush x:Key="HotBrush" Color="#FFD84315" />
+
+    <SolidColorBrush x:Key="GoodBrush" Color="#FF1E8A4C" />
 
 </ResourceDictionary>

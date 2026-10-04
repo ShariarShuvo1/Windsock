@@ -37,8 +37,20 @@ public abstract partial class TableColumn : ObservableObject
         DefaultVisible = visible;
     }
 
-    /// <summary>Heading text.</summary>
-    public string Title { get; }
+    /// <summary>Heading text. A table that shows one of two kinds of row renames its first column as it switches.</summary>
+    [ObservableProperty]
+    public partial string Title { get; set; }
+
+    /// <summary>
+    /// Whether the column belongs to what the table is showing at all. A column
+    /// not offered is neither drawn, listed in the chooser nor filtered by,
+    /// whatever its own switch says - a process id beside a row that is an app.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsOffered { get; set; } = true;
+
+    /// <summary>Whether the column is drawn: offered, and switched on.</summary>
+    public bool IsShown => IsOffered && IsVisible;
 
     /// <summary>What this column holds.</summary>
     public ColumnKind Kind { get; }
@@ -122,6 +134,13 @@ public abstract partial class TableColumn : ObservableObject
     partial void OnIsVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(IsDefault));
+        OnPropertyChanged(nameof(IsShown));
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    partial void OnIsOfferedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsShown));
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }
@@ -150,7 +169,7 @@ public sealed class TableColumn<TRow> : TableColumn
     /// <summary>Whether <paramref name="row"/> survives this column's filter.</summary>
     public bool Matches(TRow row)
     {
-        if (!HasFilter)
+        if (!HasFilter || !IsOffered)
         {
             return true;
         }

@@ -31,6 +31,17 @@ public partial class HistoryPanelView : UserControl
         RecordedColumn.Header = viewModel.RecordedColumn;
 
         Chart.HoverChanged += OnChartHoverChanged;
+
+        // The lanes keep to the usage chart's view, so a moment is in the same
+        // place in both however far it is zoomed.
+        Chart.ViewChanged += (_, _) => Lanes.Follow(Chart.View);
+        Lanes.HoverChanged += OnLanesHoverChanged;
+
+        // Clicking a bar goes to its row, on whatever page it is.
+        Chart.BucketClicked += (_, e) => _viewModel.Reveal(e.Bucket.Start);
+        viewModel.RowRevealed += OnRowRevealed;
+        viewModel.PageTurned += (_, _) => ToTableTop();
+        Table.PreviewKeyDown += (_, e) => e.Handled = PagerBar.TakeKey(_viewModel.Pager, e);
         TableWheel.Attach(Table);
         Table.Sorting += OnTableSorting;
         Table.MouseMove += OnTableMouseMove;
@@ -40,12 +51,20 @@ public partial class HistoryPanelView : UserControl
         viewModel.ViewReset += (_, _) => ClearSort();
 
         ShowRecordedColumn();
-        Loaded += (_, _) =>
+        // Visibility rather than Loaded, which a minimised window never loses.
+        IsVisibleChanged += (_, e) =>
         {
-            _viewModel.Start();
-            WatchScrolling();
+            if (e.NewValue is true)
+            {
+                _viewModel.Start();
+            }
+            else
+            {
+                _viewModel.Stop();
+            }
         };
 
+        Loaded += (_, _) => WatchScrolling();
         Unloaded += (_, _) => _viewModel.Stop();
     }
 
@@ -60,14 +79,21 @@ public partial class HistoryPanelView : UserControl
 
     private void WatchScrolling()
     {
-        if (_scroll is not null || TableWheel.Scroller(Table) is not { } found)
+        if (_scroll is not null)
         {
             return;
         }
 
-        _scroll = found;
-        _scroll.ScrollChanged += (_, _) => _viewModel.IsFollowing = _scroll.VerticalOffset < 4;
+        // The page scrolls in Body; the grid's own scroller never moves, since
+        // its scrolling is off. Following means the table's first rows have
+        // not been scrolled past - the chart above them in view counts - so a
+        // row arriving at the top never pushes down rows somebody is reading.
+        _scroll = Body;
+        _scroll.ScrollChanged += (_, _) => _viewModel.IsFollowing = TableTopNotPassed();
     }
+
+    private bool TableTopNotPassed() =>
+        !Table.IsVisible || Table.TranslatePoint(new Point(0, 0), Body).Y > -48;
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -101,18 +127,26 @@ public partial class HistoryPanelView : UserControl
             _ => FirstDirection(e.Column),
         };
 
-        Table.Items.SortDescriptions.Clear();
-        Table.Items.SortDescriptions.Add(new SortDescription(path, direction));
-
         foreach (DataGridColumn column in Table.Columns)
         {
             column.SortDirection = column == e.Column ? direction : null;
         }
 
-        Table.Items.Refresh();
-        _scroll?.ScrollToTop();
-        _viewModel.IsSorted = true;
+        // The whole period is sorted, not the page on screen; see PagedView.
+        _viewModel.SortBy(path, direction);
+        ToTableTop();
     }
+
+    private void OnRowRevealed(object? sender, HistoryRowViewModel row) =>
+        Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Loaded,
+            new Action(() => (Table.ItemContainerGenerator.ContainerFromItem(row) as FrameworkElement)?.BringIntoView()));
+
+    /// <summary>Scrolls up to the table's heading when a new page replaces the rows under the reader.</summary>
+    private void ToTableTop() =>
+        Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Loaded,
+            new Action(() => Table.BringIntoView(new Rect(0, 0, Math.Max(1, Table.ActualWidth), 40))));
 
     private static ListSortDirection FirstDirection(DataGridColumn column) =>
         column.Header is TableColumn model && model.DescendingFirst
@@ -121,16 +155,12 @@ public partial class HistoryPanelView : UserControl
 
     private void ClearSort()
     {
-        Table.Items.SortDescriptions.Clear();
-
         foreach (DataGridColumn column in Table.Columns)
         {
             column.SortDirection = null;
         }
 
-        Table.Items.Refresh();
-        _scroll?.ScrollToTop();
-        _viewModel.IsSorted = false;
+        _viewModel.SortBy(null, ListSortDirection.Ascending);
     }
 
     private void OnChartHoverChanged(object? sender, UsageHoverEventArgs e)
@@ -143,32 +173,54 @@ public partial class HistoryPanelView : UserControl
             return;
         }
 
-        Popover.Visibility = Visibility.Visible;
-        Popover.UpdateLayout();
+        Place(Popover, PopoverLayer, e.Position);
+    }
 
-        double layerWidth = PopoverLayer.ActualWidth;
-        double layerHeight = PopoverLayer.ActualHeight;
-        double width = Popover.ActualWidth;
-        double height = Popover.ActualHeight;
+    private void OnLanesHoverChanged(object? sender, LaneHoverEventArgs e)
+    {
+        _viewModel.SetMachineHover(e.HasValue, e.Start);
+
+        if (!e.HasValue)
+        {
+            LanesPopover.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        Place(LanesPopover, LanesPopoverLayer, e.Position);
+    }
+
+    private static void Place(FrameworkElement popover, FrameworkElement layer, Point position)
+    {
+        popover.Visibility = Visibility.Visible;
+        popover.UpdateLayout();
+
+        double layerWidth = layer.ActualWidth;
+        double layerHeight = layer.ActualHeight;
+        double width = popover.ActualWidth;
+        double height = popover.ActualHeight;
 
         // Prefer the right of the pointer, flip to the left near the far edge.
-        double left = e.Position.X + PopoverGap;
+        double left = position.X + PopoverGap;
 
         if (left + width > layerWidth)
         {
-            left = e.Position.X - PopoverGap - width;
+            left = position.X - PopoverGap - width;
         }
 
         // Prefer above the pointer, flip below when there is no room.
-        double top = e.Position.Y - height - PopoverGap;
+        double top = position.Y - height - PopoverGap;
 
         if (top < 0)
         {
-            top = e.Position.Y + PopoverGap;
+            top = position.Y + PopoverGap;
         }
 
-        Canvas.SetLeft(Popover, Math.Round(Math.Clamp(left, 0, Math.Max(0, layerWidth - width))));
-        Canvas.SetTop(Popover, Math.Round(Math.Clamp(top, 0, Math.Max(0, layerHeight - height))));
+        // A popover taller than its chart - one listing apps - rises over what
+        // is above the chart in the same card rather than being cut off below.
+        double lowest = Math.Min(0, layerHeight - height);
+
+        Canvas.SetLeft(popover, Math.Round(Math.Clamp(left, 0, Math.Max(0, layerWidth - width))));
+        Canvas.SetTop(popover, Math.Round(Math.Clamp(top, lowest, Math.Max(0, layerHeight - height))));
     }
 
 }

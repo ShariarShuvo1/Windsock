@@ -3,11 +3,21 @@ namespace Windsock.Core.Processes;
 /// <summary>
 /// What a process is, as opposed to what it is doing.
 /// </summary>
+/// <param name="Name">The executable's name, without its extension.</param>
+/// <param name="Description">The executable's own description, when it has one.</param>
+/// <param name="FilePath">The executable's full path, when Windows will say.</param>
+/// <param name="StartedAt">When the process started, when Windows will say.</param>
+/// <param name="PackageFamily">
+/// The package family, when the process runs a file installed with a packaged
+/// app - which is how Windows counts its traffic. Null for everything else,
+/// a program a packaged app started from somewhere else included.
+/// </param>
 public sealed record ProcessIdentity(
     string Name,
     string? Description,
     string? FilePath,
-    DateTimeOffset? StartedAt);
+    DateTimeOffset? StartedAt,
+    string? PackageFamily = null);
 
 /// <summary>Sockets a process holds open, split by protocol.</summary>
 public readonly record struct SocketCounts(int Tcp, int Udp)

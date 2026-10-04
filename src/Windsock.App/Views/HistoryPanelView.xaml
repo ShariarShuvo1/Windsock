@@ -6,560 +6,829 @@
              xmlns:controls="clr-namespace:Windsock.App.Controls"
              xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
              xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             xmlns:views="clr-namespace:Windsock.App.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:HistoryPanelViewModel}"
              d:DesignWidth="880"
-             d:DesignHeight="420">
+             d:DesignHeight="700">
 
     <!--
-        One scroller around the whole body. Everything under the tab band moves
-        together, so a short window is scrolled rather than having its last
-        section squeezed to nothing, and the window itself never scrolls.
-
-        The grid inside is held to the height of that scroller, so a table with
-        room to spare fills what is left rather than stopping halfway down with
-        a blank space under it, and a window too short for the whole layout
-        pushes past the viewport and scrolls the toolbar away with it.
-
-        The table has no scroller of its own. One region that scrolls means one
-        scrollbar and one gesture; a table that scrolls inside a page that also
-        scrolls is two of each, and they never agree with one another. What that
-        costs is a row really built rather than recycled, which is why the rows
-        are handed over a screenful at a time - see Rebuild.
+        A period of the past: what it came to, the shape of it over time, and the
+        rows behind both. The choice of period is the page's own, so it sits in
+        the heading, where it governs everything under it rather than the one
+        card it used to share a line with.
     -->
-    <ScrollViewer x:Name="Body"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  Padding="0,0,4,0">
-    <Grid MinHeight="{Binding ViewportHeight, ElementName=Body}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <!--
-            One card: what period is being looked at, what it came to, and the
-            shape of it over time. They were four things stacked loose on the
-            page, which is one section's worth of information wearing three
-            different surfaces. A process window says the same kind of thing in
-            one card with the picture sunk into it, and this now matches.
-        -->
-        <!--
-            The tighter inset the process card uses. The house padding leaves a
-            band of nothing above a strip of thirty pixel controls, and these
-            two toolbars sit side by side in the same window.
-        -->
-        <Border Grid.Row="0" Style="{StaticResource CardStyle}" Padding="16,12,16,12">
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
-        <!--
-            What period to look at, and how finely to cut it. Wrapped for the
-            same reason the process toolbar is: a row that cannot wrap runs its
-            last control off the edge of the card where it cannot be reached.
-        -->
-        <DockPanel Grid.Row="0" LastChildFill="True">
+    <controls:SectionPage Title="History" Subtitle="{Binding RangeLabel}">
+        <controls:SectionPage.Actions>
             <!--
-                Docked outside the wrapping row on purpose: when the toolbar
-                drops to a second line this stays on the first, where a section
-                control belongs - the same arrangement the overview uses.
+                Two sets, each wrapping as a unit: what to look at, and what to
+                do with it. On a line too narrow for both, the actions wrap under
+                the choices and start at the same left edge.
             -->
-            <ToggleButton DockPanel.Dock="Right"
-                          Style="{StaticResource SectionCollapseStyle}"
-                          VerticalAlignment="Top"
-                          Margin="8,0,0,0"
-                          IsChecked="{Binding IsDetailExpanded, Mode=TwoWay}"
-                          AutomationProperties.Name="Collapse summary"
-                          ToolTip="Fold away the totals and the chart to give the table more room" />
+            <controls:FlowRow Spacing="8" LineSpacing="8">
+                <controls:FlowRow Spacing="8" LineSpacing="8">
+                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                     MinWidth="132"
+                                     ItemsSource="{Binding Ranges}"
+                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                     SelectedValuePath="Range"
+                                     SelectedValue="{Binding SelectedRange, Mode=TwoWay}"
+                                     AutomationProperties.Name="Period"
+                                     ToolTip="Which stretch of history to total up" />
 
-            <WrapPanel Margin="0,0,0,-6">
-            <controls:Picker Style="{StaticResource PickerStyle}"
-                             MinWidth="132"
-                             Margin="0,0,8,6"
-                             ItemsSource="{Binding Ranges}"
-                             ItemTemplate="{StaticResource OptionLabelTemplate}"
-                             SelectedValuePath="Range"
-                             SelectedValue="{Binding SelectedRange, Mode=TwoWay}"
-                             AutomationProperties.Name="Period"
-                             ToolTip="Which stretch of history to total up" />
+                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                     MinWidth="112"
+                                     ItemsSource="{Binding Resolutions}"
+                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                     SelectedValuePath="Granularity"
+                                     SelectedValue="{Binding SelectedResolution, Mode=TwoWay}"
+                                     AutomationProperties.Name="Resolution"
+                                     ToolTip="How wide each row and bar is. Minutes are offered for periods up to a week." />
+                </controls:FlowRow>
 
-            <controls:Picker Style="{StaticResource PickerStyle}"
-                             MinWidth="112"
-                             Margin="0,0,8,6"
-                             ItemsSource="{Binding Resolutions}"
-                             ItemTemplate="{StaticResource OptionLabelTemplate}"
-                             SelectedValuePath="Granularity"
-                             SelectedValue="{Binding SelectedResolution, Mode=TwoWay}"
-                             AutomationProperties.Name="Resolution"
-                             ToolTip="How wide each row and bar is. Minutes are offered for periods up to a week." />
-
-            <StackPanel Orientation="Horizontal"
-                        Margin="0,0,8,6"
-                        Visibility="{Binding IsCustom, Converter={StaticResource BooleanToVisibility}}">
-                <controls:DateTimeBox Value="{Binding CustomFrom, Mode=TwoWay}"
-                                      AutomationProperties.Name="Range start"
-                                      ToolTip="The first minute to include" />
-
-                <TextBlock Text="to"
-                           VerticalAlignment="Center"
-                           Margin="8,0,8,0"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-
-                <controls:DateTimeBox Value="{Binding CustomTo, Mode=TwoWay}"
-                                      AutomationProperties.Name="Range end"
-                                      ToolTip="The last minute to include, counted in full" />
-            </StackPanel>
-
-            <Button Style="{StaticResource ToolbarButtonStyle}"
-                    Margin="0,0,6,6"
-                    Command="{Binding ExportCommand}"
-                    AutomationProperties.Name="Export"
-                    ToolTip="Write the period on screen to a CSV file">
-                <StackPanel Orientation="Horizontal">
-                    <fluent:SymbolIcon Symbol="ArrowDownload"
-                                       FontSize="14"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0" />
-                    <TextBlock Text="Export" VerticalAlignment="Center" />
-                </StackPanel>
-            </Button>
-
-            <Button Style="{StaticResource ToolbarButtonStyle}"
-                    Margin="0,0,0,6"
-                    Command="{Binding ImportCommand}"
-                    AutomationProperties.Name="Import"
-                    ToolTip="Read a CSV file back in. Minutes already recorded are left alone.">
-                <StackPanel Orientation="Horizontal">
-                    <fluent:SymbolIcon Symbol="ArrowUpload"
-                                       FontSize="14"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0" />
-                    <TextBlock Text="Import" VerticalAlignment="Center" />
-                </StackPanel>
-            </Button>
-
-            <!--
-                Whether anything new is being written at all. Last in the row
-                because it is a decision about the data rather than about what
-                is on screen, and a checkbox rather than a button because that
-                is what the toolbar above the process table already uses.
-            -->
-            <Button Style="{StaticResource ToolbarButtonStyle}"
-                    Margin="10,0,0,6"
-                    Command="{Binding ResetViewCommand}"
-                    Visibility="{Binding IsCustomised, Converter={StaticResource BooleanToVisibility}}"
-                    ToolTip="Put the column filters and the sort back to their defaults" >
-                    <Button.Content>
+                <controls:FlowRow Spacing="8" LineSpacing="8">
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            Command="{Binding ExportCommand}"
+                            AutomationProperties.Name="Export"
+                            ToolTip="Write the period on screen to a CSV file">
                         <StackPanel Orientation="Horizontal">
-                            <fluent:SymbolIcon Symbol="ArrowReset"
+                            <fluent:SymbolIcon Symbol="ArrowDownload"
                                                FontSize="14"
                                                VerticalAlignment="Center"
-                                               Margin="0,0,7,0" />
-                            <TextBlock Text="Reset view" VerticalAlignment="Center" />
+                                               Margin="0,0,6,0" />
+                            <TextBlock Text="Export" VerticalAlignment="Center" />
                         </StackPanel>
-                    </Button.Content>
-            </Button>
+                    </Button>
 
-            <!--
-                A verb, not a state. The reader is told what pressing it does
-                rather than being asked to work out what a tick means.
-            -->
-            <Button Style="{StaticResource ToolbarButtonStyle}"
-                        Margin="10,0,0,6"
-                        Command="{Binding ToggleRecordingCommand}"
-                        AutomationProperties.Name="{Binding RecordingLabel}"
-                        ToolTip="Whether new minutes are written to disk. Pausing leaves everything already recorded alone.">
-                    <StackPanel Orientation="Horizontal">
-                        <!-- The glyph says the same thing as the words. -->
-                        <fluent:SymbolIcon FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0">
-                            <fluent:SymbolIcon.Style>
-                                <Style TargetType="fluent:SymbolIcon">
-                                    <Setter Property="Symbol" Value="PauseCircle" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsRecording}" Value="False">
-                                            <Setter Property="Symbol" Value="PlayCircle" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </fluent:SymbolIcon.Style>
-                        </fluent:SymbolIcon>
-
-                        <TextBlock Text="{Binding RecordingLabel}" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-            </WrapPanel>
-        </DockPanel>
-
-        <!--
-            The answer, before the detail: how much moved, which way, and over
-            what dates. The numbers shrink a tier at a time as they grow so a
-            terabyte reads the same way a kilobyte does.
-        -->
-        <Border Grid.Row="1"
-                Margin="0,14,0,0"
-                Visibility="{Binding IsDetailExpanded, Converter={StaticResource BooleanToVisibility}}">
-            <StackPanel>
-                <controls:AdaptiveRow Breakpoint="520" Spacing="28">
-                    <StackPanel Orientation="Horizontal">
-                        <StackPanel Margin="0,0,28,0">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,1">
-                                <fluent:SymbolIcon Symbol="ArrowDownload"
-                                                   FontSize="14"
-                                                   Foreground="{DynamicResource DownloadBrush}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,7,0" />
-                                <TextBlock Text="DOWNLOADED"
-                                           Style="{StaticResource CaptionTextStyle}"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <!-- Fixed height so a size change never reflows the block. -->
-                            <StackPanel Orientation="Horizontal" Height="42">
-                                <TextBox Text="{Binding DownloadValue, Mode=OneWay}"
-                                         Style="{StaticResource ReadoutTextStyle}"
-                                         FontSize="{Binding DownloadFontSize}"
-                                         AutomationProperties.Name="Downloaded"
-                                         VerticalAlignment="Bottom" />
-                                <TextBox Text="{Binding DownloadUnit, Mode=OneWay}"
-                                         Style="{StaticResource ReadoutUnitTextStyle}"
-                                         VerticalAlignment="Bottom" />
-                            </StackPanel>
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            Command="{Binding ImportCommand}"
+                            AutomationProperties.Name="Import"
+                            ToolTip="Read a CSV file back in. Minutes already recorded are left alone.">
+                        <StackPanel Orientation="Horizontal">
+                            <fluent:SymbolIcon Symbol="ArrowUpload"
+                                               FontSize="14"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,6,0" />
+                            <TextBlock Text="Import" VerticalAlignment="Center" />
                         </StackPanel>
+                    </Button>
 
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,1">
-                                <fluent:SymbolIcon Symbol="ArrowUpload"
-                                                   FontSize="14"
-                                                   Foreground="{DynamicResource UploadBrush}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,7,0" />
-                                <TextBlock Text="UPLOADED"
-                                           Style="{StaticResource CaptionTextStyle}"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Height="42">
-                                <TextBox Text="{Binding UploadValue, Mode=OneWay}"
-                                         Style="{StaticResource ReadoutTextStyle}"
-                                         FontSize="{Binding UploadFontSize}"
-                                         AutomationProperties.Name="Uploaded"
-                                         VerticalAlignment="Bottom" />
-                                <TextBox Text="{Binding UploadUnit, Mode=OneWay}"
-                                         Style="{StaticResource ReadoutUnitTextStyle}"
-                                         VerticalAlignment="Bottom" />
-                            </StackPanel>
-                        </StackPanel>
-                    </StackPanel>
-
-                    <StackPanel VerticalAlignment="Center">
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
-                                <!-- Stacked: sits under the figures, so align with them. -->
-                                <Setter Property="HorizontalAlignment" Value="Left" />
-                                <Style.Triggers>
-                                    <!-- In a row it takes the far end, so the spare
-                                         width falls between the two halves instead
-                                         of trailing off the right of the card. -->
-                                    <DataTrigger Binding="{Binding IsRow, RelativeSource={RelativeSource AncestorType=controls:AdaptiveRow}}"
-                                                 Value="True">
-                                        <Setter Property="HorizontalAlignment" Value="Right" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
-
-                        <!--
-                            Which period this is, at the head of what it came
-                            to. It used to have a line of its own above the
-                            figures, which is a caption for the card floating
-                            over the one part of the card it was not captioning.
-                        -->
-                        <TextBlock Text="{Binding RangeLabel}"
-                                   Style="{StaticResource CaptionTextStyle}"
-                                   HorizontalAlignment="Right"
-                                   TextAlignment="Right"
-                                   Margin="0,0,0,5" />
-
-                        <TextBlock Margin="0,0,0,3"
-                                   HorizontalAlignment="Right"
-                                   TextAlignment="Right">
-                            <Run Text="Together " Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <Run Text="{Binding TotalText, Mode=OneWay}"
-                                 FontWeight="SemiBold"
-                                 Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                        </TextBlock>
-
-                        <TextBlock Text="{Binding PeakText}"
-                                   FontSize="12"
-                                   Margin="0,0,0,3"
-                                   HorizontalAlignment="Right"
-                                   TextAlignment="Right"
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-
-                        <TextBlock Text="{Binding CoverageText}"
-                                   FontSize="12"
-                                   HorizontalAlignment="Right"
-                                   TextAlignment="Right"
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                    </StackPanel>
-                </controls:AdaptiveRow>
-            </StackPanel>
-        </Border>
-
-        <!-- Says what an import or an export just did. Absent until one has. -->
-        <TextBlock Grid.Row="2"
-                   Text="{Binding Notice}"
-                   Margin="2,8,0,0"
-                   FontSize="12"
-                   TextWrapping="Wrap"
-                   Foreground="{DynamicResource AccentBrush}">
-            <TextBlock.Style>
-                <Style TargetType="TextBlock">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding Notice}" Value="">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </TextBlock.Style>
-        </TextBlock>
-
-        <Border Grid.Row="3"
-                Height="150"
-                Margin="0,12,0,0"
-                Padding="10,8"
-                CornerRadius="8"
-                SnapsToDevicePixels="True"
-                Background="{DynamicResource CanvasGroundBrush}"
-                Visibility="{Binding IsChartVisible, Converter={StaticResource BooleanToVisibility}}">
-            <controls:DetachHost WindowTitle="History"
-                                 Note="The chart is open in a window of its own.">
-                <Grid>
-                <!--
-                    A word while a long span is read. The reading itself happens off
-                    the interface thread, so the card stays alive; this is only so a
-                    chart that has not arrived yet does not look like a chart with
-                    nothing in it.
-                -->
-                <TextBlock Text="Reading&#8230;"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Panel.ZIndex="1"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibility}}" />
-
-                <controls:UsageBarChart x:Name="Chart"
-                                        Buckets="{Binding Buckets}"
-                                        Revision="{Binding Revision}"
-                                        RangeStart="{Binding RangeStart}"
-                                        RangeEnd="{Binding RangeEnd}"
-                                        Granularity="{Binding SelectedResolution}"
-                                        DownloadBrush="{DynamicResource DownloadBrush}"
-                                        UploadBrush="{DynamicResource UploadBrush}"
-                                        GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                                        AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
-                                        HighlightBrush="{DynamicResource SubtleFillColorSecondaryBrush}"
-                                        HighlightedStart="{Binding HighlightedStart}"
-                                        AutomationProperties.Name="Usage over the period"
-                                        ToolTip="Scroll to zoom the time axis, drag to pan" />
-
-                <Canvas x:Name="PopoverLayer" IsHitTestVisible="False">
-                    <Border x:Name="Popover"
-                            Style="{StaticResource PopoverStyle}"
-                            Visibility="Collapsed">
-                        <StackPanel>
-                            <TextBlock Text="{Binding HoverLabel}"
-                                       Style="{StaticResource CaptionTextStyle}" />
-
-                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
-                                <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                                         Fill="{DynamicResource DownloadBrush}" Margin="0,0,7,0" />
-                                <TextBlock Text="{Binding HoverDownload}"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            </StackPanel>
-
-                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                                         Fill="{DynamicResource UploadBrush}" Margin="0,0,7,0" />
-                                <TextBlock Text="{Binding HoverUpload}"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            </StackPanel>
-
-                            <TextBlock Margin="0,6,0,0" FontSize="11.5">
-                                <Run Text="Together " Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <Run Text="{Binding HoverTotal, Mode=OneWay}"
-                                     FontWeight="SemiBold"
-                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            </TextBlock>
-
-                            <!--
-                                Said only when part of the bucket is missing, so a
-                                complete hour stays quiet about it.
-                            -->
-                            <TextBlock Text="{Binding HoverRecorded}"
-                                       FontSize="11"
-                                       Margin="0,4,0,0"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Visible" />
+                    <!--
+                        Whether anything new is being written at all. Last
+                        because it is a decision about the data rather than
+                        about what is on screen. A verb, not a state: the reader
+                        is told what pressing it does.
+                    -->
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            Command="{Binding ToggleRecordingCommand}"
+                            AutomationProperties.Name="{Binding RecordingLabel}"
+                            ToolTip="Whether new minutes are written to disk. Pausing leaves everything already recorded alone.">
+                        <StackPanel Orientation="Horizontal">
+                            <!-- The glyph says the same thing as the words. -->
+                            <fluent:SymbolIcon FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0">
+                                <fluent:SymbolIcon.Style>
+                                    <Style TargetType="fluent:SymbolIcon">
+                                        <Setter Property="Symbol" Value="PauseCircle" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HoverRecorded}" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            <DataTrigger Binding="{Binding IsRecording}" Value="False">
+                                                <Setter Property="Symbol" Value="PlayCircle" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                                </fluent:SymbolIcon.Style>
+                            </fluent:SymbolIcon>
+
+                            <TextBlock Text="{Binding RecordingLabel}" VerticalAlignment="Center" />
                         </StackPanel>
-                    </Border>
-                </Canvas>
-                </Grid>
-            </controls:DetachHost>
-        </Border>
+                    </Button>
+                </controls:FlowRow>
+            </controls:FlowRow>
+        </controls:SectionPage.Actions>
 
         <!--
-            The exact numbers. Newest first, because the question a history
-            answers is nearly always about the recent end of it.
+            One scroller around the whole page. Everything under the heading
+            moves together, so a short window is scrolled rather than having its
+            last section squeezed to nothing.
+
+            The grid inside is held to the height of that scroller, so a table
+            with room to spare fills what is left rather than stopping halfway
+            down with a blank space under it.
+
+            The table has no scroller of its own. One region that scrolls means
+            one scrollbar and one gesture; a table that scrolls inside a page
+            that also scrolls is two of each, and they never agree with one
+            another. What that costs is a row really built rather than recycled,
+            which is why the rows are handed over a screenful at a time - see
+            Rebuild.
         -->
-        </Grid>
-        </Border>
+        <ScrollViewer x:Name="Body"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="{StaticResource PagePadding}">
+            <Grid MinHeight="{Binding ViewportHeight, ElementName=Body}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-        <Grid Grid.Row="1" Margin="0,14,0,0">
-            <DataGrid x:Name="Table"
-                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                      Style="{StaticResource TableStyle}"
-                      ColumnHeaderStyle="{StaticResource TableHeaderStyle}"
-                      RowStyle="{StaticResource HistoryRowStyle}"
-                      CellStyle="{StaticResource TableCellStyle}"
-                      ItemsSource="{Binding Rows}"
-                      AutomationProperties.Name="Recorded usage">
-                <DataGrid.Columns>
-                    <DataGridTextColumn x:Name="FromColumn"
-                                        Binding="{Binding From}"
-                                        SortMemberPath="Start"
-                                        Width="150"
-                                        MinWidth="110"
-                                        ElementStyle="{StaticResource TableTextStyle}" />
+                <!-- Says what an import or an export just did. Absent until one has. -->
+                <Border Grid.Row="0"
+                        Margin="0,0,0,16"
+                        Padding="14,10"
+                        CornerRadius="8"
+                        Background="{DynamicResource AccentSoftBrush}"
+                        Visibility="{Binding Notice, Converter={StaticResource TextToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <fluent:SymbolIcon DockPanel.Dock="Left"
+                                           Symbol="Info"
+                                           FontSize="15"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="{Binding Notice}"
+                                   FontSize="12.5"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </DockPanel>
+                </Border>
 
-                    <DataGridTextColumn x:Name="ToColumn"
-                                        Binding="{Binding To}"
-                                        SortMemberPath="End"
-                                        Width="150"
-                                        MinWidth="80"
-                                        ElementStyle="{StaticResource TableQuietTextStyle}" />
+                <!--
+                    The period on one card: the custom range while one is chosen,
+                    what it came to, and the shape of it over time. They are one
+                    answer to one question, so they share a surface and are only
+                    ruled apart.
+                -->
+                <controls:Card Grid.Row="1">
+                    <controls:RuledPanel>
+                        <!-- The custom period, only while one is chosen. -->
+                        <Border Style="{StaticResource SectionStyle}"
+                                Padding="20,12"
+                                Visibility="{Binding IsCustom, Converter={StaticResource BooleanToVisibility}}">
+                            <controls:FlowRow Spacing="8" LineSpacing="8">
+                                <TextBlock Text="From"
+                                           VerticalAlignment="Center"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                    <DataGridTextColumn x:Name="DownloadColumn"
-                                        Binding="{Binding Download}"
-                                        SortMemberPath="BytesDown"
-                                        Width="110"
-                                        MinWidth="90"
-                                        ElementStyle="{StaticResource TableReceiveStyle}" />
+                                <controls:DateTimeBox Value="{Binding CustomFrom, Mode=TwoWay}"
+                                                      AutomationProperties.Name="Range start"
+                                                      ToolTip="The first minute to include" />
 
-                    <DataGridTextColumn x:Name="UploadColumn"
-                                        Binding="{Binding Upload}"
-                                        SortMemberPath="BytesUp"
-                                        Width="110"
-                                        MinWidth="90"
-                                        ElementStyle="{StaticResource TableSendStyle}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="to"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                    <DataGridTextColumn x:Name="TotalColumn"
-                                        Binding="{Binding Total}"
-                                        SortMemberPath="BytesTotal"
-                                        Width="110"
-                                        MinWidth="90"
-                                        ElementStyle="{StaticResource TableNumberStyle}" />
+                                    <controls:DateTimeBox Value="{Binding CustomTo, Mode=TwoWay}"
+                                                          AutomationProperties.Name="Range end"
+                                                          ToolTip="The last minute to include, counted in full" />
+                                </StackPanel>
+                            </controls:FlowRow>
+                        </Border>
 
-                    <DataGridTextColumn x:Name="PeakDownColumn"
-                                        Binding="{Binding PeakDown}"
-                                        SortMemberPath="PeakDownBytes"
-                                        Width="120"
-                                        MinWidth="90"
-                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+                        <!--
+                            The answer, before the detail: how much moved each way,
+                            and both together, with how fast and how much of the
+                            period Windsock saw under each.
+                        -->
+                        <controls:FlowGrid Style="{StaticResource StatStripStyle}">
+                            <Border Style="{StaticResource StatCellStyle}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ArrowDownload"
+                                                           FontSize="13"
+                                                           Margin="0,0,6,0"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource DownloadBrush}" />
+                                        <TextBlock Text="DOWNLOADED" Style="{StaticResource StatLabelStyle}" VerticalAlignment="Center" />
+                                    </StackPanel>
 
-                    <DataGridTextColumn x:Name="PeakUpColumn"
-                                        Binding="{Binding PeakUp}"
-                                        SortMemberPath="PeakUpBytes"
-                                        Width="120"
-                                        MinWidth="90"
-                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+                                    <TextBlock Style="{StaticResource StatValueStyle}" FontSize="24" AutomationProperties.Name="Downloaded">
+                                        <Run Text="{Binding DownloadValue, Mode=OneWay}" />
+                                        <Run Text="{Binding DownloadUnit, Mode=OneWay}"
+                                             FontSize="14"
+                                             Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </TextBlock>
 
-                    <DataGridTextColumn x:Name="RecordedColumn"
-                                        Binding="{Binding Recorded}"
-                                        SortMemberPath="MinutesRecorded"
-                                        Width="90"
-                                        MinWidth="70"
-                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+                                    <TextBlock Text="{Binding PeakDownText}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
 
-                    <!--
-                        Row actions. Last, narrow, and unsortable: it holds a
-                        button rather than a value.
-                    -->
-                    <DataGridTemplateColumn x:Name="ActionsColumn"
-                                            Width="44"
-                                            MinWidth="44"
-                                            CanUserSort="False"
-                                            CanUserResize="False"
-                                            CanUserReorder="False"
-                                            HeaderStyle="{StaticResource ActionsHeaderStyle}">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <ToggleButton x:Name="RowMenu"
-                                              Style="{StaticResource RowMenuStyle}"
-                                              Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                              AutomationProperties.Name="Row actions"
-                                              ToolTip="More for this row">
-                                    <Grid>
-                                        <StackPanel Orientation="Vertical"
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center">
-                                            <Ellipse Width="3" Height="3" Margin="0,1.5"
-                                                     Fill="{DynamicResource TextFillColorPrimaryBrush}" />
-                                            <Ellipse Width="3" Height="3" Margin="0,1.5"
-                                                     Fill="{DynamicResource TextFillColorPrimaryBrush}" />
-                                            <Ellipse Width="3" Height="3" Margin="0,1.5"
-                                                     Fill="{DynamicResource TextFillColorPrimaryBrush}" />
-                                        </StackPanel>
+                            <Border Style="{StaticResource StatCellStyle}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ArrowUpload"
+                                                           FontSize="13"
+                                                           Margin="0,0,6,0"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource UploadBrush}" />
+                                        <TextBlock Text="UPLOADED" Style="{StaticResource StatLabelStyle}" VerticalAlignment="Center" />
+                                    </StackPanel>
 
-                                        <Popup IsOpen="{Binding IsChecked, ElementName=RowMenu, Mode=TwoWay}"
-                                               PlacementTarget="{Binding ElementName=RowMenu}"
-                                               Placement="Bottom"
-                                               HorizontalOffset="-130"
-                                               VerticalOffset="4"
-                                               StaysOpen="False"
-                                               AllowsTransparency="True"
-                                               PopupAnimation="Fade">
-                                            <Border Style="{StaticResource FlyoutStyle}"
-                                                    MinWidth="156"
-                                                    Padding="4">
-                                                <Button Style="{StaticResource MenuItemStyle}"
-                                                        Content="Delete"
-                                                        Command="{Binding Tag.DeleteRowCommand, ElementName=RowMenu}"
-                                                        CommandParameter="{Binding}"
-                                                        AutomationProperties.Name="Delete this row"
-                                                        ToolTip="Forget everything recorded in this stretch of time" />
-                                            </Border>
-                                        </Popup>
-                                    </Grid>
-                                </ToggleButton>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
-        </Grid>
-    </Grid>
-    </ScrollViewer>
+                                    <TextBlock Style="{StaticResource StatValueStyle}" FontSize="24" AutomationProperties.Name="Uploaded">
+                                        <Run Text="{Binding UploadValue, Mode=OneWay}" />
+                                        <Run Text="{Binding UploadUnit, Mode=OneWay}"
+                                             FontSize="14"
+                                             Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </TextBlock>
+
+                                    <TextBlock Text="{Binding PeakUpText}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource StatCellStyle}" ToolTip="{Binding CoverageText}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ArrowSort"
+                                                           FontSize="13"
+                                                           Margin="0,0,6,0"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="TOGETHER" Style="{StaticResource StatLabelStyle}" VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <TextBlock Text="{Binding TotalText}"
+                                               Style="{StaticResource StatValueStyle}"
+                                               FontSize="24"
+                                               AutomationProperties.Name="Together" />
+
+                                    <TextBlock Text="{Binding CoverageText}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+                        </controls:FlowGrid>
+
+                        <!-- The shape of the period, a bar to each row of the table. -->
+                        <Border Style="{StaticResource SectionStyle}">
+                            <StackPanel>
+                                <controls:AdaptiveRow Breakpoint="420" Spacing="10" LeadFills="True" LeadMinimumWidth="220">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="Usage over the period" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="Scroll to zoom, drag to pan. Pointing at a bar lights its row below. Fainter bars are what Windows counted while Windsock was closed."
+                                                   TextWrapping="Wrap"
+                                                   Style="{StaticResource CardNoteStyle}" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
+                                                   Fill="{DynamicResource DownloadBrush}" Margin="0,0,6,0" />
+                                        <TextBlock Text="Download" FontSize="12" Margin="0,0,14,0"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
+                                                   Fill="{DynamicResource UploadBrush}" Margin="0,0,6,0" />
+                                        <TextBlock Text="Upload" FontSize="12" Margin="0,0,14,0"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <!-- Windows' part is drawn in both colours, fainter; so is its key. -->
+                                        <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
+                                                   Fill="{DynamicResource DownloadBrush}" Opacity="0.4" Margin="0,0,2,0" />
+                                        <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
+                                                   Fill="{DynamicResource UploadBrush}" Opacity="0.4" Margin="0,0,6,0" />
+                                        <TextBlock Text="Counted by Windows" FontSize="12"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </controls:AdaptiveRow>
+
+                                <Border Style="{StaticResource ChartWellStyle}" Height="240" Margin="0,10,0,0">
+                                    <controls:DetachHost WindowTitle="History"
+                                                         Note="The chart is open in a window of its own.">
+                                        <Grid>
+                                            <!--
+                                                A word while a long span is read. The reading
+                                                itself happens off the interface thread, so the
+                                                page stays alive; this is only so a chart that
+                                                has not arrived yet does not look like a chart
+                                                with nothing in it.
+                                            -->
+                                            <TextBlock Text="Reading&#8230;"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Panel.ZIndex="1"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibility}}" />
+
+                                            <TextBlock Text="Nothing was recorded or counted in this period."
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12.5"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}" />
+
+                                            <controls:UsageBarChart x:Name="Chart"
+                                                                    Buckets="{Binding Buckets}"
+                                                                    Revision="{Binding Revision}"
+                                                                    RangeStart="{Binding RangeStart}"
+                                                                    RangeEnd="{Binding RangeEnd}"
+                                                                    Granularity="{Binding SelectedResolution}"
+                                                                    DownloadBrush="{DynamicResource DownloadBrush}"
+                                                                    UploadBrush="{DynamicResource UploadBrush}"
+                                                                    GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                                    AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                    SurfaceBrush="{DynamicResource CardBrush}"
+                                                                    HighlightBrush="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                                    HighlightedStart="{Binding HighlightedStart}"
+                                                                    Visibility="{Binding IsChartVisible, Converter={StaticResource BooleanToVisibility}}"
+                                                                    AutomationProperties.Name="Usage over the period" />
+
+                                            <Canvas x:Name="PopoverLayer" IsHitTestVisible="False">
+                                                <Border x:Name="Popover"
+                                                        Style="{StaticResource PopoverStyle}"
+                                                        Visibility="Collapsed">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding HoverLabel}"
+                                                                   Style="{StaticResource CaptionTextStyle}" />
+
+                                                        <!--
+                                                            What Windsock recorded, in the bars'
+                                                            full colours. Named only when Windows'
+                                                            count sits beside it.
+                                                        -->
+                                                        <StackPanel Visibility="{Binding HoverHasRecorded, Converter={StaticResource BooleanToVisibility}}">
+                                                            <TextBlock Text="Recorded by Windsock"
+                                                                       FontSize="11"
+                                                                       Margin="0,8,0,0"
+                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                       Visibility="{Binding HoverHasBoth, Converter={StaticResource BooleanToVisibility}}" />
+
+                                                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                                                <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                                         Fill="{DynamicResource DownloadBrush}" Margin="0,0,7,0" />
+                                                                <TextBlock Text="{Binding HoverDownload}"
+                                                                           FontSize="12"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                            </StackPanel>
+
+                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                                         Fill="{DynamicResource UploadBrush}" Margin="0,0,7,0" />
+                                                                <TextBlock Text="{Binding HoverUpload}"
+                                                                           FontSize="12"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <!--
+                                                            What Windows counted while Windsock was
+                                                            closed, in the fainter colours its part
+                                                            of the bar is drawn in, and always named.
+                                                        -->
+                                                        <StackPanel Visibility="{Binding HoverHasWindows, Converter={StaticResource BooleanToVisibility}}">
+                                                            <TextBlock Text="Counted by Windows while Windsock was closed"
+                                                                       FontSize="11"
+                                                                       Margin="0,8,0,0"
+                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+
+                                                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                                                <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                                         Fill="{DynamicResource DownloadBrush}" Opacity="0.4" Margin="0,0,7,0" />
+                                                                <TextBlock Text="{Binding HoverWindowsDownload}"
+                                                                           FontSize="12"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                            </StackPanel>
+
+                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                                         Fill="{DynamicResource UploadBrush}" Opacity="0.4" Margin="0,0,7,0" />
+                                                                <TextBlock Text="{Binding HoverWindowsUpload}"
+                                                                           FontSize="12"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <TextBlock Margin="0,6,0,0" FontSize="11.5">
+                                                            <Run Text="Together " Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                            <Run Text="{Binding HoverTotal, Mode=OneWay}"
+                                                                 FontWeight="SemiBold"
+                                                                 Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                        </TextBlock>
+
+                                                        <!--
+                                                            The apps behind the bar, busiest first.
+                                                            A full dot is what Windsock measured
+                                                            itself, a faint one what Windows counted
+                                                            while Windsock was not measuring - the
+                                                            same two weights the bar is drawn in.
+                                                        -->
+                                                        <StackPanel Margin="0,10,0,0"
+                                                                    MinWidth="230"
+                                                                    MaxWidth="300"
+                                                                    Visibility="{Binding HoverHasApps, Converter={StaticResource BooleanToVisibility}}">
+                                                            <Grid>
+                                                                <TextBlock Text="Apps"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+
+                                                                <StackPanel Orientation="Horizontal"
+                                                                            HorizontalAlignment="Right"
+                                                                            Visibility="{Binding HoverAppsMixed, Converter={StaticResource BooleanToVisibility}}">
+                                                                    <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="{DynamicResource NetworkBrush}" Margin="0,0,4,0" />
+                                                                    <TextBlock Text="Windsock" FontSize="10.5" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                                    <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="{DynamicResource NetworkBrush}" Opacity="0.4" Margin="10,0,4,0" />
+                                                                    <TextBlock Text="Windows" FontSize="10.5" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                                </StackPanel>
+                                                            </Grid>
+
+                                                            <ItemsControl ItemsSource="{Binding HoverApps}" Margin="0,4,0,0" Focusable="False">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate DataType="{x:Type vm:HoverAppRow}">
+                                                                        <Grid Margin="0,3,0,0">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="16" />
+                                                                                <ColumnDefinition Width="20" />
+                                                                                <ColumnDefinition Width="*" />
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                            </Grid.ColumnDefinitions>
+
+                                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                                <Ellipse Width="6" Height="6"
+                                                                                         Fill="{DynamicResource NetworkBrush}"
+                                                                                         Margin="0,0,2,0"
+                                                                                         Visibility="{Binding HasMeasured, Converter={StaticResource BooleanToVisibility}}" />
+                                                                                <Ellipse Width="6" Height="6"
+                                                                                         Fill="{DynamicResource NetworkBrush}"
+                                                                                         Opacity="0.4"
+                                                                                         Visibility="{Binding HasWindows, Converter={StaticResource BooleanToVisibility}}" />
+                                                                            </StackPanel>
+
+                                                                            <Image Grid.Column="1"
+                                                                                   Source="{Binding Icon}"
+                                                                                   Width="14"
+                                                                                   Height="14"
+                                                                                   HorizontalAlignment="Left"
+                                                                                   VerticalAlignment="Center"
+                                                                                   RenderOptions.BitmapScalingMode="HighQuality" />
+
+                                                                            <TextBlock Grid.Column="2"
+                                                                                       Text="{Binding Name}"
+                                                                                       FontSize="12"
+                                                                                       TextTrimming="CharacterEllipsis"
+                                                                                       VerticalAlignment="Center"
+                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                                                                            <TextBlock Grid.Column="3"
+                                                                                       Text="{Binding Amount}"
+                                                                                       FontSize="12"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Margin="12,0,0,0"
+                                                                                       VerticalAlignment="Center"
+                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                                        </Grid>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+
+                                                            <TextBlock Text="{Binding HoverAppsRest}"
+                                                                       FontSize="11"
+                                                                       Margin="0,6,0,0"
+                                                                       TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                       Visibility="{Binding HoverAppsRest, Converter={StaticResource TextToVisibility}}" />
+                                                        </StackPanel>
+
+                                                        <!--
+                                                            Said only when part of the bucket is
+                                                            missing, so a complete hour stays quiet
+                                                            about it.
+                                                        -->
+                                                        <TextBlock Text="{Binding HoverRecorded}"
+                                                                   FontSize="11"
+                                                                   Margin="0,4,0,0"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                   Visibility="{Binding HoverRecorded, Converter={StaticResource TextToVisibility}}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Canvas>
+                                        </Grid>
+                                    </controls:DetachHost>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </controls:RuledPanel>
+                </controls:Card>
+
+                <!--
+                    The exact numbers. Newest first, because the question a
+                    history answers is nearly always about the recent end of it.
+                    The heading is ruled off from the table as the parts of the
+                    card above are, and the table's cells line up under it.
+                -->
+                <!--
+                    The rest of the machine over the same period, on the same
+                    time axis as the usage chart, so a busy download, a hot
+                    processor and an outage line up where they happened.
+                -->
+                <controls:Card Grid.Row="2" Margin="{StaticResource BlockGap}">
+                    <controls:RuledPanel>
+                        <controls:FlowGrid Style="{StaticResource StatStripStyle}">
+                            <Border Style="{StaticResource StatCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="PROCESSOR" Style="{StaticResource StatLabelStyle}" Foreground="{DynamicResource ProcessorBrush}" />
+                                    <TextBlock Text="{Binding ProcessorText}" Style="{StaticResource StatValueStyle}" FontSize="22" AutomationProperties.Name="Processor on average" />
+                                    <TextBlock Text="{Binding ProcessorNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource StatCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="GRAPHICS" Style="{StaticResource StatLabelStyle}" Foreground="{DynamicResource GraphicsBrush}" />
+                                    <TextBlock Text="{Binding GraphicsText}" Style="{StaticResource StatValueStyle}" FontSize="22" AutomationProperties.Name="Graphics on average" />
+                                    <TextBlock Text="{Binding GraphicsNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource StatCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="MEMORY" Style="{StaticResource StatLabelStyle}" Foreground="{DynamicResource MemoryBrush}" />
+                                    <TextBlock Text="{Binding MemoryText}" Style="{StaticResource StatValueStyle}" FontSize="22" AutomationProperties.Name="Memory in use on average" />
+                                    <TextBlock Text="{Binding MemoryNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource StatCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="DISK" Style="{StaticResource StatLabelStyle}" Foreground="{DynamicResource StorageBrush}" />
+                                    <TextBlock Text="{Binding DiskText}" Style="{StaticResource StatValueStyle}" FontSize="22" AutomationProperties.Name="Read and written" />
+                                    <TextBlock Text="{Binding DiskNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource StatCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="CONNECTION" Style="{StaticResource StatLabelStyle}" Foreground="{DynamicResource NetworkBrush}" />
+                                    <TextBlock Text="{Binding ConnectionText}" Style="{StaticResource StatValueStyle}" FontSize="22" AutomationProperties.Name="Outages" />
+                                    <TextBlock Text="{Binding ConnectionNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+                        </controls:FlowGrid>
+
+                        <Border Style="{StaticResource SectionStyle}">
+                            <StackPanel>
+                                <TextBlock Text="The machine over the period" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Each lane is the bucket's average, with its peak fainter behind it. Disk and ping are drawn against the busiest bucket in the period; outages are marked in the ping lane. Kept while history is recorded; the connection only while it is being checked."
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CardNoteStyle}" />
+
+                                <Grid Margin="0,10,0,0">
+                                    <TextBlock Text="Nothing of the machine was kept for this period. It is recorded from this version on, while history is."
+                                               FontSize="12.5"
+                                               Margin="0,8"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Visibility="{Binding HasMachineHistory, Converter={StaticResource InverseBooleanToVisibility}}" />
+
+                                    <controls:MachineLanesChart x:Name="Lanes"
+                                                                SystemBuckets="{Binding SystemBuckets}"
+                                                                ConnectionBuckets="{Binding ConnectionBuckets}"
+                                                                Outages="{Binding OutageSpans}"
+                                                                Revision="{Binding MachineRevision}"
+                                                                RangeStart="{Binding RangeStart}"
+                                                                RangeEnd="{Binding RangeEnd}"
+                                                                Granularity="{Binding SelectedResolution}"
+                                                                HighlightedStart="{Binding HighlightedStart}"
+                                                                ProcessorBrush="{DynamicResource ProcessorBrush}"
+                                                                GraphicsBrush="{DynamicResource GraphicsBrush}"
+                                                                MemoryBrush="{DynamicResource MemoryBrush}"
+                                                                StorageBrush="{DynamicResource StorageBrush}"
+                                                                ConnectionBrush="{DynamicResource NetworkBrush}"
+                                                                OutageBrush="{DynamicResource HotBrush}"
+                                                                GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                                AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                HighlightBrush="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                                Visibility="{Binding HasMachineHistory, Converter={StaticResource BooleanToVisibility}}"
+                                                                AutomationProperties.Name="The machine over the period" />
+
+                                    <Canvas x:Name="LanesPopoverLayer" IsHitTestVisible="False">
+                                        <Border x:Name="LanesPopover"
+                                                Style="{StaticResource PopoverStyle}"
+                                                Visibility="Collapsed">
+                                            <StackPanel MaxWidth="320">
+                                                <TextBlock Text="{Binding MachineHoverLabel}" Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Margin="0,7,0,0" FontSize="12" TextWrapping="Wrap" Visibility="{Binding HoverProcessor, Converter={StaticResource TextToVisibility}}">
+                                                    <Run Text="Processor " Foreground="{DynamicResource ProcessorBrush}" FontWeight="SemiBold" />
+                                                    <Run Text="{Binding HoverProcessor, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </TextBlock>
+                                                <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap" Visibility="{Binding HoverGraphics, Converter={StaticResource TextToVisibility}}">
+                                                    <Run Text="Graphics " Foreground="{DynamicResource GraphicsBrush}" FontWeight="SemiBold" />
+                                                    <Run Text="{Binding HoverGraphics, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </TextBlock>
+                                                <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap" Visibility="{Binding HoverMemory, Converter={StaticResource TextToVisibility}}">
+                                                    <Run Text="Memory " Foreground="{DynamicResource MemoryBrush}" FontWeight="SemiBold" />
+                                                    <Run Text="{Binding HoverMemory, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </TextBlock>
+                                                <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap" Visibility="{Binding HoverDisk, Converter={StaticResource TextToVisibility}}">
+                                                    <Run Text="Disk " Foreground="{DynamicResource StorageBrush}" FontWeight="SemiBold" />
+                                                    <Run Text="{Binding HoverDisk, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </TextBlock>
+                                                <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap" Visibility="{Binding HoverPing, Converter={StaticResource TextToVisibility}}">
+                                                    <Run Text="Ping " Foreground="{DynamicResource NetworkBrush}" FontWeight="SemiBold" />
+                                                    <Run Text="{Binding HoverPing, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding HoverOffline}"
+                                                           Margin="0,4,0,0"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource HotBrush}"
+                                                           Visibility="{Binding HoverOffline, Converter={StaticResource TextToVisibility}}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Canvas>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </controls:RuledPanel>
+                </controls:Card>
+
+                <controls:Card Grid.Row="3" Margin="{StaticResource BlockGap}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!--
+                            Minutes recorded while the reader was on another page
+                            or further down: said, not slipped in under them.
+                        -->
+                        <Button Grid.Row="1"
+                                Margin="20,0,14,6"
+                                HorizontalAlignment="Left"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding ShowNewestCommand}"
+                                Visibility="{Binding HasNewerRows, Converter={StaticResource BooleanToVisibility}}"
+                                AutomationProperties.Name="Show the newest rows"
+                                ToolTip="Go to the first page and read what was recorded since">
+                            <StackPanel Orientation="Horizontal">
+                                <fluent:SymbolIcon Symbol="ArrowCircleUp"
+                                                   FontSize="14"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,7,0" />
+                                <TextBlock Text="Newer minutes were recorded - show them" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <DockPanel Grid.Row="0" LastChildFill="True" Margin="20,14,14,8">
+                            <!-- With the choices it undoes, and only while there is something to undo. -->
+                            <Button DockPanel.Dock="Right"
+                                    Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding ResetViewCommand}"
+                                    Visibility="{Binding IsCustomised, Converter={StaticResource BooleanToVisibility}}"
+                                    ToolTip="Put the column filters and the sort back to their defaults">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="ArrowReset"
+                                                       FontSize="14"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,7,0" />
+                                    <TextBlock Text="Reset view" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Recorded usage" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Sort or filter any column from its heading; both cover the whole period, not only the page on screen. Click a bar in the chart to go to its row. Export writes all of the period that Windsock recorded."
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <DataGrid x:Name="Table"
+                                  Grid.Row="2"
+                                  Margin="8,0,8,8"
+                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                  Style="{StaticResource TableStyle}"
+                                  ColumnHeaderStyle="{StaticResource TableHeaderStyle}"
+                                  RowStyle="{StaticResource HistoryRowStyle}"
+                                  CellStyle="{StaticResource TableCellStyle}"
+                                  ItemsSource="{Binding Rows}"
+                                  AutomationProperties.Name="Recorded usage">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn x:Name="FromColumn"
+                                                    Binding="{Binding From}"
+                                                    SortMemberPath="Start"
+                                                    Width="150"
+                                                    MinWidth="110"
+                                                    ElementStyle="{StaticResource TableTextStyle}" />
+
+                                <DataGridTextColumn x:Name="ToColumn"
+                                                    Binding="{Binding To}"
+                                                    SortMemberPath="End"
+                                                    Width="120"
+                                                    MinWidth="80"
+                                                    ElementStyle="{StaticResource TableQuietTextStyle}" />
+
+                                <DataGridTextColumn x:Name="DownloadColumn"
+                                                    Binding="{Binding Download}"
+                                                    SortMemberPath="BytesDown"
+                                                    Width="110"
+                                                    MinWidth="90"
+                                                    ElementStyle="{StaticResource TableReceiveStyle}" />
+
+                                <DataGridTextColumn x:Name="UploadColumn"
+                                                    Binding="{Binding Upload}"
+                                                    SortMemberPath="BytesUp"
+                                                    Width="110"
+                                                    MinWidth="90"
+                                                    ElementStyle="{StaticResource TableSendStyle}" />
+
+                                <DataGridTextColumn x:Name="TotalColumn"
+                                                    Binding="{Binding Total}"
+                                                    SortMemberPath="BytesTotal"
+                                                    Width="110"
+                                                    MinWidth="90"
+                                                    ElementStyle="{StaticResource TableNumberStyle}" />
+
+                                <DataGridTextColumn x:Name="PeakDownColumn"
+                                                    Binding="{Binding PeakDown}"
+                                                    SortMemberPath="PeakDownBytes"
+                                                    Width="110"
+                                                    MinWidth="90"
+                                                    ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                <DataGridTextColumn x:Name="PeakUpColumn"
+                                                    Binding="{Binding PeakUp}"
+                                                    SortMemberPath="PeakUpBytes"
+                                                    Width="110"
+                                                    MinWidth="90"
+                                                    ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                <DataGridTextColumn x:Name="RecordedColumn"
+                                                    Binding="{Binding Recorded}"
+                                                    SortMemberPath="MinutesRecorded"
+                                                    Width="84"
+                                                    MinWidth="70"
+                                                    ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                <!--
+                                    Row actions. Last, narrow, and unsortable: it
+                                    holds a button rather than a value.
+                                -->
+                                <DataGridTemplateColumn x:Name="ActionsColumn"
+                                                        Width="44"
+                                                        MinWidth="44"
+                                                        CanUserSort="False"
+                                                        CanUserResize="False"
+                                                        CanUserReorder="False"
+                                                        HeaderStyle="{StaticResource ActionsHeaderStyle}">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ToggleButton x:Name="RowMenu"
+                                                          Style="{StaticResource RowMenuStyle}"
+                                                          Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                          AutomationProperties.Name="Row actions"
+                                                          ToolTip="More for this row">
+                                                <Grid>
+                                                    <StackPanel Orientation="Vertical"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center">
+                                                        <Ellipse Width="3" Height="3" Margin="0,1.5"
+                                                                 Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                        <Ellipse Width="3" Height="3" Margin="0,1.5"
+                                                                 Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                        <Ellipse Width="3" Height="3" Margin="0,1.5"
+                                                                 Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                    </StackPanel>
+
+                                                    <Popup IsOpen="{Binding IsChecked, ElementName=RowMenu, Mode=TwoWay}"
+                                                           PlacementTarget="{Binding ElementName=RowMenu}"
+                                                           Placement="Bottom"
+                                                           HorizontalOffset="-130"
+                                                           VerticalOffset="4"
+                                                           StaysOpen="False"
+                                                           AllowsTransparency="True"
+                                                           PopupAnimation="Fade">
+                                                        <Border Style="{StaticResource FlyoutStyle}"
+                                                                MinWidth="156"
+                                                                Padding="4">
+                                                            <Button Style="{StaticResource MenuItemStyle}"
+                                                                    Content="Delete"
+                                                                    Command="{Binding Tag.DeleteRowCommand, ElementName=RowMenu}"
+                                                                    CommandParameter="{Binding}"
+                                                                    AutomationProperties.Name="Delete this row"
+                                                                    ToolTip="Forget everything recorded in this stretch of time" />
+                                                        </Border>
+                                                    </Popup>
+                                                </Grid>
+                                            </ToggleButton>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <!-- One page of the period at a time; see PagedView. -->
+                        <views:PagerBar Grid.Row="3"
+                                        Margin="20,2,14,14"
+                                        DataContext="{Binding Pager}" />
+                    </Grid>
+                </controls:Card>
+            </Grid>
+        </ScrollViewer>
+    </controls:SectionPage>
 </UserControl>

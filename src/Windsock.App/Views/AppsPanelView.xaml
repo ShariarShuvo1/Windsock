@@ -1,0 +1,980 @@
+<UserControl x:Class="Windsock.App.Views.AppsPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             xmlns:views="clr-namespace:Windsock.App.Views"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:AppsPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="700">
+
+    <UserControl.Resources>
+        <!--
+            A rate cell says on hover what its figure is: measured each second,
+            or Windows' count for the whole app over the last five minutes. The
+            two look alike in a table and mean different things.
+        -->
+        <Style x:Key="RateCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource TableCellStyle}">
+            <Setter Property="ToolTip" Value="{Binding RateSource}" />
+        </Style>
+
+        <!--
+            The app's picture beside its name. Windows' own buckets - System, and
+            traffic it could not put to any app - read quieter, since they are
+            not something anybody runs.
+        -->
+        <DataTemplate x:Key="AppNameTemplate">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Grid Width="16" Height="16" Margin="4,0,0,0" VerticalAlignment="Center">
+                    <Path Data="M 0.5 1.5 H 11.5 V 10.5 H 0.5 Z M 0.5 4 H 11.5"
+                          Stroke="{DynamicResource TextFillColorTertiaryBrush}"
+                          StrokeThickness="1"
+                          StrokeLineJoin="Round"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                          SnapsToDevicePixels="True">
+                        <Path.Style>
+                            <Style TargetType="Path">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
+
+                    <Image Source="{Binding Icon}"
+                           Width="16"
+                           Height="16"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                </Grid>
+
+                <TextBlock Grid.Column="1"
+                           Margin="8,0,0,0"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           FontSize="12.5"
+                           Text="{Binding Name}"
+                           ToolTip="{Binding FilePath}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsBucket}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <Setter Property="FontStyle" Value="Italic" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!--
+        Every app on the network. Live, it is what is talking now: the map of
+        everything this machine reaches, and the apps doing the talking under
+        it. Any other period is history: Windows' own count of each app, kept a
+        minute at a time, including time Windsock was not running.
+    -->
+    <controls:SectionPage Title="Apps" Subtitle="{Binding Subtitle}">
+        <controls:SectionPage.Actions>
+            <controls:FlowRow Spacing="8" LineSpacing="8">
+                <controls:Picker Style="{StaticResource PickerStyle}"
+                                 MinWidth="132"
+                                 ItemsSource="{Binding Periods}"
+                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                 SelectedValuePath="Period"
+                                 SelectedValue="{Binding SelectedPeriod, Mode=TwoWay}"
+                                 AutomationProperties.Name="Period"
+                                 ToolTip="What is happening now, or a stretch of time to total up" />
+
+                <!--
+                    A verb, not a state: the reader is told what pressing it does.
+                    It holds the map and the table still together.
+                -->
+                <Button Style="{StaticResource ToolbarButtonStyle}"
+                        Command="{Binding Live.ToggleLiveCommand}"
+                        AutomationProperties.Name="{Binding Live.LiveLabel}"
+                        ToolTip="Hold the map and the table still so they can be read. Nothing stops being measured while they are paused."
+                        Visibility="{Binding IsLivePeriod, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel Orientation="Horizontal">
+                        <fluent:SymbolIcon FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0">
+                            <fluent:SymbolIcon.Style>
+                                <Style TargetType="fluent:SymbolIcon">
+                                    <Setter Property="Symbol" Value="PauseCircle" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Live.IsLive}" Value="False">
+                                            <Setter Property="Symbol" Value="PlayCircle" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </fluent:SymbolIcon.Style>
+                        </fluent:SymbolIcon>
+
+                        <TextBlock Text="{Binding Live.LiveLabel}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </controls:FlowRow>
+        </controls:SectionPage.Actions>
+
+        <Grid>
+            <!--
+                LIVE. One scroller around the whole view, held to at least its
+                height so the table fills what is left; the table has no scroller
+                of its own, because one region that scrolls is one gesture.
+            -->
+            <ScrollViewer x:Name="LiveBody"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="{StaticResource PagePadding}"
+                          Visibility="{Binding IsLivePeriod, Converter={StaticResource BooleanToVisibility}}">
+                <Grid DataContext="{Binding Live}" MinHeight="{Binding ViewportHeight, ElementName=LiveBody}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+
+                        <!--
+                            The map, sized from the code behind: dragging the
+                            handle writes a height straight onto these rows.
+                        -->
+                        <RowDefinition x:Name="MapRow" Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition x:Name="TableRow" Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!--
+                        What the rates are, when each process is not measured:
+                        Windows' own count for each app over the last five
+                        minutes. First on the page, because it is a standing fact
+                        about all of it.
+                    -->
+                    <Border Grid.Row="0"
+                            Margin="0,0,0,16"
+                            Padding="14,8,8,8"
+                            CornerRadius="8"
+                            Background="{DynamicResource AccentSoftBrush}"
+                            Visibility="{Binding RateNotice, Converter={StaticResource TextToVisibility}}">
+                        <DockPanel LastChildFill="True" MinHeight="30">
+                            <fluent:SymbolIcon DockPanel.Dock="Left"
+                                               Symbol="Info"
+                                               FontSize="15"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,10,0"
+                                               Foreground="{DynamicResource AccentBrush}" />
+
+                            <!-- The button drops under the sentence rather than squeezing it to a word a line. -->
+                            <controls:AdaptiveRow Breakpoint="0" Spacing="8" LeadFills="True" LeadMinimumWidth="220" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding RateNotice}"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           FontSize="12.5"
+                                           ToolTip="{Binding RateDetail}"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                                <!--
+                                    Named, and for a stronger reason than most:
+                                    pressing it asks Windows for consent and
+                                    restarts the app, and a button that does that
+                                    must not announce itself as "button".
+                                -->
+                                <Button x:Name="ElevateButton"
+                                        Style="{StaticResource ToolbarButtonStyle}"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding RestartElevatedCommand}"
+                                        AutomationProperties.Name="Restart as administrator"
+                                        AutomationProperties.HelpText="Closes Windsock and starts it again with administrator rights, after asking Windows for consent. Measuring each second and showing each process need that; nothing else does."
+                                        ToolTip="Restart with administrator rights, so each app and each process is measured every second"
+                                        Visibility="{Binding CanElevate, Converter={StaticResource BooleanToVisibility}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="Shield"
+                                                           FontSize="14"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,7,0" />
+                                        <TextBlock Text="Restart as administrator" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </controls:AdaptiveRow>
+                        </DockPanel>
+                    </Border>
+
+                    <!--
+                        Everything this machine is talking to, above the table of
+                        what is doing the talking. One press folds it to its name:
+                        open, it walks every route the machine uses, and a reader
+                        who only wants the table should be able to stop that.
+                    -->
+                    <controls:Card Grid.Row="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <DockPanel LastChildFill="True" Margin="20,14,14,14">
+                                <ToggleButton DockPanel.Dock="Right"
+                                              VerticalAlignment="Center"
+                                              Margin="12,0,0,0"
+                                              Style="{StaticResource SectionCollapseStyle}"
+                                              IsChecked="{Binding IsMapOpen, Mode=TwoWay}"
+                                              AutomationProperties.Name="Network map"
+                                              ToolTip="Show or fold away the map of everything this machine is talking to" />
+
+                                <DockPanel LastChildFill="True" MinHeight="34">
+                                    <Ellipse DockPanel.Dock="Left"
+                                             Width="8"
+                                             Height="8"
+                                             Margin="0,0,10,0"
+                                             VerticalAlignment="Center"
+                                             Fill="{DynamicResource NetworkBrush}" />
+
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="Network map" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="Everything this machine is talking to, and the way the traffic goes. Drag to move, scroll to zoom."
+                                                   Style="{StaticResource CardNoteStyle}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </DockPanel>
+
+                            <controls:DetachHost x:Name="MapHost"
+                                                 Grid.Row="1"
+                                                 Margin="12,0,12,12"
+                                                 WindowTitle="Network map"
+                                                 WindowWidth="1240"
+                                                 WindowHeight="820"
+                                                 Note="The map is open in a window of its own."
+                                                 Visibility="{Binding IsMapOpen, Converter={StaticResource BooleanToVisibility}}">
+                                <views:NetworkMapView DataContext="{Binding Map}" />
+                            </controls:DetachHost>
+                        </Grid>
+                    </controls:Card>
+
+                    <!-- Drag to decide how much of the page the map gets. -->
+                    <GridSplitter Grid.Row="2"
+                                  Height="16"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Center"
+                                  Background="Transparent"
+                                  ResizeBehavior="PreviousAndNext"
+                                  ResizeDirection="Rows"
+                                  AutomationProperties.Name="Resize the map"
+                                  ToolTip="Drag to give the map more or less room">
+                        <GridSplitter.Style>
+                            <Style TargetType="GridSplitter">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsMapOpen}" Value="True" />
+                                            <Condition Binding="{Binding IsDetached, ElementName=MapHost}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </GridSplitter.Style>
+
+                        <GridSplitter.Template>
+                            <ControlTemplate TargetType="GridSplitter">
+                                <Border Background="Transparent" Cursor="SizeNS">
+                                    <Border Width="40"
+                                            Height="4"
+                                            CornerRadius="2"
+                                            VerticalAlignment="Center"
+                                            HorizontalAlignment="Center"
+                                            Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+                                </Border>
+                            </ControlTemplate>
+                        </GridSplitter.Template>
+                    </GridSplitter>
+
+                    <!-- The gap the handle leaves when there is no handle. -->
+                    <Border Grid.Row="2" Height="16">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsMapOpen}" Value="True" />
+                                            <Condition Binding="{Binding IsDetached, ElementName=MapHost}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+
+                    <!-- The table and what narrows it, on one card. -->
+                    <controls:Card Grid.Row="3" MinHeight="220">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <controls:FlowRow Grid.Row="0" Margin="20,14,14,10" Spacing="8" LineSpacing="8">
+                                <TextBox Style="{StaticResource SearchBoxStyle}"
+                                         MinWidth="200"
+                                         MaxWidth="340"
+                                         controls:FlowRow.Fill="True"
+                                         Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="{Binding SearchName}"
+                                         ToolTip="Matches the name, description, path or id" />
+
+                                <controls:FlowRow Spacing="8" LineSpacing="8">
+                                    <!-- Only the process view has names to share. -->
+                                    <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                              Content="Group"
+                                              IsChecked="{Binding IsGrouped, Mode=TwoWay}"
+                                              ToolTip="Collect processes that share a name under one row"
+                                              Visibility="{Binding IsProcessView, Converter={StaticResource BooleanToVisibility}}" />
+
+                                    <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                              Content="Active only"
+                                              IsChecked="{Binding ActiveOnly, Mode=TwoWay}"
+                                              ToolTip="Hide rows that are not moving anything right now" />
+
+                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                            Command="{Binding ResetViewCommand}"
+                                            Visibility="{Binding IsCustomised, Converter={StaticResource BooleanToVisibility}}"
+                                            ToolTip="Put the search, filters, columns and sort back to their defaults">
+                                        <StackPanel Orientation="Horizontal">
+                                            <fluent:SymbolIcon Symbol="ArrowReset"
+                                                               FontSize="14"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,0,7,0" />
+                                            <TextBlock Text="Reset view" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </controls:FlowRow>
+
+                                <!--
+                                    What the rows are, then which columns they
+                                    show: both about the table, so both on it.
+                                -->
+                                <controls:FlowRow controls:FlowRow.Trailing="True" Spacing="8" LineSpacing="8">
+                                    <!--
+                                        Apps or processes. Only in the full edition;
+                                        greyed out, with the reason on hover, while
+                                        nothing measures each process - the notice
+                                        under the heading offers the way to.
+                                    -->
+                                    <controls:Picker x:Name="ViewPicker"
+                                                     Style="{StaticResource PickerStyle}"
+                                                     MinWidth="118"
+                                                     ItemsSource="{Binding Views}"
+                                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                     SelectedValuePath="Processes"
+                                                     SelectedValue="{Binding ChosenView, Mode=TwoWay}"
+                                                     IsEnabled="{Binding CanShowProcesses}"
+                                                     ToolTipService.ShowOnDisabled="True"
+                                                     ToolTip="{Binding ViewSwitchHint}"
+                                                     AutomationProperties.Name="Show apps or processes" />
+
+                                    <!-- One item with its popup, so the popup takes no gap of its own. -->
+                                    <Grid>
+                                        <ToggleButton x:Name="LiveColumnsButton"
+                                                      Style="{StaticResource ToolbarButtonStyle}"
+                                                      ToolTip="Choose which columns are shown"
+                                                      AutomationProperties.Name="Choose columns">
+                                            <StackPanel Orientation="Horizontal">
+                                                <fluent:SymbolIcon Symbol="ColumnTriple"
+                                                                   FontSize="14"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,7,0" />
+                                                <TextBlock Text="Columns" VerticalAlignment="Center" />
+                                                <Path Data="M 0 0 L 4 4 L 8 0"
+                                                      Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                                                      StrokeThickness="1.3"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"
+                                                      StrokeLineJoin="Round"
+                                                      Margin="7,1,0,0"
+                                                      VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </ToggleButton>
+
+                                        <Popup IsOpen="{Binding IsChecked, ElementName=LiveColumnsButton, Mode=TwoWay}"
+                                               PlacementTarget="{Binding ElementName=LiveColumnsButton}"
+                                               Placement="Bottom"
+                                               VerticalOffset="6"
+                                               HorizontalOffset="-90"
+                                               StaysOpen="False"
+                                               AllowsTransparency="True"
+                                               PopupAnimation="Fade">
+                                            <Border Style="{StaticResource FlyoutStyle}" MinWidth="210" Padding="6">
+                                                <ScrollViewer MaxHeight="360"
+                                                              VerticalScrollBarVisibility="Auto"
+                                                              HorizontalScrollBarVisibility="Disabled">
+                                                    <ItemsControl ItemsSource="{Binding Columns}"
+                                                                  ItemTemplate="{StaticResource ColumnChoiceTemplate}" />
+                                                </ScrollViewer>
+                                            </Border>
+                                        </Popup>
+                                    </Grid>
+                                </controls:FlowRow>
+                            </controls:FlowRow>
+
+                            <!--
+                                Every column carries a width in pixels rather than a
+                                share of the table, so each resizes on its own.
+                            -->
+                            <DataGrid x:Name="LiveTable"
+                                      Grid.Row="1"
+                                      Margin="8,0,8,8"
+                                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                      Style="{StaticResource TableStyle}"
+                                      ColumnHeaderStyle="{StaticResource TableHeaderStyle}"
+                                      RowStyle="{StaticResource ProcessRowStyle}"
+                                      CellStyle="{StaticResource TableCellStyle}"
+                                      ItemsSource="{Binding Rows}"
+                                      AutomationProperties.Name="Apps using the network">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn x:Name="LiveNameColumn"
+                                                            CellTemplate="{StaticResource ProcessNameTemplate}"
+                                                            SortMemberPath="DisplayName"
+                                                            Width="260"
+                                                            MinWidth="140" />
+
+                                    <DataGridTextColumn x:Name="LiveDescriptionColumn"
+                                                        Binding="{Binding Description}"
+                                                        SortMemberPath="Description"
+                                                        Width="220"
+                                                        MinWidth="140"
+                                                        ElementStyle="{StaticResource TableQuietTextStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveProcessIdColumn"
+                                                        Binding="{Binding ProcessIdText}"
+                                                        SortMemberPath="ProcessId"
+                                                        Width="78"
+                                                        MinWidth="70"
+                                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveSendColumn"
+                                                        Binding="{Binding SendText}"
+                                                        CellStyle="{StaticResource RateCellStyle}"
+                                                        SortMemberPath="SendBytesPerSecond"
+                                                        Width="118"
+                                                        MinWidth="88"
+                                                        ElementStyle="{StaticResource TableSendStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveReceiveColumn"
+                                                        Binding="{Binding ReceiveText}"
+                                                        CellStyle="{StaticResource RateCellStyle}"
+                                                        SortMemberPath="ReceiveBytesPerSecond"
+                                                        Width="118"
+                                                        MinWidth="88"
+                                                        ElementStyle="{StaticResource TableReceiveStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveTotalColumn"
+                                                        Binding="{Binding TotalText}"
+                                                        CellStyle="{StaticResource RateCellStyle}"
+                                                        SortMemberPath="TotalBytesPerSecond"
+                                                        Width="118"
+                                                        MinWidth="88"
+                                                        ElementStyle="{StaticResource TableNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveConnectionColumn"
+                                                        Binding="{Binding Connections}"
+                                                        SortMemberPath="Connections"
+                                                        Width="98"
+                                                        MinWidth="82"
+                                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveTcpColumn"
+                                                        Binding="{Binding TcpConnections}"
+                                                        SortMemberPath="TcpConnections"
+                                                        Width="76"
+                                                        MinWidth="66"
+                                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveUdpColumn"
+                                                        Binding="{Binding UdpEndpoints}"
+                                                        SortMemberPath="UdpEndpoints"
+                                                        Width="76"
+                                                        MinWidth="66"
+                                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="LivePacketColumn"
+                                                        Binding="{Binding PacketsText}"
+                                                        SortMemberPath="PacketsPerSecond"
+                                                        Width="104"
+                                                        MinWidth="92"
+                                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveSentColumn"
+                                                        Binding="{Binding SentText}"
+                                                        SortMemberPath="BytesSent"
+                                                        Width="112"
+                                                        MinWidth="88"
+                                                        ElementStyle="{StaticResource TableNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveReceivedColumn"
+                                                        Binding="{Binding ReceivedText}"
+                                                        SortMemberPath="BytesReceived"
+                                                        Width="112"
+                                                        MinWidth="88"
+                                                        ElementStyle="{StaticResource TableNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveTransferredColumn"
+                                                        Binding="{Binding TransferredText}"
+                                                        SortMemberPath="BytesTransferred"
+                                                        Width="128"
+                                                        MinWidth="104"
+                                                        ElementStyle="{StaticResource TableNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="LiveUptimeColumn"
+                                                        Binding="{Binding UptimeText}"
+                                                        SortMemberPath="UptimeSeconds"
+                                                        Width="104"
+                                                        MinWidth="84"
+                                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                    <DataGridTemplateColumn x:Name="LivePathColumn"
+                                                            SortMemberPath="FilePath"
+                                                            Width="340"
+                                                            MinWidth="200">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Style="{StaticResource PathLinkStyle}"
+                                                        Content="{Binding FilePath}"
+                                                        Command="{Binding Owner.RevealCommand}"
+                                                        CommandParameter="{Binding FilePath}"
+                                                        ToolTip="{Binding FilePath}"
+                                                        AutomationProperties.Name="Show this program in Explorer" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!--
+                                        Row actions. Double-clicking a row opens the
+                                        same window, but a gesture nobody can see is
+                                        not a way to offer a feature.
+                                    -->
+                                    <DataGridTemplateColumn Width="44"
+                                                            MinWidth="44"
+                                                            CanUserSort="False"
+                                                            CanUserResize="False"
+                                                            CanUserReorder="False"
+                                                            HeaderStyle="{StaticResource ActionsHeaderStyle}">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ToggleButton x:Name="RowMenu"
+                                                              Style="{StaticResource RowMenuStyle}"
+                                                              Tag="{Binding Owner}"
+                                                              AutomationProperties.Name="Row actions"
+                                                              ToolTip="More for this row">
+                                                    <Grid>
+                                                        <StackPanel Orientation="Vertical"
+                                                                    HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center">
+                                                            <Ellipse Width="3" Height="3" Margin="0,1.5"
+                                                                     Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                            <Ellipse Width="3" Height="3" Margin="0,1.5"
+                                                                     Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                            <Ellipse Width="3" Height="3" Margin="0,1.5"
+                                                                     Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                        </StackPanel>
+
+                                                        <Popup IsOpen="{Binding IsChecked, ElementName=RowMenu, Mode=TwoWay}"
+                                                               PlacementTarget="{Binding ElementName=RowMenu}"
+                                                               Placement="Bottom"
+                                                               HorizontalOffset="-150"
+                                                               VerticalOffset="4"
+                                                               StaysOpen="False"
+                                                               AllowsTransparency="True"
+                                                               PopupAnimation="Fade">
+                                                            <Border Style="{StaticResource FlyoutStyle}"
+                                                                    MinWidth="176"
+                                                                    Padding="4">
+                                                                <StackPanel>
+                                                                    <Button Style="{StaticResource MenuItemStyle}"
+                                                                            Content="Open details"
+                                                                            Command="{Binding Tag.WatchCommand, ElementName=RowMenu}"
+                                                                            CommandParameter="{Binding}"
+                                                                            IsEnabled="{Binding CanOpenDetails}"
+                                                                            AutomationProperties.Name="Open details"
+                                                                            ToolTip="Open a window showing what this is connected to" />
+
+                                                                    <Button Style="{StaticResource MenuItemStyle}"
+                                                                            Content="{Binding PinLabel}"
+                                                                            Command="{Binding Tag.TogglePinCommand, ElementName=RowMenu}"
+                                                                            CommandParameter="{Binding}"
+                                                                            AutomationProperties.Name="{Binding PinLabel}"
+                                                                            ToolTip="Hold this row at the top of the table. Right-clicking a row does the same." />
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </Popup>
+                                                    </Grid>
+                                                </ToggleButton>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <TextBlock Grid.Row="1"
+                                       Text="{Binding EmptyText}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="0,40,0,0"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}" />
+                        </Grid>
+                    </controls:Card>
+                </Grid>
+            </ScrollViewer>
+
+            <!--
+                A PERIOD. Windows' own count of each app over the stretch chosen,
+                kept in Windsock's history, so it needs no privilege and covers
+                time Windsock was not running.
+            -->
+            <ScrollViewer x:Name="TotalsBody"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="{StaticResource PagePadding}"
+                          Visibility="{Binding IsLivePeriod, Converter={StaticResource InverseBooleanToVisibility}}">
+                <Grid DataContext="{Binding Totals}" MinHeight="{Binding ViewportHeight, ElementName=TotalsBody}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Why the figures are not being kept, while they are not. -->
+                    <Border Grid.Row="0"
+                            Margin="0,0,0,16"
+                            Padding="14,10"
+                            CornerRadius="8"
+                            Background="{DynamicResource AccentSoftBrush}"
+                            Visibility="{Binding Notice, Converter={StaticResource TextToVisibility}}">
+                        <DockPanel LastChildFill="True">
+                            <fluent:SymbolIcon DockPanel.Dock="Left"
+                                               Symbol="Info"
+                                               FontSize="15"
+                                               Margin="0,0,10,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource AccentBrush}" />
+                            <TextBlock Text="{Binding Notice}"
+                                       FontSize="12.5"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </DockPanel>
+                    </Border>
+
+                    <!-- What the period came to, before the apps that make it up. -->
+                    <controls:Card Grid.Row="1">
+                        <controls:RuledPanel>
+                            <controls:FlowGrid Style="{StaticResource StatStripStyle}">
+                                <Border Style="{StaticResource StatCellStyle}">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <fluent:SymbolIcon Symbol="ArrowDownload"
+                                                               FontSize="13"
+                                                               Margin="0,0,6,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource DownloadBrush}" />
+                                            <TextBlock Text="DOWNLOADED" Style="{StaticResource StatLabelStyle}" VerticalAlignment="Center" />
+                                        </StackPanel>
+
+                                        <TextBlock Style="{StaticResource StatValueStyle}" FontSize="24" AutomationProperties.Name="Downloaded">
+                                            <Run Text="{Binding DownloadValue, Mode=OneWay}" />
+                                            <Run Text="{Binding DownloadUnit, Mode=OneWay}"
+                                                 FontSize="14"
+                                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </TextBlock>
+
+                                        <TextBlock Text="Every app together" Style="{StaticResource StatNoteStyle}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource StatCellStyle}">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <fluent:SymbolIcon Symbol="ArrowUpload"
+                                                               FontSize="13"
+                                                               Margin="0,0,6,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource UploadBrush}" />
+                                            <TextBlock Text="UPLOADED" Style="{StaticResource StatLabelStyle}" VerticalAlignment="Center" />
+                                        </StackPanel>
+
+                                        <TextBlock Style="{StaticResource StatValueStyle}" FontSize="24" AutomationProperties.Name="Uploaded">
+                                            <Run Text="{Binding UploadValue, Mode=OneWay}" />
+                                            <Run Text="{Binding UploadUnit, Mode=OneWay}"
+                                                 FontSize="14"
+                                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </TextBlock>
+
+                                        <TextBlock Text="Every app together" Style="{StaticResource StatNoteStyle}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource StatCellStyle}">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <fluent:SymbolIcon Symbol="Apps"
+                                                               FontSize="13"
+                                                               Margin="0,0,6,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="APPS" Style="{StaticResource StatLabelStyle}" VerticalAlignment="Center" />
+                                        </StackPanel>
+
+                                        <TextBlock Text="{Binding AppsText}"
+                                                   Style="{StaticResource StatValueStyle}"
+                                                   FontSize="24"
+                                                   AutomationProperties.Name="Apps" />
+
+                                        <TextBlock Text="{Binding TopText}" Style="{StaticResource StatNoteStyle}" />
+                                    </StackPanel>
+                                </Border>
+                            </controls:FlowGrid>
+
+                            <Border Style="{StaticResource SectionStyle}" Padding="20,12">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FreshnessText}" Style="{StaticResource CardNoteStyle}" />
+                                    <TextBlock Style="{StaticResource CardNoteStyle}"
+                                               Margin="0,4,0,0"
+                                               TextWrapping="Wrap"
+                                               Text="Windows counts each program by its file and each Store app by its package, over all the networks this PC has used. It keeps about a week of it, so days before that show only what Windsock collected at the time."
+                                               Visibility="{Binding ReachesPastWindows, Converter={StaticResource BooleanToVisibility}}" />
+                                </StackPanel>
+                            </Border>
+                        </controls:RuledPanel>
+                    </controls:Card>
+
+                    <controls:Card Grid.Row="2" Margin="{StaticResource BlockGap}" MinHeight="220">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <controls:FlowRow Grid.Row="0" Margin="20,14,14,10" Spacing="8" LineSpacing="8">
+                                <TextBox Style="{StaticResource SearchBoxStyle}"
+                                         MinWidth="200"
+                                         MaxWidth="340"
+                                         controls:FlowRow.Fill="True"
+                                         Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Search apps"
+                                         ToolTip="Matches the app's name, kind or path" />
+
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding ResetViewCommand}"
+                                        Visibility="{Binding IsCustomised, Converter={StaticResource BooleanToVisibility}}"
+                                        ToolTip="Put the search, filters, columns and sort back to their defaults">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ArrowReset"
+                                                           FontSize="14"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,7,0" />
+                                        <TextBlock Text="Reset view" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Grid controls:FlowRow.Trailing="True">
+                                    <ToggleButton x:Name="TotalsColumnsButton"
+                                                  Style="{StaticResource ToolbarButtonStyle}"
+                                                  ToolTip="Choose which columns are shown"
+                                                  AutomationProperties.Name="Choose columns">
+                                        <StackPanel Orientation="Horizontal">
+                                            <fluent:SymbolIcon Symbol="ColumnTriple"
+                                                               FontSize="14"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,0,7,0" />
+                                            <TextBlock Text="Columns" VerticalAlignment="Center" />
+                                            <Path Data="M 0 0 L 4 4 L 8 0"
+                                                  Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                                                  StrokeThickness="1.3"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  Margin="7,1,0,0"
+                                                  VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </ToggleButton>
+
+                                    <Popup IsOpen="{Binding IsChecked, ElementName=TotalsColumnsButton, Mode=TwoWay}"
+                                           PlacementTarget="{Binding ElementName=TotalsColumnsButton}"
+                                           Placement="Bottom"
+                                           VerticalOffset="6"
+                                           HorizontalOffset="-90"
+                                           StaysOpen="False"
+                                           AllowsTransparency="True"
+                                           PopupAnimation="Fade">
+                                        <Border Style="{StaticResource FlyoutStyle}" MinWidth="210" Padding="6">
+                                            <ScrollViewer MaxHeight="360"
+                                                          VerticalScrollBarVisibility="Auto"
+                                                          HorizontalScrollBarVisibility="Disabled">
+                                                <ItemsControl ItemsSource="{Binding Columns}"
+                                                              ItemTemplate="{StaticResource ColumnChoiceTemplate}" />
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </controls:FlowRow>
+
+                            <DataGrid x:Name="TotalsTable"
+                                      Grid.Row="1"
+                                      Margin="8,0,8,8"
+                                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                      Style="{StaticResource TableStyle}"
+                                      ColumnHeaderStyle="{StaticResource TableHeaderStyle}"
+                                      RowStyle="{StaticResource TableRowStyle}"
+                                      CellStyle="{StaticResource TableCellStyle}"
+                                      ItemsSource="{Binding Rows}"
+                                      AutomationProperties.Name="Apps that used the network in this period">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn x:Name="TotalsNameColumn"
+                                                            CellTemplate="{StaticResource AppNameTemplate}"
+                                                            SortMemberPath="Name"
+                                                            Width="260"
+                                                            MinWidth="140" />
+
+                                    <DataGridTextColumn x:Name="TotalsKindColumn"
+                                                        Binding="{Binding KindText}"
+                                                        SortMemberPath="KindText"
+                                                        Width="110"
+                                                        MinWidth="80"
+                                                        ElementStyle="{StaticResource TableQuietTextStyle}" />
+
+                                    <DataGridTextColumn x:Name="TotalsDownloadColumn"
+                                                        Binding="{Binding DownloadText}"
+                                                        SortMemberPath="BytesReceived"
+                                                        Width="112"
+                                                        MinWidth="88"
+                                                        ElementStyle="{StaticResource TableReceiveStyle}" />
+
+                                    <DataGridTextColumn x:Name="TotalsUploadColumn"
+                                                        Binding="{Binding UploadText}"
+                                                        SortMemberPath="BytesSent"
+                                                        Width="112"
+                                                        MinWidth="88"
+                                                        ElementStyle="{StaticResource TableSendStyle}" />
+
+                                    <DataGridTextColumn x:Name="TotalsTotalColumn"
+                                                        Binding="{Binding TotalText}"
+                                                        SortMemberPath="BytesTotal"
+                                                        Width="112"
+                                                        MinWidth="88"
+                                                        ElementStyle="{StaticResource TableNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="TotalsShareColumn"
+                                                        Binding="{Binding ShareText}"
+                                                        SortMemberPath="Share"
+                                                        Width="84"
+                                                        MinWidth="70"
+                                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                    <DataGridTextColumn x:Name="TotalsRecentColumn"
+                                                        Binding="{Binding RecentText}"
+                                                        SortMemberPath="RecentRate"
+                                                        Width="118"
+                                                        MinWidth="96"
+                                                        ElementStyle="{StaticResource TableQuietNumberStyle}" />
+
+                                    <DataGridTemplateColumn x:Name="TotalsPathColumn"
+                                                            SortMemberPath="FilePath"
+                                                            Width="340"
+                                                            MinWidth="200">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Style="{StaticResource PathLinkStyle}"
+                                                        Content="{Binding FilePath}"
+                                                        Command="{Binding DataContext.RevealCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        IsEnabled="{Binding CanReveal}"
+                                                        ToolTip="{Binding FilePath}"
+                                                        AutomationProperties.Name="Show this app in Explorer" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <DataGridTemplateColumn Width="44"
+                                                            MinWidth="44"
+                                                            CanUserSort="False"
+                                                            CanUserResize="False"
+                                                            CanUserReorder="False"
+                                                            HeaderStyle="{StaticResource ActionsHeaderStyle}">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ToggleButton x:Name="RowMenu"
+                                                              Style="{StaticResource RowMenuStyle}"
+                                                              Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                              IsEnabled="{Binding CanReveal}"
+                                                              AutomationProperties.Name="Row actions"
+                                                              ToolTip="More for this app">
+                                                    <Grid>
+                                                        <StackPanel Orientation="Vertical"
+                                                                    HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center">
+                                                            <Ellipse Width="3" Height="3" Margin="0,1.5"
+                                                                     Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                            <Ellipse Width="3" Height="3" Margin="0,1.5"
+                                                                     Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                            <Ellipse Width="3" Height="3" Margin="0,1.5"
+                                                                     Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                        </StackPanel>
+
+                                                        <Popup IsOpen="{Binding IsChecked, ElementName=RowMenu, Mode=TwoWay}"
+                                                               PlacementTarget="{Binding ElementName=RowMenu}"
+                                                               Placement="Bottom"
+                                                               HorizontalOffset="-150"
+                                                               VerticalOffset="4"
+                                                               StaysOpen="False"
+                                                               AllowsTransparency="True"
+                                                               PopupAnimation="Fade">
+                                                            <Border Style="{StaticResource FlyoutStyle}"
+                                                                    MinWidth="176"
+                                                                    Padding="4">
+                                                                <Button Style="{StaticResource MenuItemStyle}"
+                                                                        Content="Show in Explorer"
+                                                                        Command="{Binding Tag.RevealCommand, ElementName=RowMenu}"
+                                                                        CommandParameter="{Binding}"
+                                                                        AutomationProperties.Name="Show in Explorer"
+                                                                        ToolTip="Open the folder this app is installed in" />
+                                                            </Border>
+                                                        </Popup>
+                                                    </Grid>
+                                                </ToggleButton>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <TextBlock Grid.Row="1"
+                                       Text="{Binding EmptyText}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="0,40,0,0"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}" />
+                        </Grid>
+                    </controls:Card>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+    </controls:SectionPage>
+</UserControl>

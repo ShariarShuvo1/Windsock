@@ -177,7 +177,7 @@
                             <!-- Against a filled track the thumb has to be the
                                  window's own ground rather than a text colour,
                                  or it disappears into the accent. -->
-                            <Setter TargetName="Thumb" Property="Fill" Value="{DynamicResource SolidBackgroundFillColorBaseBrush}" />
+                            <Setter TargetName="Thumb" Property="Fill" Value="{DynamicResource CardBrush}" />
                         </Trigger>
 
                         <Trigger Property="IsMouseOver" Value="True">
@@ -240,7 +240,7 @@
     -->
     <Style x:Key="SlotCellStyle" TargetType="Border">
         <Setter Property="MinWidth" Value="150" />
-        <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorTertiaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource CanvasGroundBrush}" />
         <Setter Property="CornerRadius" Value="6" />
         <Setter Property="Padding" Value="8" />
         <Setter Property="Margin" Value="0,0,8,8" />
@@ -280,7 +280,7 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Face"
                                     Property="Background"
-                                    Value="{DynamicResource SolidBackgroundFillColorTertiaryBrush}" />
+                                    Value="{DynamicResource CanvasGroundBrush}" />
                             <Setter TargetName="Face"
                                     Property="BorderBrush"
                                     Value="{DynamicResource AccentBrush}" />
@@ -735,7 +735,7 @@
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Face"
                             CornerRadius="5"
-                            Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                            Background="{DynamicResource CanvasGroundBrush}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>

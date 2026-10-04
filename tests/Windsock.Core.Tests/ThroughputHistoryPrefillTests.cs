@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Windsock.Core.Networking;
 using Xunit;
 
@@ -67,6 +69,38 @@ public sealed class ThroughputHistoryPrefillTests
 
         Assert.Equal(5, written);
         Assert.Equal(1024, destination[4].DownloadBytesPerSecond);
+    }
+
+    /// <summary>
+    /// The filler that gives the chart its axes at launch is dated before the
+    /// monitor says it began measuring, so a peak or an average taken over the
+    /// history can leave it out instead of counting it as a minute of nothing.
+    /// </summary>
+    [Fact]
+    public void Monitor_DatesItsFillerBeforeMeasuringBegan()
+    {
+        var monitor = new ThroughputMonitor(
+            new StillTotals(),
+            Options.Create(new ThroughputMonitorOptions()),
+            NullLogger<ThroughputMonitor>.Instance);
+
+        ThroughputSample[] samples = new ThroughputSample[monitor.History.Capacity];
+        int count = monitor.History.CopyTo(samples);
+
+        Assert.True(count > 0);
+        Assert.All(samples[..count], sample => Assert.True(sample.Timestamp < monitor.MeasuringSince));
+
+        DateTimeOffset before = monitor.MeasuringSince;
+        monitor.SetInterval(TimeSpan.FromSeconds(2));
+
+        Assert.True(monitor.MeasuringSince >= before);
+        count = monitor.History.CopyTo(samples);
+        Assert.All(samples[..count], sample => Assert.True(sample.Timestamp < monitor.MeasuringSince));
+    }
+
+    private sealed class StillTotals : INetworkTotalsSource
+    {
+        public NetworkTotals ReadTotals() => default;
     }
 
     [Fact]

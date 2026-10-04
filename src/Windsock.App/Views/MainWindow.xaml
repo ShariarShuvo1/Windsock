@@ -6,9 +6,9 @@
         xmlns:controls="clr-namespace:Windsock.App.Controls"
         mc:Ignorable="d"
         Title="Windsock"
-        Width="900"
-        Height="780"
-        MinWidth="380"
+        Width="1100"
+        Height="760"
+        MinWidth="460"
         MinHeight="470"
         Background="{DynamicResource WindowGroundBrush}"
         Cursor="Arrow"
@@ -20,94 +20,111 @@
         the pointer, wins; but where nothing sets a cursor at all the framework
         leaves the last one alone, so a hand picked up over a tile or a button
         stayed a hand across the whole page. This is the floor it falls back to.
+
+        The minimum width is the old one plus the folded sidebar, so the page
+        beside it is never narrower than the whole window used to be allowed to
+        get.
     -->
 
     <!--
-        Sections stack top-down with the window ground showing between them,
-        dividing the window exactly between them.
+        A sidebar down the left chooses the page; the page beside it is that one
+        thing and nothing else.
 
-        The window itself does not scroll. It used to: the whole page was in a
-        scroller, so reaching the bottom of a table scrolled the meter and the
-        tabs off the top of the screen along with it. A panel that needs more
-        room than it has scrolls inside its own body instead, which leaves the
-        chart and the tabs where they were put.
+        One entry per part of the machine, each carrying its live figure beside
+        its name. A part with more than one page is a group: Network holds its
+        overview, whether the internet is there, what has moved over time and
+        which apps are using it, live or over a period.
+        Pressing a group opens it at its overview; its pages are listed under it.
+        Processor, graphics, memory and storage are one page each. The taskbar meter
+        follows, and Settings sits apart at the bottom, where it is looked for.
+
+        The panels are handed in from the code behind rather than declared here:
+        they own view models with their own lifetimes, which is the container's
+        business, not the markup's. The five machine overviews share one panel,
+        which the code behind puts on the page when any of them is chosen.
+
+        The window itself does not scroll. A page that needs more room than it
+        has scrolls inside itself.
     -->
-    <Grid Margin="14">
-            <Grid.RowDefinitions>
-                <!--
-                    Collapsing the overview has to give its height back, or the
-                    section below would stay pinned under an empty gap the size
-                    of the card that is no longer there.
-
-                    Sized from the code behind rather than by a trigger on the
-                    state: the handle between the two writes a height straight
-                    onto these rows, and a value written straight on outranks
-                    anything a style says for the rest of the window's life.
-                    Collapse after a drag would then be ignored by the very rows
-                    that had been dragged.
-
-                    The overview opens at exactly the height its contents need
-                    and stays there: a share of the window would have it growing
-                    with every window that grows, and the panel below is the half
-                    with a list in it - the half that can actually use the room.
-                    Dragging the handle is how it gets more, and the same figure
-                    is the floor that drag stops at.
-                -->
-                <RowDefinition x:Name="OverviewRow" Height="230" MinHeight="230" />
-
-                <RowDefinition Height="Auto" />
-
-                <!-- Everything that is left, which is where spare height is
-                     worth the most: the overview shows a fixed amount of
-                     information, and the panel below is a list. -->
-                <RowDefinition x:Name="PanelRow" Height="*" MinHeight="150" />
-            </Grid.RowDefinitions>
-
-            <ContentControl x:Name="OverviewHost" Grid.Row="0" />
-
+    <controls:NavigationPane x:Name="Sections"
+                             Margin="12"
+                             AutomationProperties.Name="Panels">
+        <controls:NavigationPane.Body>
             <!--
-                Drag to decide how much of the window the overview gets.
-
-                Hidden rather than collapsed once the overview is shut: hidden
-                keeps the row, and that row is the gap between the card and the
-                tabs. Collapsed took the gap away with the grip and left the two
-                touching.
+                The chosen page. A presenter rather than a content control: a
+                panel's logical parent is its section, and a content control
+                would try to adopt it a second time. Filled from the code behind.
             -->
-            <GridSplitter Grid.Row="1"
-                          Height="14"
-                          HorizontalAlignment="Stretch"
-                          VerticalAlignment="Center"
-                          Background="Transparent"
-                          ResizeBehavior="PreviousAndNext"
-                          ResizeDirection="Rows"
-                          AutomationProperties.Name="Resize the overview"
-                          ToolTip="Drag to give the overview more or less room">
-                <GridSplitter.Style>
-                    <Style TargetType="GridSplitter">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Content.DataContext.IsExpanded, ElementName=OverviewHost}"
-                                         Value="False">
-                                <Setter Property="Visibility" Value="Hidden" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </GridSplitter.Style>
-                <GridSplitter.Template>
-                    <ControlTemplate TargetType="GridSplitter">
-                        <Border Background="Transparent" Cursor="SizeNS">
-                            <Border Width="46"
-                                    Height="3"
-                                    CornerRadius="2"
-                                    VerticalAlignment="Center"
-                                    HorizontalAlignment="Center"
-                                    Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
-                        </Border>
-                    </ControlTemplate>
-                </GridSplitter.Template>
-            </GridSplitter>
+            <ContentPresenter x:Name="WorkspaceHost" />
+        </controls:NavigationPane.Body>
 
-            <ContentControl x:Name="WorkspaceHost" Grid.Row="2" />
-    </Grid>
+        <!--
+            An icon for every entry, pages inside a group included, so each says
+            what it is about rather than decorating it: the icon is all that
+            shows once the sidebar is folded, and in the list a page that had
+            none read as a row with something missing. Both overviews share the
+            chart, since that is what an overview is here.
+        -->
+        <controls:NavigationItem x:Name="NetworkItem"
+                                 Header="Network"
+                                 AutomationProperties.Name="Network"
+                                 controls:NavigationPane.Icon="ArrowsBidirectional" />
+
+        <controls:NavigationItem x:Name="NetworkOverviewTab"
+                                 Header="Overview"
+                                 ParentName="NetworkItem"
+                                 AutomationProperties.Name="Network overview"
+                                 controls:NavigationPane.Icon="DataArea" />
+
+        <controls:NavigationItem x:Name="ConnectionTab"
+                                 Header="Connection"
+                                 ParentName="NetworkItem"
+                                 AutomationProperties.Name="Connection"
+                                 controls:NavigationPane.Icon="PlugConnected" />
+
+        <controls:NavigationItem x:Name="HistoryTab"
+                                 Header="History"
+                                 ParentName="NetworkItem"
+                                 AutomationProperties.Name="History"
+                                 controls:NavigationPane.Icon="History" />
+
+        <controls:NavigationItem x:Name="AppsTab"
+                                 Header="Apps"
+                                 ParentName="NetworkItem"
+                                 AutomationProperties.Name="Apps"
+                                 controls:NavigationPane.Icon="DataUsage" />
+
+        <controls:NavigationItem x:Name="ProcessorItem"
+                                 Header="Processor"
+                                 AutomationProperties.Name="Processor"
+                                 controls:NavigationPane.Icon="DeveloperBoard" />
+
+        <controls:NavigationItem x:Name="GraphicsTab"
+                                 Header="Graphics"
+                                 AutomationProperties.Name="Graphics"
+                                 controls:NavigationPane.Icon="Games" />
+
+        <controls:NavigationItem x:Name="MemoryTab"
+                                 Header="Memory"
+                                 AutomationProperties.Name="Memory"
+                                 controls:NavigationPane.Icon="Ram" />
+
+        <controls:NavigationItem x:Name="StorageTab"
+                                 Header="Storage"
+                                 AutomationProperties.Name="Storage"
+                                 controls:NavigationPane.Icon="HardDrive" />
+
+        <controls:NavigationItem x:Name="TaskbarTab"
+                                 Header="Taskbar"
+                                 AutomationProperties.Name="Taskbar"
+                                 controls:NavigationPane.Icon="PanelBottom" />
+
+        <controls:NavigationItem x:Name="SettingsTab"
+                                 Header="Settings"
+                                 AutomationProperties.Name="Settings"
+                                 DockPanel.Dock="Bottom"
+                                 Margin="0"
+                                 controls:NavigationPane.Icon="Settings" />
+    </controls:NavigationPane>
 
 </Window>

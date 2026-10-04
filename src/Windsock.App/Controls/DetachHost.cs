@@ -19,6 +19,7 @@ public sealed class DetachHost : ContentControl
     private const double LeastHeight = 260;
     private Window? _window;
     private object? _lifted;
+    private Border? _frame;
 
     /// <summary>Lift the content out into a window of its own.</summary>
     public static readonly RoutedUICommand TakeOut =
@@ -188,7 +189,14 @@ public sealed class DetachHost : ContentControl
 
         _lifted = content;
         Content = null;
-        window.Content = content;
+
+        // On the same surface the page it came from is drawn on, with the same
+        // gutter round it, so the piece looks lifted out rather than stripped.
+        window.SetResourceReference(Control.BackgroundProperty, "SurfaceBrush");
+        _frame = content is UIElement element
+            ? new Border { Padding = new Thickness(12), Child = element }
+            : null;
+        window.Content = _frame ?? content;
 
         // Closing the window is the other way of saying "put it back".
         window.Closed += (_, _) =>
@@ -216,6 +224,17 @@ public sealed class DetachHost : ContentControl
 
         object content = _lifted;
         _lifted = null;
+
+        // Out of its frame whichever way the window went: by "Bring it back",
+        // where this closes the window, or by the window's own close button,
+        // where the window is already gone by now. Left in the frame, the
+        // content was still the frame's visual child when it came home, and
+        // adopting it again threw during layout and took the app down.
+        if (_frame is { } frame)
+        {
+            frame.Child = null;
+            _frame = null;
+        }
 
         if (_window is { } window)
         {

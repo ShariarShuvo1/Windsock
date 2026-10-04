@@ -1,6 +1,8 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+#if !STORE
 using System.Security.Principal;
+#endif
 using Windsock.Core.Processes;
 using Xunit;
 
@@ -80,6 +82,7 @@ public sealed class ProcessSourceTests
         Assert.All(mine, row => Assert.Equal(Environment.ProcessId, row.ProcessId));
     }
 
+#if !STORE
     [Fact]
     public void TrafficSource_KeepsWatchingWhileAnyoneStillWants()
     {
@@ -130,5 +133,26 @@ public sealed class ProcessSourceTests
         Dictionary<int, ProcessTraffic> totals = [];
         source.CopyTo(totals);
         Assert.Empty(totals);
+    }
+#endif
+
+    [Fact]
+    public void WithheldSource_SaysItIsNotOfferedAndCountsNothing()
+    {
+        var source = new WithheldTrafficSource();
+
+        source.Start();
+        Assert.Equal(TrafficSourceState.NotOffered, source.State);
+        Assert.False(source.CanAttribute);
+        Assert.False(string.IsNullOrWhiteSpace(source.Detail));
+
+        Dictionary<int, ProcessTraffic> totals = new() { [1] = new ProcessTraffic(1, 1, 1) };
+        source.CopyTo(totals);
+        Assert.Empty(totals);
+
+        Dictionary<EndpointKey, EndpointTraffic> ends = [];
+        source.Watch(Environment.ProcessId);
+        source.CopyEndpoints(Environment.ProcessId, ends);
+        Assert.Empty(ends);
     }
 }

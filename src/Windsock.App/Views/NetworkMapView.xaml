@@ -11,7 +11,7 @@
 
     <!--
         The map with no window around it. The same control serves the window it
-        can be opened in and the card it sits in on the Process tab, so there is
+        can be opened in and the card it sits in on the Apps page, so there is
         one of it to keep right rather than two that drift apart.
     -->
     <UserControl.Resources>
@@ -50,11 +50,26 @@
                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                 </StackPanel>
 
+                <!-- Only rates; otherwise it is the socket count, said below. -->
                 <TextBlock Text="{Binding RateText}"
                            FontSize="12"
                            Margin="0,7,0,0"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasRates}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
 
+                <TextBlock Style="{StaticResource PopoverNoteStyle}"
+                           Text="{Binding RateNote}"
+                           Visibility="{Binding RateNote, Converter={StaticResource TextToVisibility}}" />
                 <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Sockets}" />
                 <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Places}" />
                 <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding FilePath}" />
@@ -219,8 +234,13 @@
         </DataTemplate>
     </UserControl.Resources>
 
+    <!--
+        No card of its own: the page it sits on gives it one, with a name over
+        it, the way every chart on every page has one. What is left is the well
+        the map is drawn in.
+    -->
     <Grid>
-        <Border Style="{StaticResource CardStyle}" Padding="0">
+        <Border>
             <Grid>
                 <Border Background="{DynamicResource CanvasGroundBrush}"
                         CornerRadius="8"
@@ -566,7 +586,11 @@
                                         <controls:SettingHead Hint="Lay the picture out on the earth, with every far end where its address says it is." Margin="6,0,0,0" />
                                     </StackPanel>
 
-                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                    <!-- Only on the earth: the free layout has no
+                                         cities to gather into, so the switch did
+                                         nothing there but look broken. -->
+                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal"
+                                                Visibility="{Binding IsWorld, Converter={StaticResource BooleanToVisibility}}">
                                         <CheckBox Style="{StaticResource ToolbarCheckStyle}"
                                                   Content="One dot per city"
                                                   IsChecked="{Binding ByCity, Mode=TwoWay}"

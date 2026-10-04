@@ -1,7 +1,7 @@
-﻿using System.ComponentModel;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
-using Windsock.App.Services;
+using System.Windows.Data;
+using Windsock.App.Controls;
 using Windsock.App.ViewModels;
 using Windsock.Core.Settings;
 
@@ -11,165 +11,177 @@ namespace Windsock.App.Views;
 /// The main application window. Composes the feature sections; the sections
 /// themselves own their data and lifetime.
 /// </summary>
-public partial class MainWindow : Window, IDisposable
+/// <remarks>
+/// Built when it is asked for and thrown away when it closes, sections and all,
+/// even when Windsock keeps running afterwards. <c>App</c> owns that,
+/// along with the notification-area icon that stands in for it.
+/// </remarks>
+public partial class MainWindow : Window
 {
-    private const double OverviewRoom = 230;
-    private const double PanelRoom = 150;
-
-    private GridLength _overviewShare = new(OverviewRoom, GridUnitType.Pixel);
-    private GridLength _panelShare = new(1, GridUnitType.Star);
-
     private readonly WindsockSettings _settings;
-    private readonly TrayIcon _tray;
+    private readonly ISettingsStore _store;
+    private readonly SystemPanelView _system;
+    private readonly Dictionary<TabItem, SystemTileViewModel> _parts;
 
     public MainWindow(
-        ThroughputOverviewView throughputOverview,
-        WorkspaceView workspace,
-        WindsockSettings settings)
+        SystemPanelView system,
+        ConnectionPanelView connection,
+        HistoryPanelView history,
+        AppsPanelView apps,
+        TaskbarPanelView taskbar,
+        SettingsPanelView settingsPanel,
+        WindsockSettings settings,
+        ISettingsStore store)
     {
-        ArgumentNullException.ThrowIfNull(throughputOverview);
+        ArgumentNullException.ThrowIfNull(system);
         ArgumentNullException.ThrowIfNull(settings);
 
         _settings = settings;
+        _store = store;
+        _system = system;
 
         InitializeComponent();
-        OverviewHost.Content = throughputOverview;
-        WorkspaceHost.Content = workspace;
 
-        if (throughputOverview.DataContext is ThroughputOverviewViewModel overview)
+        ConnectionTab.Content = connection;
+        HistoryTab.Content = history;
+        AppsTab.Content = apps;
+        TaskbarTab.Content = taskbar;
+        SettingsTab.Content = settingsPanel;
+
+        SystemPanelViewModel machine = system.ViewModel;
+
+        // The five parts of the machine share one page.
+        _parts = new Dictionary<TabItem, SystemTileViewModel>
         {
-            overview.PropertyChanged += OnOverviewChanged;
+            [NetworkOverviewTab] = machine.Network,
+            [ProcessorItem] = machine.Processor,
+            [GraphicsTab] = machine.Graphics,
+            [MemoryTab] = machine.Memory,
+            [StorageTab] = machine.Storage,
+        };
+
+        // Each part's entry carries its live figure beside its name: on the
+        // group, where a part has pages, so it shows whether or not it is open.
+        (TabItem Entry, SystemTileViewModel Part)[] figures =
+        [
+            (NetworkItem, machine.Network),
+            (ProcessorItem, machine.Processor),
+            (GraphicsTab, machine.Graphics),
+            (MemoryTab, machine.Memory),
+            (StorageTab, machine.Storage),
+        ];
+
+        foreach ((TabItem entry, SystemTileViewModel part) in figures)
+        {
+            entry.SetBinding(NavigationPane.ReadingProperty, new Binding(nameof(SystemTileViewModel.Readout)) { Source = part });
         }
 
-        _tray = new TrayIcon(this);
-        _tray.Opened += (_, _) => Restore();
-        _tray.MenuRequested += (_, _) => ShowTrayMenu();
+        Sections.SelectionChanged += OnSectionChanged;
+        ShowChosen();
 
-        Closing += OnClosing;
+        // Set before listening, so opening the window is not taken for the
+        // user changing their mind.
+        Sections.IsPaneOpen = settings.SidebarOpen;
+        Sections.PaneOpenChanged += OnSidebarChanged;
+
         StateChanged += (_, _) => FollowVisibility();
-        IsVisibleChanged += (_, _) => FollowTray();
-    }
-
-    /// <summary>Brings a hidden or minimised window back to the front.</summary>
-    private void Restore()
-    {
-        Show();
-
-        if (WindowState == WindowState.Minimized)
-        {
-            WindowState = WindowState.Normal;
-        }
-
-        _ = Activate();
-        Topmost = true;
-        Topmost = false;
+        IsVisibleChanged += (_, _) => FollowVisibility();
     }
 
     /// <summary>
-    /// The icon is there only while the window is not.
+    /// Turns to a section by its plain name - "system", "history", "settings" -
+    /// as a clicked notification asks. An unknown or absent section leaves the
+    /// window where it was.
     /// </summary>
-    private void FollowTray()
+    public void ShowSection(string section)
     {
-        if (IsVisible)
+        TabItem? wanted = section switch
         {
-            _tray.Hide();
+            "system" => NetworkOverviewTab,
+            "process" or "apps" => AppsTab,
+            "connection" => ConnectionTab,
+            "history" => HistoryTab,
+            "taskbar" => TaskbarTab,
+            "settings" => SettingsTab,
+            _ => null,
+        };
+
+        if (wanted is not null && Sections.Items.Contains(wanted))
+        {
+            wanted.IsSelected = true;
+        }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        Sections.PaneOpenChanged -= OnSidebarChanged;
+        Sections.SelectionChanged -= OnSectionChanged;
+        _system.ViewModel.Hide();
+
+        base.OnClosed(e);
+    }
+
+    private void OnSectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // Selection changes inside the pages - a picker, a table - bubble up
+        // through the sidebar too, and are none of its business.
+        if (e.OriginalSource == Sections)
+        {
+            ShowChosen();
+        }
+    }
+
+    /// <summary>Puts the chosen section's panel on the page.</summary>
+    private void ShowChosen()
+    {
+        if (Sections.SelectedItem is not TabItem tab)
+        {
             return;
         }
 
-        _tray.Show("Windsock is still running");
+        if (_parts.TryGetValue(tab, out SystemTileViewModel? part))
+        {
+            part.IsSelected = true;
+            WorkspaceHost.Content = _system;
+            return;
+        }
+
+        WorkspaceHost.Content = tab.Content;
     }
 
-    private void ShowTrayMenu()
+    private void OnSidebarChanged(object? sender, EventArgs e)
     {
-        ContextMenu menu = new()
+        if (_settings.SidebarOpen == Sections.IsPaneOpen)
         {
-            Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint,
-        };
+            return;
+        }
 
-        MenuItem open = new() { Header = "Open Windsock" };
-        open.Click += (_, _) => Restore();
-
-        MenuItem quit = new() { Header = "Quit" };
-        quit.Click += (_, _) =>
-        {
-            _tray.Dispose();
-            Application.Current.Shutdown();
-        };
-
-        menu.Items.Add(open);
-        menu.Items.Add(new Separator());
-        menu.Items.Add(quit);
-
-        // Without the window in front the menu does not dismiss when the next
-        // click lands somewhere else, which is a shell rule about tray menus
-        // rather than anything WPF does.
-        _ = Activate();
-        menu.IsOpen = true;
+        _settings.SidebarOpen = Sections.IsPaneOpen;
+        _store.Save(_settings);
     }
 
+    /// <summary>
+    /// Takes the page out of the tree's idea of what is visible while the
+    /// window is minimised, which WPF otherwise leaves loaded and visible, so
+    /// every section that collects only while it is seen stops collecting.
+    /// </summary>
+    /// <remarks>
+    /// The machine's readings follow the window rather than a page: the sidebar
+    /// shows them beside the five parts whichever page is open, so they are
+    /// wanted whenever the window can be seen, and not otherwise.
+    /// </remarks>
     private void FollowVisibility()
     {
-        Visibility content = WindowState == WindowState.Minimized
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        bool seen = IsVisible && WindowState != WindowState.Minimized;
 
-        OverviewHost.Visibility = content;
-        WorkspaceHost.Visibility = content;
-    }
+        WorkspaceHost.Visibility = seen ? Visibility.Visible : Visibility.Collapsed;
 
-    private void OnClosing(object? sender, CancelEventArgs e)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-
-        if (_settings.OnClose != CloseAction.KeepRunning)
+        if (seen)
         {
-            Dispose();
+            _system.ViewModel.Show();
             return;
         }
 
-        e.Cancel = true;
-        Hide();
-    }
-
-    /// <summary>Takes the icon out of the notification area on the way out.</summary>
-    public void Dispose()
-    {
-        _tray.Dispose();
-        GC.SuppressFinalize(this);
-    }
-
-    private void OnOverviewChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-
-        if (e.PropertyName == nameof(ThroughputOverviewViewModel.IsExpanded)
-            && sender is ThroughputOverviewViewModel overview)
-        {
-            ApplySplit(overview.IsExpanded);
-        }
-    }
-
-    private void ApplySplit(bool expanded)
-    {
-        if (!OverviewRow.Height.IsAuto)
-        {
-            _overviewShare = OverviewRow.Height;
-            _panelShare = PanelRow.Height;
-        }
-
-        if (expanded)
-        {
-            Share(OverviewRow, _overviewShare, OverviewRoom);
-            Share(PanelRow, _panelShare, PanelRoom);
-            return;
-        }
-        Share(OverviewRow, GridLength.Auto, 0);
-        Share(PanelRow, new GridLength(1, GridUnitType.Star), PanelRoom);
-    }
-
-    private static void Share(RowDefinition row, GridLength height, double least)
-    {
-        row.MinHeight = least;
-        row.Height = height;
+        _system.ViewModel.Hide();
     }
 }

@@ -40,7 +40,13 @@ public sealed class NetworkRouteCache : IDisposable
     private readonly List<string> _order = [];
     private int _walking;
     private long _turn;
+#if STORE
+    // The Store edition sends nothing but its connection checks, so no route is
+    // walked however this cache is built or configured.
+    private volatile bool _enabled;
+#else
     private volatile bool _enabled = true;
+#endif
     private bool _disposed;
 
     public NetworkRouteCache(INetworkPathProbe probe)
@@ -70,13 +76,16 @@ public sealed class NetworkRouteCache : IDisposable
     public TimeSpan Patience { get; init; } = DefaultPatience;
 
     /// <summary>
-    /// Whether routes are walked at all.
+    /// Whether routes are walked at all. Always false in the Store edition.
     /// </summary>
     public bool IsEnabled
     {
         get => _enabled;
         set
         {
+#if STORE
+            value = false;
+#endif
             if (_enabled == value)
             {
                 return;

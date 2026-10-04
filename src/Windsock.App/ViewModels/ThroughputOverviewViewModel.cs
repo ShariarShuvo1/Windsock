@@ -1,5 +1,6 @@
 ﻿using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Windsock.Core.Formatting;
 using Windsock.Core.Networking;
 using Windsock.Core.Processes;
@@ -61,7 +62,6 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _animator;
     private readonly ThroughputSample[] _scratch;
-    private readonly TimeSpan _liveInterval;
     private readonly ReadoutSizer _downloadSizer = new(ReadoutMaximumFontSize);
     private readonly ReadoutSizer _uploadSizer = new(ReadoutMaximumFontSize);
 
@@ -71,6 +71,11 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
     private double _targetUpload;
     private double _displayDownload;
     private double _displayUpload;
+    private int _measured;
+    private double _peakDown;
+    private double _peakUp;
+    private double _averageDown;
+    private double _averageUp;
 #if !STORE
     private readonly ProcessAttributionHistory _attribution;
     private readonly ProcessUsageMonitor _processes;
@@ -105,11 +110,8 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
         DownloadSeries = new SeriesView(new double[capacity]);
         UploadSeries = new SeriesView(new double[capacity]);
 
-        _liveInterval = monitor.Interval;
         SampleIntervalSeconds = monitor.Interval.TotalSeconds;
         DefaultVisibleSamples = Math.Min(capacity, monitor.InitialVisibleSamples);
-        MinimumSampleInterval = ThroughputMonitor.MinimumInterval;
-        MaximumSampleInterval = ThroughputMonitor.MaximumInterval;
         monitor.IntervalChanged += OnMonitorIntervalChanged;
 
         DownloadValue = "0";
@@ -121,7 +123,6 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
         HoverUpload = string.Empty;
         IsDownloadVisible = true;
         IsUploadVisible = true;
-        IsExpanded = true;
         DownloadFontSize = ReadoutMaximumFontSize;
         UploadFontSize = ReadoutMaximumFontSize;
 
@@ -154,24 +155,19 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
     public partial double SampleIntervalSeconds { get; set; }
 
     /// <summary>
-    /// Sampling interval, or <see langword="null"/> to sample at the app's live
-    /// default.
+    /// Whether the chart and its figures follow the readings. Paused, they hold
+    /// still to be read; nothing stops being measured or recorded, and resuming
+    /// shows everything that came in meanwhile.
     /// </summary>
     [ObservableProperty]
-    public partial TimeSpan? SampleInterval { get; set; }
-
-    /// <summary>Shortest interval the sampler accepts.</summary>
-    public TimeSpan MinimumSampleInterval { get; }
-
-    /// <summary>Longest interval the sampler accepts.</summary>
-    public TimeSpan MaximumSampleInterval { get; }
+    [NotifyPropertyChangedFor(nameof(LiveLabel))]
+    public partial bool IsLive { get; set; } = true;
 
     /// <summary>
-    /// Raised when the sampling cadence changes, so the view can return the
-    /// chart to its default zoom - the old viewport counted samples that no
-    /// longer exist.
+    /// What the button offers to do, which is the opposite of what is
+    /// happening - the same words the Apps page uses.
     /// </summary>
-    public event EventHandler? SamplingChanged;
+    public string LiveLabel => IsLive ? "Pause" : "Resume";
 
     /// <summary>Samples the chart shows before any zooming.</summary>
     public int DefaultVisibleSamples { get; }
@@ -224,9 +220,25 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
     [ObservableProperty]
     public partial bool IsUploadVisible { get; set; }
 
-    /// <summary>Whether the section body is shown. Purely a view concern.</summary>
+    /// <summary>The fastest download in the history the chart holds.</summary>
     [ObservableProperty]
-    public partial bool IsExpanded { get; set; }
+    public partial string PeakDownload { get; private set; } = string.Empty;
+
+    /// <summary>The fastest upload in the history the chart holds.</summary>
+    [ObservableProperty]
+    public partial string PeakUpload { get; private set; } = string.Empty;
+
+    /// <summary>The mean download rate across that history.</summary>
+    [ObservableProperty]
+    public partial string AverageDownload { get; private set; } = string.Empty;
+
+    /// <summary>The mean upload rate across that history.</summary>
+    [ObservableProperty]
+    public partial string AverageUpload { get; private set; } = string.Empty;
+
+    /// <summary>How far back the peaks and averages reach, in words.</summary>
+    [ObservableProperty]
+    public partial string StatsSpan { get; private set; } = string.Empty;
 
     /// <summary>Whether the hover readout should be shown.</summary>
     [ObservableProperty]
@@ -263,7 +275,12 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
         }
 
         _running = true;
-        RebuildSeries();
+
+        if (IsLive)
+        {
+            RebuildSeries();
+        }
+
         _monitor.SampleTaken += OnSampleTaken;
 #if !STORE
         _watch ??= _processes.Watch();
@@ -327,14 +344,34 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
         _animator.Tick -= OnAnimationTick;
     }
 
-    partial void OnSampleIntervalChanged(TimeSpan? value) =>
-        _monitor.SetInterval(value ?? _liveInterval);
+    /// <summary>
+    /// Back to following the readings, as each window starts: a pause is for
+    /// reading what is on screen now, not a setting carried to the next opening.
+    /// </summary>
+    public void Resume() => IsLive = true;
+
+    [RelayCommand]
+    private void ToggleLive() => IsLive = !IsLive;
+
+    partial void OnIsLiveChanged(bool value)
+    {
+        if (!value || !_running)
+        {
+            return;
+        }
+
+        int count = _monitor.History.CopyTo(_scratch);
+
+        if (count > 0)
+        {
+            Apply(_scratch[count - 1]);
+        }
+    }
 
     private void OnMonitorIntervalChanged(object? sender, EventArgs e)
     {
         SampleIntervalSeconds = _monitor.Interval.TotalSeconds;
         RebuildSeries();
-        SamplingChanged?.Invoke(this, EventArgs.Empty);
     }
 
     partial void OnSelectedFamilyChanged(RateFamily value)
@@ -358,6 +395,7 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
         DownloadUnit = string.Empty;
         UploadUnit = string.Empty;
         UpdateReadouts();
+        FormatStats();
 
         if (IsHoverVisible)
         {
@@ -394,7 +432,7 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
 
     private void Apply(ThroughputSample sample)
     {
-        if (_disposed)
+        if (_disposed || !IsLive)
         {
             return;
         }
@@ -420,17 +458,64 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
 
         double[] download = DownloadSeries.Buffer;
         double[] upload = UploadSeries.Buffer;
+        double peakDown = 0;
+        double peakUp = 0;
+        double sumDown = 0;
+        double sumUp = 0;
+        int measured = 0;
+        DateTimeOffset since = _monitor.MeasuringSince;
 
         for (int i = 0; i < count; i++)
         {
             ThroughputSample sample = _scratch[i];
             download[i] = sample.DownloadBytesPerSecond;
             upload[i] = sample.UploadBytesPerSecond;
+
+            // The filler that gives the chart its axes at launch is drawn, but
+            // it was never measured, so it is not a peak and not a reading of
+            // nothing to average in.
+            if (sample.Timestamp < since)
+            {
+                continue;
+            }
+
+            measured++;
+            peakDown = Math.Max(peakDown, sample.DownloadBytesPerSecond);
+            peakUp = Math.Max(peakUp, sample.UploadBytesPerSecond);
+            sumDown += sample.DownloadBytesPerSecond;
+            sumUp += sample.UploadBytesPerSecond;
         }
 
         DownloadSeries.Count = count;
         UploadSeries.Count = count;
         SeriesRevision++;
+
+        _measured = measured;
+        _peakDown = peakDown;
+        _peakUp = peakUp;
+        _averageDown = measured > 0 ? sumDown / measured : 0;
+        _averageUp = measured > 0 ? sumUp / measured : 0;
+        FormatStats();
+        StatsSpan = measured > 0
+            ? "Last " + DurationLabel.Format(measured * SampleIntervalSeconds)
+            : "Measuring";
+    }
+
+    private void FormatStats()
+    {
+        if (_measured == 0)
+        {
+            PeakDownload = MeterReadout.Unknown;
+            PeakUpload = MeterReadout.Unknown;
+            AverageDownload = MeterReadout.Unknown;
+            AverageUpload = MeterReadout.Unknown;
+            return;
+        }
+
+        PeakDownload = RateFormatter.Format(_peakDown, SelectedFamily, SelectedScale);
+        PeakUpload = RateFormatter.Format(_peakUp, SelectedFamily, SelectedScale);
+        AverageDownload = RateFormatter.Format(_averageDown, SelectedFamily, SelectedScale);
+        AverageUpload = RateFormatter.Format(_averageUp, SelectedFamily, SelectedScale);
     }
 
     private void OnAnimationTick(object? sender, EventArgs e)

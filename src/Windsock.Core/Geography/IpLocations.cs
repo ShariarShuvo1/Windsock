@@ -164,6 +164,54 @@ public sealed class IpLocations : IDisposable
         return Look(plain, _v4Blocks, _v4IndexAt, 8, _v4DataAt, _v4Rows, six: false);
     }
 
+    /// <summary>
+    /// Every place in the table called <paramref name="city"/>, districts
+    /// included ("Dhaka (Gulshan)" is a Dhaka). Reads the whole place list, so
+    /// ask once and keep the answer.
+    /// </summary>
+    public IReadOnlyList<WorldPlace> Named(string city)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(city);
+
+        List<WorldPlace> found = [];
+
+        if (_disposed)
+        {
+            return found;
+        }
+
+        int wanted = Encoding.UTF8.GetByteCount(city);
+
+        for (int which = 0; which < _places; which++)
+        {
+            ushort length = _view.ReadUInt16(_placesAt + (which * 12L) + 4);
+
+            if (length < wanted)
+            {
+                continue;
+            }
+
+            long nameAt = _namesAt + _view.ReadUInt32(_placesAt + (which * 12L));
+
+            // Cheap first: the first letter, either case, before reading the rest.
+            char first = (char)_view.ReadByte(nameAt);
+
+            if (char.ToUpperInvariant(first) != char.ToUpperInvariant(city[0]) && first < 0x80)
+            {
+                continue;
+            }
+
+            string name = Text(nameAt, length);
+
+            if (string.Equals(CityClusters.BaseName(name), city, StringComparison.OrdinalIgnoreCase))
+            {
+                found.Add(Place(which));
+            }
+        }
+
+        return found;
+    }
+
     private static bool Private(uint address) =>
         (address >> 24) == 10
         || (address >> 24) == 127

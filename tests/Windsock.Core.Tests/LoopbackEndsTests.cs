@@ -1,3 +1,4 @@
+using System.Net;
 using Windsock.Core.Processes;
 using Xunit;
 
@@ -16,6 +17,31 @@ public sealed class LoopbackEndsTests
     [InlineData(null, false)]
     public void KnowsWhatIsThisMachine(string? address, bool loopback) =>
         Assert.Equal(loopback, LoopbackEnds.IsLoopback(address));
+
+    [Theory]
+    [InlineData("127.0.0.1", true)]
+    [InlineData("::ffff:127.0.0.1", true)]
+    [InlineData("::ffff:127.9.8.7", true)]
+    [InlineData("::1", true)]
+    [InlineData("::ffff:192.168.0.14", false)]
+    [InlineData("2606:4700:4700::1111", false)]
+    [InlineData("0.0.0.0", false)]
+    public void KnowsWhatIsThisMachine_FromAParsedAddress(string address, bool loopback) =>
+        Assert.Equal(loopback, LoopbackEnds.IsLoopback(IPAddress.Parse(address)));
+
+    [Fact]
+    public void APacketWithEitherEndOnThisMachineNeverLeftIt()
+    {
+        IPAddress here = IPAddress.Loopback;
+        IPAddress lan = IPAddress.Parse("192.168.0.14");
+        IPAddress far = IPAddress.Parse("142.250.187.196");
+
+        Assert.True(LoopbackEnds.StaysOnMachine(here, here));
+        Assert.True(LoopbackEnds.StaysOnMachine(lan, here));
+        Assert.True(LoopbackEnds.StaysOnMachine(here, far));
+        Assert.False(LoopbackEnds.StaysOnMachine(lan, far));
+        Assert.False(LoopbackEnds.StaysOnMachine(null, null));
+    }
 
     [Fact]
     public void NamesTheProcessHoldingThePortAConnectionIsAimedAt()

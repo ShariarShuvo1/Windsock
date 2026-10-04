@@ -45,12 +45,34 @@
     <EmbeddedResource Include="Resources\PawnIo\*.bin" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(StoreBuild)' == 'true'">
+    <!-- The kernel trace that attributes packets to processes, which only an
+         administrator can open. The Store edition never asks for that, so the
+         session and the library behind it are left out of the package rather
+         than shipped unable to start; WithheldTrafficSource says why in its
+         place. -->
+    <Compile Remove="Processes\EtwProcessTrafficSource.cs" />
+
+    <!-- The processor temperature's driver channel. It needs PawnIO installed
+         and elevation, neither of which the Store edition asks for, so the code
+         that opens the device goes the way of the module blobs above rather
+         than shipping unable to run. -->
+    <Compile Remove="Hardware\PawnIo.cs" />
+    <Compile Remove="Hardware\CpuThermalProbe.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(StoreBuild)' != 'true'">
     <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all" />
+    <!-- The DNS client cache, read through its documented WMI class, which is
+         how addresses are named without sending a lookup anywhere. -->
+    <PackageReference Include="System.Management" />
 
   </ItemGroup>
 

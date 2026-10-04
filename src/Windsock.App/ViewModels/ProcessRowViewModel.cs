@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Windows.Input;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Windsock.Core.Apps;
 using Windsock.Core.Formatting;
 using Windsock.Core.Processes;
 
@@ -16,7 +18,11 @@ public enum RowKind
     Child,
 }
 
-/// <summary>One row of the process table: a process, or a group of them.</summary>
+/// <summary>
+/// One row of the Apps page's live table: an app - every process running one
+/// program or one package - or, in the process view, a process or a group of
+/// processes sharing a name.
+/// </summary>
 public sealed partial class ProcessRowViewModel : ObservableObject
 {
     private const string Unknown = "—";
@@ -33,6 +39,9 @@ public sealed partial class ProcessRowViewModel : ObservableObject
     private bool _expanded;
     private bool _last;
     private bool _ratesKnown;
+    private bool _countedLive;
+    private bool _minuteFigure;
+    private string? _appName;
 
     /// <summary>Creates a row for one process.</summary>
     public ProcessRowViewModel(in ProcessUsage usage, RowKind kind, bool ratesKnown)
@@ -43,6 +52,7 @@ public sealed partial class ProcessRowViewModel : ObservableObject
         ProcessIdText = Key;
         _identity = usage.Identity;
         _ratesKnown = ratesKnown;
+        _countedLive = ratesKnown;
         Read(usage);
     }
 
@@ -54,6 +64,57 @@ public sealed partial class ProcessRowViewModel : ObservableObject
         ProcessIdText = string.Empty;
         _identity = new ProcessIdentity(name, null, null, null);
         _ratesKnown = ratesKnown;
+        _countedLive = ratesKnown;
+    }
+
+    /// <summary>Creates a row that sums every process of one app.</summary>
+    /// <param name="key">The app's key, from <see cref="RunningApps.KeyOf"/>.</param>
+    /// <param name="name">What the app is called before its processes are read.</param>
+    /// <param name="ratesKnown">Whether its processes are measured live.</param>
+    public ProcessRowViewModel(string key, string name, bool ratesKnown)
+    {
+        _kind = RowKind.Group;
+        Key = key;
+        IsApp = true;
+        AppKind = RunningApps.KindOf(key);
+        ProcessIdText = string.Empty;
+        _identity = new ProcessIdentity(name, null, null, null);
+        _ratesKnown = ratesKnown;
+        _countedLive = ratesKnown;
+    }
+
+    /// <summary>
+    /// The table the row belongs to, for its row menu. Carried by the row
+    /// rather than found by walking up from the cell: a process that starts and
+    /// ends within a second has its cells built while its row is being taken
+    /// away, and a lookup up the tree from there finds nothing.
+    /// </summary>
+    public object? Owner { get; set; }
+
+    /// <summary>What pressing the row's chevron does, for the same reason as <see cref="Owner"/>.</summary>
+    public ICommand? ToggleCommand { get; set; }
+
+    /// <summary>Whether this row stands for an app rather than for processes.</summary>
+    public bool IsApp { get; }
+
+    /// <summary>What sort of app the row is, for an app row.</summary>
+    public AppKind AppKind { get; }
+
+    /// <summary>
+    /// The name an app goes by where its processes' own descriptions would say
+    /// something else - a packaged app's display name. Null to go by those.
+    /// </summary>
+    public string? AppName
+    {
+        get => _appName;
+        set
+        {
+            if (!string.Equals(_appName, value, StringComparison.Ordinal))
+            {
+                _appName = value;
+                Notify(nameof(DisplayName));
+            }
+        }
     }
 
     /// <summary>
@@ -92,7 +153,7 @@ public sealed partial class ProcessRowViewModel : ObservableObject
     /// <summary>
     /// Whether this row is one process, and so has details to open.
     /// </summary>
-    public bool CanOpenDetails => Kind != RowKind.Group;
+    public bool CanOpenDetails => Kind != RowKind.Group || IsApp;
 
     /// <summary>Identity within the table: a process id, or a group's name.</summary>
     public string Key { get; }
@@ -111,7 +172,7 @@ public sealed partial class ProcessRowViewModel : ObservableObject
     /// will give one, and the name it runs under otherwise.
     /// </summary>
     public string DisplayName =>
-        string.IsNullOrEmpty(_identity.Description) ? _identity.Name : _identity.Description;
+        _appName ?? (string.IsNullOrEmpty(_identity.Description) ? _identity.Name : _identity.Description);
 
     /// <summary>The executable's own description, or empty when Windows will not say.</summary>
     public string Description => _identity.Description ?? string.Empty;
@@ -135,10 +196,16 @@ public sealed partial class ProcessRowViewModel : ObservableObject
 
     /// <summary>The count shown beside a group's name, empty for a single process.</summary>
     public string CountText =>
-        Kind == RowKind.Group ? string.Create(CultureInfo.CurrentCulture, $"({_children})") : string.Empty;
+        Kind == RowKind.Group && (!IsApp || _children > 1)
+            ? string.Create(CultureInfo.CurrentCulture, $"({_children})")
+            : string.Empty;
 
-    /// <summary>Whether this row can be opened to show the processes under it.</summary>
-    public bool IsExpandable => Kind == RowKind.Group;
+    /// <summary>
+    /// Whether this row can be opened to show the processes under it. An app
+    /// cannot: its processes are one thing to Windows, and are shown apart only
+    /// in the process view, where each is measured.
+    /// </summary>
+    public bool IsExpandable => Kind == RowKind.Group && !IsApp;
 
     /// <summary>Whether a group is currently showing its processes.</summary>
     public bool IsExpanded
@@ -158,6 +225,9 @@ public sealed partial class ProcessRowViewModel : ObservableObject
         get => _last;
         set => SetProperty(ref _last, value);
     }
+
+    /// <summary>Whether the rate cells state a figure, measured or Windows' count, rather than a dash.</summary>
+    public bool AreRatesKnown => _ratesKnown;
 
     /// <summary>Outbound rate in bytes per second. Sorted on.</summary>
     public double SendBytesPerSecond => _send;
@@ -205,7 +275,20 @@ public sealed partial class ProcessRowViewModel : ObservableObject
     public string TotalText => Rate(TotalBytesPerSecond);
 
     public string PacketsText =>
-        _ratesKnown ? _packets.ToString("F0", CultureInfo.CurrentCulture) : Unknown;
+        _countedLive ? _packets.ToString("F0", CultureInfo.CurrentCulture) : Unknown;
+
+    /// <summary>
+    /// Whether the rates are Windows' count for the whole program over the last
+    /// few minutes, rather than this process measured second by second.
+    /// </summary>
+    public bool IsRecentFigure => _minuteFigure;
+
+    /// <summary>What the rate cells are, said on hover.</summary>
+    public string RateSource => _minuteFigure
+        ? IsApp
+            ? "Windows' count for this app, averaged over the last five minutes"
+            : "Windows' count for this whole program, averaged over the last five minutes"
+        : _countedLive ? "Measured each second" : "Not measured";
 
     public string SentText => Volume(_sent);
 
@@ -225,7 +308,53 @@ public sealed partial class ProcessRowViewModel : ObservableObject
         }
 
         _ratesKnown = ratesKnown;
+        _countedLive = ratesKnown;
+        _minuteFigure = false;
         Read(usage);
+    }
+
+    /// <summary>
+    /// Shows Windows' count for the program this row stands for, averaged over
+    /// <paramref name="seconds"/>, in place of rates nothing is measuring - or a
+    /// dash when Windows counted nothing this row can be matched to.
+    /// </summary>
+    /// <remarks>
+    /// Given only to a row standing for a whole program. Windows counts a
+    /// program, not a process, and a figure shared out between processes it
+    /// cannot tell apart would be invented.
+    /// </remarks>
+    public void ShowRecent(AppUsageRecord? record, double seconds)
+    {
+        bool was = _minuteFigure;
+        _minuteFigure = record is not null;
+        _ratesKnown = record is not null;
+        _countedLive = false;
+
+        Apply(
+            record is { } found && seconds > 0 ? found.BytesSent / seconds : 0,
+            record is { } again && seconds > 0 ? again.BytesReceived / seconds : 0,
+            _packets,
+            _sent,
+            _received,
+            _sockets,
+            _uptime);
+
+        // The texts depend on what is known as well as on the numbers, which
+        // may not have moved.
+        Notify(
+            nameof(SendText),
+            nameof(ReceiveText),
+            nameof(TotalText),
+            nameof(PacketsText),
+            nameof(SentText),
+            nameof(ReceivedText),
+            nameof(TransferredText),
+            nameof(RateSource));
+
+        if (was != _minuteFigure)
+        {
+            Notify(nameof(IsRecentFigure));
+        }
     }
 
     /// <summary>Applies a fresh reading to a group, summing what it holds.</summary>
@@ -258,6 +387,20 @@ public sealed partial class ProcessRowViewModel : ObservableObject
             }
         }
 
+        // An app's row takes its file from whichever process can say, since
+        // they all run the same one or the same package.
+        if (IsApp && identity.FilePath is null)
+        {
+            foreach (ProcessUsage member in members)
+            {
+                if (member.Identity.FilePath is not null)
+                {
+                    identity = member.Identity;
+                    break;
+                }
+            }
+        }
+
         if (!ReferenceEquals(_identity, identity))
         {
             _identity = identity;
@@ -265,6 +408,8 @@ public sealed partial class ProcessRowViewModel : ObservableObject
         }
 
         _ratesKnown = ratesKnown;
+        _countedLive = ratesKnown;
+        _minuteFigure = false;
         ChildCount = members.Count;
         Apply(send, receive, packets, sent, received, new SocketCounts(tcp, udp), uptime);
     }
@@ -272,7 +417,9 @@ public sealed partial class ProcessRowViewModel : ObservableObject
     /// <summary>Whether the row matches a search term.</summary>
     public bool Contains(string term) =>
         Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase)
         || Description.Contains(term, StringComparison.OrdinalIgnoreCase)
+        || FilePath.Contains(term, StringComparison.OrdinalIgnoreCase)
         || ProcessIdText.Contains(term, StringComparison.Ordinal);
 
     private void Read(in ProcessUsage usage) =>
@@ -358,5 +505,5 @@ public sealed partial class ProcessRowViewModel : ObservableObject
     private string Rate(double bytesPerSecond) =>
         _ratesKnown ? RateFormatter.Format(bytesPerSecond, RateFamily.Bytes, RateScale.Auto) : Unknown;
 
-    private string Volume(long bytes) => _ratesKnown ? SizeFormatter.Format(bytes) : Unknown;
+    private string Volume(long bytes) => _countedLive ? SizeFormatter.Format(bytes) : Unknown;
 }

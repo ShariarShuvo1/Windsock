@@ -49,8 +49,33 @@ public sealed class LoopbackEnds
             return true;
         }
 
-        return IPAddress.TryParse(address, out IPAddress? parsed) && IPAddress.IsLoopback(parsed);
+        return IPAddress.TryParse(address, out IPAddress? parsed) && IsLoopback(parsed);
     }
+
+    /// <summary>Whether an address is this machine talking to itself.</summary>
+    /// <remarks>
+    /// A dual-stack socket reports an IPv4 peer as IPv6, so 127.0.0.1 can arrive
+    /// as ::ffff:127.0.0.1, which is not the IPv6 loopback address and would
+    /// otherwise pass for somewhere on the network.
+    /// </remarks>
+    public static bool IsLoopback(IPAddress? address)
+    {
+        if (address is null)
+        {
+            return false;
+        }
+
+        return address.IsIPv4MappedToIPv6
+            ? IPAddress.IsLoopback(address.MapToIPv4())
+            : IPAddress.IsLoopback(address);
+    }
+
+    /// <summary>
+    /// Whether a packet between two addresses never left the machine, so moved
+    /// nothing over any network.
+    /// </summary>
+    public static bool StaysOnMachine(IPAddress? source, IPAddress? destination) =>
+        IsLoopback(source) || IsLoopback(destination);
 
     private static bool IsAnyone(string? address) =>
         string.Equals(address, "0.0.0.0", StringComparison.Ordinal)

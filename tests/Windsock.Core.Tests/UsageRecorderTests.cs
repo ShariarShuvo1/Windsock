@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Windsock.Core.History;
 using Windsock.Core.Networking;
@@ -16,18 +18,80 @@ public sealed class UsageRecorderTests
     {
         FakeHistoryStore store = new();
 
-        ThroughputMonitor monitor = new(
-            new StillTotals(),
-            Options.Create(new ThroughputMonitorOptions()),
-            NullLogger<ThroughputMonitor>.Instance);
-
         UsageRecorder recorder = new(
-            monitor,
+            Monitor(),
             store,
             new WindsockSettings { RecordHistory = recording },
             NullLogger<UsageRecorder>.Instance);
 
         return (recorder, store);
+    }
+
+    private static ThroughputMonitor Monitor() => new(
+        new StillTotals(),
+        Options.Create(new ThroughputMonitorOptions()),
+        NullLogger<ThroughputMonitor>.Instance);
+
+    /// <summary>
+    /// A damaged history file costs the minutes that could not be written and
+    /// nothing more: each failure is logged, nothing claims to have been
+    /// recorded, and the recorder goes on trying with the next minute.
+    /// </summary>
+    [Fact]
+    public void ADamagedDatabase_IsLoggedAndRecordingCarriesOn()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "Windsock-tests", Guid.NewGuid().ToString("N"));
+        string file = Path.Combine(directory, "Windsock.db");
+
+        try
+        {
+            DamagedHistoryFile.Create(file);
+
+            using SqliteUsageHistoryStore store = new(file);
+            WarningCounter logger = new();
+            UsageRecorder recorder = new(Monitor(), store, new WindsockSettings { RecordHistory = true }, logger);
+            int recorded = 0;
+            recorder.Recorded += (_, _) => recorded++;
+
+            recorder.Observe(new ThroughputDelta(Noon, 1000, 100, 0.5));
+            recorder.Observe(new ThroughputDelta(Noon.AddMinutes(1), 1000, 100, 0.5));
+            recorder.FlushOnShutdown();
+
+            recorder.Observe(new ThroughputDelta(Noon.AddMinutes(2), 1000, 100, 0.5));
+            recorder.FlushOnShutdown();
+
+            Assert.Equal(2, logger.Warnings);
+            Assert.Equal(0, recorded);
+            Assert.True(recorder.IsRecording);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // A temp directory left behind is not worth failing a test over.
+            }
+        }
+    }
+
+    [Fact]
+    public void AFailedWrite_DoesNotStopTheNextOne()
+    {
+        (UsageRecorder recorder, FakeHistoryStore store) = Build();
+        store.FailuresToCome = 1;
+
+        recorder.Observe(new ThroughputDelta(Noon, 4096, 512, 0.5));
+        recorder.FlushOnShutdown();
+        recorder.Observe(new ThroughputDelta(Noon.AddMinutes(1), 2048, 256, 0.5));
+        recorder.FlushOnShutdown();
+
+        UsageMinute row = Assert.Single(store.Written);
+
+        Assert.Equal(EpochMinute.From(Noon.AddMinutes(1)), row.Minute);
+        Assert.Equal(2048, row.BytesDown);
     }
 
     [Fact]
@@ -164,6 +228,44 @@ public sealed class UsageRecorderTests
         Assert.True(recorder.IsRecording);
     }
 
+    /// <summary>
+    /// Pausing writes the minute in progress. Resuming must start the next one
+    /// from nothing, or that minute is counted twice: once when it was written,
+    /// and again inside the first minute after the pause.
+    /// </summary>
+    [Fact]
+    public void ResumingRecording_DoesNotCountThePausedMinuteAgain()
+    {
+        (UsageRecorder recorder, FakeHistoryStore store) = Build();
+
+        recorder.Observe(new ThroughputDelta(Noon, 4096, 512, 0.5));
+        recorder.IsRecording = false;
+        recorder.IsRecording = true;
+        recorder.Observe(new ThroughputDelta(Noon.AddMinutes(1), 2048, 256, 1.0));
+        recorder.FlushOnShutdown();
+
+        Assert.Equal(2, store.Written.Count);
+        Assert.Equal(4096, store.Written[0].BytesDown);
+        Assert.Equal(8192, store.Written[0].PeakDown);
+        Assert.Equal(2048, store.Written[1].BytesDown);
+        Assert.Equal(2048, store.Written[1].PeakDown);
+    }
+
+    [Fact]
+    public void ObservingAfterAFlush_StartsTheNextMinuteFromNothing()
+    {
+        (UsageRecorder recorder, FakeHistoryStore store) = Build();
+
+        recorder.Observe(new ThroughputDelta(Noon, 4096, 512, 0.5));
+        recorder.FlushOnShutdown();
+        recorder.Observe(new ThroughputDelta(Noon.AddMinutes(1), 2048, 256, 1.0));
+        recorder.FlushOnShutdown();
+
+        Assert.Equal(2, store.Written.Count);
+        Assert.Equal(2048, store.Written[1].BytesDown);
+        Assert.Equal(2048, store.Written[1].PeakDown);
+    }
+
     [Fact]
     public void SwitchingToTheStateItIsAlreadyIn_ChangesNothing()
     {
@@ -182,6 +284,29 @@ public sealed class UsageRecorderTests
         public NetworkTotals ReadTotals() => default;
     }
 
+    private sealed class WarningCounter : ILogger<UsageRecorder>
+    {
+        public int Warnings { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning && exception is not null)
+            {
+                Warnings++;
+            }
+        }
+    }
+
     private sealed class FakeHistoryStore : IUsageHistoryStore
     {
         public List<UsageMinute> Written { get; } = [];
@@ -190,7 +315,18 @@ public sealed class UsageRecorderTests
 
         public long CoverageEnd { get; private set; } = -1;
 
-        public void Write(IReadOnlyList<UsageMinute> minutes) => Written.AddRange(minutes);
+        public int FailuresToCome { get; set; }
+
+        public void Write(IReadOnlyList<UsageMinute> minutes)
+        {
+            if (FailuresToCome > 0)
+            {
+                FailuresToCome--;
+                throw new SqliteException("database disk image is malformed", 11);
+            }
+
+            Written.AddRange(minutes);
+        }
 
         public void WriteCoverage(long startMinute, long endMinute)
         {

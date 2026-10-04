@@ -282,10 +282,10 @@ jobs:
 
             | File | What it is |
             | --- | --- |
-            | **Windsock-win-Setup.exe** | Start here. The full edition, installed for you alone with no administrator prompt, updating itself from this page afterwards. Includes the process table, the network map and processor temperature. |
+            | **Windsock-win-Setup.exe** | Start here. The full edition, installed for you alone with no administrator prompt, updating itself from this page afterwards. Includes live per-process rates, route tracing on the network map and processor temperature, each for when you run it as administrator. |
             | **Windsock-win.msi** | The same full edition through a wizard, and the only download that can install for everyone on the machine. Installing for everyone needs an administrator. Updates itself either way. |
             | **Windsock-win-Portable.zip** | The same full edition without an installer. Unzip and run. Does not update itself. |
-            | **Windsock-store-portable.zip** | The Microsoft Store edition, without the process table or processor temperature. Unzip and run. Does not update itself. |
+            | **Windsock-store-portable.zip** | The Microsoft Store edition: everything that needs no administrator rights, so no live per-process rates, route tracing or processor temperature. Unzip and run. Does not update itself. |
 
             The installer and the MSI put the same application in the same
             place. Take the MSI if you want to read the licence first, install

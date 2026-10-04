@@ -10,6 +10,12 @@ public enum TrafficSourceState
     RequiresElevation,
 
     Unavailable,
+
+    /// <summary>
+    /// This edition is built without live per-process rates, so no amount of
+    /// privilege would bring them.
+    /// </summary>
+    NotOffered,
 }
 
 /// <summary>Supplies cumulative per-process byte counters.</summary>

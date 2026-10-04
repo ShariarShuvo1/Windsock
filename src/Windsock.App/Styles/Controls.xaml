@@ -31,15 +31,237 @@
     </DataTemplate>
 
     <!--
-        A section surface. Rounded and lifted one step above the window rather
-        than outlined, so sections read as distinct without any rule between
-        them. Reused by every section the app grows.
+        A card: one block of a page. A step above the page it sits on, with a
+        hairline of its own, because the page is now a surface too and a fill
+        one step apart from it is too faint an edge on its own.
+
+        The spacing every page shares lives here and in the page frame below:
+        24 either side of a page, 16 between the cards on it, and 20 from a
+        card's edge to anything written inside it. Pages use the Card control
+        below; this is the same surface for the few places that draw a card
+        behind rows of a grid rather than around a child.
     -->
     <Style x:Key="CardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorTertiaryBrush}" />
-        <Setter Property="CornerRadius" Value="10" />
-        <Setter Property="Padding" Value="22,18,22,16" />
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="20,16,20,16" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--
+        One subject on a page, on one surface. What is inside a card runs edge
+        to edge and is divided by hairlines; the card clips it to its corners.
+    -->
+    <Style TargetType="{x:Type controls:Card}">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:Card}">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            SnapsToDevicePixels="True">
+                        <controls:RoundClip Radius="11">
+                            <ContentPresenter />
+                        </controls:RoundClip>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A part of a card: a chart, a list, a heading and what it heads. -->
+    <Style x:Key="SectionStyle" TargetType="Border">
+        <Setter Property="Padding" Value="20,16,20,18" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--
+        The heading of a group of rows inside a card: more room above it than a
+        row has, none below, and no rule under it, so it reads as belonging to
+        what follows rather than as a row of its own.
+    -->
+    <Style x:Key="GroupHeadStyle" TargetType="Border">
+        <Setter Property="Padding" Value="20,18,20,6" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- One figure in a strip of them: the strip's rules are its edges. -->
+    <Style x:Key="StatCellStyle" TargetType="Border">
+        <Setter Property="Padding" Value="20,14,16,15" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- The strip itself: equal columns, hairlines between them, wrapping on narrow windows. -->
+    <Style x:Key="StatStripStyle" TargetType="{x:Type controls:FlowGrid}">
+        <Setter Property="IsBalanced" Value="True" />
+        <Setter Property="MinimumColumnWidth" Value="150" />
+        <Setter Property="DividerBrush" Value="{DynamicResource CardStrokeBrush}" />
+    </Style>
+
+    <!--
+        The same strip without rules: each figure on a plate a shade off the page,
+        with a sliver of page between them. For figures that sit straight on the
+        page, where a hairline grid read as a box of its own.
+    -->
+    <Style x:Key="PlateStripStyle" TargetType="{x:Type controls:FlowGrid}" BasedOn="{StaticResource StatStripStyle}">
+        <Setter Property="DividerBrush" Value="{x:Null}" />
+        <Setter Property="Spacing" Value="2" />
+    </Style>
+
+    <Style x:Key="PlateCellStyle" TargetType="Border" BasedOn="{StaticResource StatCellStyle}">
+        <Setter Property="Background" Value="{DynamicResource PlateBrush}" />
+    </Style>
+
+    <!-- The gap between one card and the next. -->
+    <Thickness x:Key="BlockGap">0,16,0,0</Thickness>
+
+    <!-- The inset of everything under a page's heading. -->
+    <Thickness x:Key="PagePadding">24,0,24,24</Thickness>
+
+    <!-- The name at the head of a card, and the line that qualifies it. -->
+    <Style x:Key="CardTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="CardNoteStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Margin" Value="0,2,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+    </Style>
+
+    <!--
+        Where a chart is drawn. On the card itself rather than in a box of its
+        own: a box around the chart inside the box of the card was one frame
+        more than the picture needed, and the gridlines already say where the
+        plot is.
+    -->
+    <Style x:Key="ChartWellStyle" TargetType="Border">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0,6,0,0" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="StatLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+    </Style>
+
+    <Style x:Key="StatValueStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,5,0,0" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="StatNoteStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Margin" Value="0,3,0,0" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style TargetType="{x:Type controls:RuledPanel}">
+        <Setter Property="DividerBrush" Value="{DynamicResource CardStrokeBrush}" />
+    </Style>
+
+    <!-- One setting inside a group: name on the left, control on the right. -->
+    <Style x:Key="SettingRowStyle" TargetType="Border">
+        <Setter Property="Padding" Value="20,12,20,12" />
+        <Setter Property="MinHeight" Value="60" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--
+        The inside of a setting row: the name on the left and the control on the
+        right while both fit, and the control under the name once the name would
+        be cut short to make room for it.
+    -->
+    <Style x:Key="SettingLayoutStyle" TargetType="{x:Type controls:AdaptiveRow}">
+        <Setter Property="Breakpoint" Value="0" />
+        <Setter Property="Spacing" Value="10" />
+        <Setter Property="LeadFills" Value="True" />
+        <Setter Property="LeadMinimumWidth" Value="190" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!--
+        The frame of every section: its title and one line of context, the
+        actions that belong to the whole page set against them, and the page
+        underneath. The actions drop under the title when there is not room for
+        both on one line, rather than squeezing the title into an ellipsis.
+    -->
+    <Style TargetType="{x:Type controls:SectionPage}">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:SectionPage}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <controls:AdaptiveRow x:Name="Head"
+                                              Margin="24,20,24,18"
+                                              Breakpoint="520"
+                                              Spacing="12"
+                                              LeadFills="True"
+                                              LeadMinimumWidth="240">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{TemplateBinding Title}"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
+                                           AutomationProperties.HeadingLevel="Level1"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                                <TextBlock x:Name="SubtitleText"
+                                           Text="{TemplateBinding Subtitle}"
+                                           Margin="0,3,0,0"
+                                           FontSize="12.5"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{TemplateBinding Subtitle}"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+
+                            <ContentPresenter x:Name="ActionsHost"
+                                              Content="{TemplateBinding Actions}"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left" />
+                        </controls:AdaptiveRow>
+
+                        <ContentPresenter Grid.Row="1" />
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Actions" Value="{x:Null}">
+                            <Setter TargetName="ActionsHost" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="Subtitle" Value="">
+                            <Setter TargetName="SubtitleText" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="Subtitle" Value="{x:Null}">
+                            <Setter TargetName="SubtitleText" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!--
@@ -64,17 +286,24 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type controls:SettingHead}">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="{TemplateBinding Text}"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-
+                    <!--
+                        One wrapping line with the mark set in it, rather than the
+                        name and the mark side by side: a long name in a narrow
+                        window wraps and takes the mark with it to the end of the
+                        words, where it used to be cut off with the mark beyond
+                        the edge.
+                    -->
+                    <TextBlock VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                        <Run Text="{Binding Text, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}" />
+                        <InlineUIContainer BaselineAlignment="Center">
                         <Button x:Name="PART_Mark"
                                 Width="18"
                                 Height="18"
-                                Margin="6,1,0,0"
+                                Margin="4,0,0,-3"
                                 Cursor="Help"
                                 FocusVisualStyle="{x:Null}"
                                 VerticalAlignment="Center"
@@ -84,7 +313,9 @@
                             <ToolTipService.ToolTip>
                                 <ToolTip MaxWidth="320"
                                          Placement="Right"
-                                         HorizontalOffset="4">
+                                         HorizontalOffset="4"
+                                         FontSize="12.5"
+                                         FontWeight="Normal">
                                     <StackPanel>
                                         <TextBlock Text="{TemplateBinding Hint}"
                                                    TextWrapping="Wrap" />
@@ -139,7 +370,8 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                    </StackPanel>
+                        </InlineUIContainer>
+                    </TextBlock>
 
                 </ControlTemplate>
             </Setter.Value>
@@ -195,21 +427,13 @@
         </Setter>
     </Style>
 
-    <Style x:Key="SettingsCardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorBaseBrush}" />
-        <Setter Property="CornerRadius" Value="7" />
-        <Setter Property="Padding" Value="16,13" />
-        <Setter Property="Margin" Value="0,0,0,8" />
-        <Setter Property="SnapsToDevicePixels" Value="True" />
-    </Style>
-
     <!--
         The chart's hover readout. This one does carry a hairline border: it
         floats over the plot rather than sitting beside it, so it needs an edge
         to separate it from whatever it happens to cover.
     -->
     <Style x:Key="PopoverStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorSecondaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PopupBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
@@ -288,10 +512,10 @@
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="Transparent" />
-        <!-- No outline at rest. The fill is what separates the control from
-             the surface it sits on, the same as everywhere else here; the only
-             time a border appears is to show keyboard focus. -->
+        <!-- The same hairline the buttons beside it carry. A fill alone used to
+             be enough against a grey card; against a white one the light theme's
+             control fill is the card's own colour, and the picker vanished. -->
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Height" Value="30" />
@@ -350,7 +574,7 @@
                                    PopupAnimation="Fade"
                                    Focusable="False"
                                    IsOpen="{TemplateBinding IsDropDownOpen}">
-                                <Border Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+                                <Border Background="{DynamicResource PopupBrush}"
                                         BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                                         BorderThickness="1"
                                         CornerRadius="8"
@@ -457,89 +681,6 @@
                                   HorizontalScrollBarVisibility="Hidden"
                                   VerticalScrollBarVisibility="Hidden"
                                   Background="Transparent" />
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!--
-        Number plus unit in a single field. The unit half only appears once a
-        number is present, so the empty state reads as one word rather than as a
-        blank box qualified by a dangling unit.
-    -->
-    <Style x:Key="DurationBoxStyle" TargetType="{x:Type controls:DurationBox}">
-        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="Height" Value="30" />
-        <Setter Property="SnapsToDevicePixels" Value="True" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="{x:Type controls:DurationBox}">
-                    <Border x:Name="Root"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
-                            SnapsToDevicePixels="True">
-                        <StackPanel Orientation="Horizontal">
-                            <Grid MinWidth="54">
-                                <TextBox x:Name="PART_Number"
-                                         Style="{StaticResource EmbeddedTextBoxStyle}"
-                                         FontSize="{TemplateBinding FontSize}"
-                                         Foreground="{TemplateBinding Foreground}"
-                                         VerticalAlignment="Center" />
-                                <TextBlock x:Name="Placeholder"
-                                           Text="{TemplateBinding PlaceholderText}"
-                                           FontSize="{TemplateBinding FontSize}"
-                                           Margin="11,0,4,0"
-                                           VerticalAlignment="Center"
-                                           IsHitTestVisible="False"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                            </Grid>
-
-                            <Border x:Name="Divider"
-                                    Width="1"
-                                    Margin="1,7"
-                                    Visibility="Collapsed"
-                                    Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
-
-                            <controls:Picker x:Name="PART_Unit"
-                                             Style="{StaticResource EmbeddedPickerStyle}"
-                                             Visibility="Collapsed"
-                                             ItemsSource="{TemplateBinding Units}"
-                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                             SelectedValuePath="Unit"
-                                             SelectedValue="{Binding SelectedUnit, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                             AutomationProperties.Name="Time unit" />
-                        </StackPanel>
-                    </Border>
-
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="HasText" Value="True">
-                            <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
-                            <Setter TargetName="Divider" Property="Visibility" Value="Visible" />
-                            <Setter TargetName="PART_Unit" Property="Visibility" Value="Visible" />
-                        </Trigger>
-
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root"
-                                    Property="Background"
-                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                        </Trigger>
-
-                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                            <Setter TargetName="Root"
-                                    Property="BorderBrush"
-                                    Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                        </Trigger>
-
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Root" Property="Opacity" Value="0.45" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -672,106 +813,290 @@
     </Style>
 
     <!--
-        Nudges the tab strip along when the tabs overflow it. Shown only while
-        there is something in that direction to reach, so a strip that fits
-        carries no chrome.
+        The button at the head of the sidebar that folds it to icons and opens it
+        to names again.
+
+        It shares the sections' geometry exactly - the same height, the same
+        square for its glyph - so its icon sits on the column the section icons
+        stand in, and folding the sidebar moves none of them.
     -->
-    <Style x:Key="TabScrollButtonStyle" TargetType="Button">
-        <Setter Property="Width" Value="24" />
-        <Setter Property="Height" Value="30" />
-        <!-- Horizontal only: any vertical margin would push the arrow off the
-             centre line the tab labels sit on. -->
-        <Setter Property="Margin" Value="5,0" />
-        <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Background" Value="Transparent" />
+    <Style x:Key="NavigationToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Height" Value="40" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-        <Setter Property="Focusable" Value="False" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ToolTip" Value="Expand the sidebar" />
+        <Setter Property="ToolTipService.Placement" Value="Right" />
+        <Setter Property="ToolTipService.HorizontalOffset" Value="6" />
+        <Setter Property="AutomationProperties.Name" Value="Expand the sidebar" />
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="Button">
-                    <Border x:Name="Root"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="6"
-                            SnapsToDevicePixels="True">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Background="Transparent" SnapsToDevicePixels="True">
+                        <Border x:Name="Fill" Background="Transparent" CornerRadius="8" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--
+                                The mark, not a panel glyph: the button is the
+                                app's name plate as well as the fold. What it does
+                                is still said by its tooltip and automation name,
+                                and the hover fill still shows it can be pressed.
+                                The artwork carries its own navy plate, so it is
+                                clipped to a rounded square like an app icon.
+                            -->
+                            <Border Width="22"
+                                    Height="22"
+                                    CornerRadius="5"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    RenderOptions.BitmapScalingMode="HighQuality">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="pack://application:,,,/Windsock;component/Assets/Logo.png"
+                                                Stretch="UniformToFill" />
+                                </Border.Background>
+                            </Border>
+
+                            <DockPanel Grid.Column="1"
+                                       LastChildFill="True"
+                                       Margin="2,0,12,1"
+                                       VerticalAlignment="Center"
+                                       Opacity="{Binding NameOpacity, RelativeSource={RelativeSource AncestorType={x:Type controls:NavigationPane}}}">
+                                <!--
+                                    The hint the mark cannot give: which way a
+                                    press folds the sidebar. Only on hover or
+                                    keyboard focus, so the name plate stays quiet
+                                    the rest of the time. At the far end of the
+                                    button, against the edge it moves, rather than
+                                    tucked against the name. Folded, the name
+                                    column is clipped away and it goes with it.
+                                -->
+                                <fluent:SymbolIcon x:Name="Chevron"
+                                                   DockPanel.Dock="Right"
+                                                   Symbol="ChevronRight"
+                                                   FontSize="12"
+                                                   Margin="8,1,0,0"
+                                                   Opacity="0"
+                                                   VerticalAlignment="Center"
+                                                   IsHitTestVisible="False"
+                                                   Foreground="{TemplateBinding Foreground}" />
+
+                                <TextBlock Text="Windsock"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="NoWrap"
+                                           TextTrimming="CharacterEllipsis"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </DockPanel>
+                        </Grid>
+                    </Grid>
 
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Chevron" Property="Symbol" Value="ChevronLeft" />
+                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root"
+                            <Setter TargetName="Fill"
                                     Property="Background"
                                     Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
                             <Setter Property="Foreground"
                                     Value="{DynamicResource TextFillColorPrimaryBrush}" />
                         </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="False" />
+                                <Condition Property="IsKeyboardFocused" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Chevron"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Chevron"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root"
+                            <Setter TargetName="Fill"
                                     Property="Background"
                                     Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
                         </Trigger>
-                        <!-- Dimmed rather than hidden: a button that vanished
-                             would hand its width back to the tabs and shift
-                             them just as a scroll finished. -->
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Root" Property="Opacity" Value="0.3" />
-                            <Setter Property="Cursor" Value="Arrow" />
-                        </Trigger>
                     </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="ToolTip" Value="Collapse the sidebar" />
+                <Setter Property="AutomationProperties.Name" Value="Collapse the sidebar" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--
+        The ring round a group reached by the keyboard. A section needs none -
+        selection follows focus, so its pill already shows where the keyboard is -
+        but a group takes focus without being chosen, and would otherwise give no
+        sign of it. A focus visual, so a click never leaves one behind.
+    -->
+    <Style x:Key="NavigationFocusStyle">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border CornerRadius="8"
+                            BorderThickness="1.5"
+                            BorderBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                            SnapsToDevicePixels="True" />
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
     <!--
-        One tab, carrying its selection as a soft filled pill.
+        One entry in the sidebar: its icon in a fixed square, and its name beside
+        it.
 
-        Nothing is outlined and nothing is underlined: the selected tab is a
-        shade lifted off the card and its label steps from secondary to primary,
-        which is enough to read at a glance without adding a rule to a surface
-        that has none.
+        The square never moves, so folding the sidebar slides nothing sideways;
+        the edge closes over the names, which fade as it does. Selection is the
+        soft filled pill the tabs used, plus a short accent bar at its leading
+        edge, so the chosen section still reads when only icons are showing and
+        the pill alone is a small shape to pick out.
+
+        A group carries a chevron at its far end and lists its sections under it,
+        shorter, with smaller icons set in from the group's own so they read as
+        belonging to it. While a group is folded - or the whole
+        sidebar is - and one of its sections is the page, the group wears that
+        section's selection, so the page is never unaccounted for in the column.
+
+        A live figure (NavigationPane.Reading) sits before the chevron, and fades
+        with the names.
+
+        Named on hover only while the names are folded away. With them showing,
+        a tooltip would just repeat the word under the pointer.
     -->
-    <Style x:Key="TabStripItemStyle" TargetType="TabItem">
+    <Style x:Key="NavigationItemStyle" TargetType="{x:Type controls:NavigationItem}">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         <Setter Property="FontSize" Value="13.5" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Padding" Value="18,9,18,10" />
-        <Setter Property="Margin" Value="0,0,4,0" />
-
-        <!--
-            The cursor belongs to the tab's own template, not to the tab.
-
-            A tab item's content is bridged into its routed events as the
-            logical parent - the reason handling a click on a tab catches clicks
-            from the panel inside it - and QueryCursor travels that same route.
-            Set here, the hand was answered for every point in the panel below,
-            so the whole tab body read as clickable. Set on the button the tab
-            actually draws, it means the tab and nothing else.
-        -->
-        <!-- Selection follows focus on a tab strip, so the pill already shows
-             where the keyboard is; the stock dotted rectangle on top of it is
-             just noise. -->
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <!-- A dock panel lines items up to the left unless told otherwise. -->
+        <Setter Property="DockPanel.Dock" Value="Top" />
+        <Setter Property="ToolTip" Value="{Binding Header, RelativeSource={RelativeSource Self}}" />
+        <Setter Property="ToolTipService.Placement" Value="Right" />
+        <Setter Property="ToolTipService.HorizontalOffset" Value="6" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="TabItem">
+                <ControlTemplate TargetType="{x:Type controls:NavigationItem}">
+                    <!-- The hand is on the drawn part, not the item: a tab item
+                         bridges its panel's routed events, cursor queries
+                         included, and a hand set on the item answered for the
+                         whole panel. -->
                     <Grid x:Name="Shell"
+                          Height="40"
                           Background="Transparent"
                           Cursor="Hand"
                           SnapsToDevicePixels="True">
                         <Border x:Name="Fill" Background="Transparent" CornerRadius="8" />
 
-                        <ContentPresenter ContentSource="Header"
-                                          Margin="{TemplateBinding Padding}"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"
-                                          TextElement.Foreground="{TemplateBinding Foreground}"
-                                          TextElement.FontWeight="{TemplateBinding FontWeight}"
-                                          TextElement.FontSize="{TemplateBinding FontSize}" />
+                        <Border x:Name="Marker"
+                                Width="3"
+                                Height="16"
+                                CornerRadius="1.5"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource AccentBrush}"
+                                Opacity="0" />
+
+                        <Grid x:Name="Columns">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <fluent:SymbolIcon x:Name="Glyph"
+                                               Symbol="{Binding (controls:NavigationPane.Icon), RelativeSource={RelativeSource TemplatedParent}}"
+                                               FontSize="18"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{TemplateBinding Foreground}" />
+
+                            <ContentPresenter x:Name="Label"
+                                              Grid.Column="1"
+                                              ContentSource="Header"
+                                              Margin="2,0,10,1"
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"
+                                              TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                              TextElement.FontSize="{TemplateBinding FontSize}"
+                                              Opacity="{Binding NameOpacity, RelativeSource={RelativeSource AncestorType={x:Type controls:NavigationPane}}}" />
+
+                            <TextBlock x:Name="Reading"
+                                       Grid.Column="2"
+                                       Text="{Binding (controls:NavigationPane.Reading), RelativeSource={RelativeSource TemplatedParent}}"
+                                       Margin="0,0,10,1"
+                                       VerticalAlignment="Center"
+                                       FontSize="11.5"
+                                       FontWeight="Normal"
+                                       Typography.NumeralAlignment="Tabular"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       Opacity="{Binding NameOpacity, RelativeSource={RelativeSource AncestorType={x:Type controls:NavigationPane}}}" />
+
+                            <fluent:SymbolIcon x:Name="Chevron"
+                                               Grid.Column="3"
+                                               Symbol="ChevronDown"
+                                               FontSize="12"
+                                               Margin="0,1,12,0"
+                                               VerticalAlignment="Center"
+                                               Visibility="Collapsed"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Opacity="{Binding NameOpacity, RelativeSource={RelativeSource AncestorType={x:Type controls:NavigationPane}}}" />
+                        </Grid>
                     </Grid>
 
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
+                        <Trigger SourceName="Reading" Property="Text" Value="">
+                            <Setter TargetName="Reading" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+
+                        <Trigger Property="HasChildren" Value="True">
+                            <Setter TargetName="Chevron" Property="Visibility" Value="Visible" />
+                        </Trigger>
+
+                        <Trigger Property="IsExpanded" Value="True">
+                            <Setter TargetName="Chevron" Property="Symbol" Value="ChevronUp" />
+                        </Trigger>
+
+                        <!-- A section inside a group: shorter, lighter, its icon smaller and set in. -->
+                        <Trigger Property="IsChild" Value="True">
+                            <Setter TargetName="Shell" Property="Height" Value="34" />
+                            <Setter TargetName="Columns" Property="Margin" Value="14,0,0,0" />
+                            <Setter TargetName="Glyph" Property="FontSize" Value="16" />
+                            <Setter TargetName="Label" Property="Margin" Value="0,0,10,1" />
+                            <Setter Property="FontSize" Value="13" />
+                            <Setter Property="FontWeight" Value="Normal" />
+                            <Setter Property="Margin" Value="0,0,0,2" />
+                        </Trigger>
+
+                        <Trigger SourceName="Shell" Property="IsMouseOver" Value="True">
                             <Setter TargetName="Fill"
                                     Property="Background"
                                     Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
@@ -779,14 +1104,47 @@
                                     Value="{DynamicResource TextFillColorPrimaryBrush}" />
                         </Trigger>
 
-                        <!-- Last, so it wins over hover: a selected tab under
-                             the pointer must not look unselected. -->
+                        <!-- The group of the page, open: its section is marked below it. -->
+                        <Trigger Property="HasSelectedChild" Value="True">
+                            <Setter TargetName="Glyph" Property="IconVariant" Value="Filled" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+
+                        <!-- The group of the page, folded: it stands in for its section. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="HasSelectedChild" Value="True" />
+                                <Condition Property="IsExpanded" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Fill"
+                                    Property="Background"
+                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                            <Setter TargetName="Marker" Property="Opacity" Value="1" />
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                        </MultiTrigger>
+
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding HasSelectedChild, RelativeSource={RelativeSource Self}}" Value="True" />
+                                <Condition Binding="{Binding IsPaneShown, RelativeSource={RelativeSource AncestorType={x:Type controls:NavigationPane}}}" Value="False" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="Fill"
+                                    Property="Background"
+                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                            <Setter TargetName="Marker" Property="Opacity" Value="1" />
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                        </MultiDataTrigger>
+
+                        <!-- After hover, so a selected section under the
+                             pointer still looks selected. -->
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Fill"
                                     Property="Background"
                                     Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                            <Setter Property="Foreground"
-                                    Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Marker" Property="Opacity" Value="1" />
+                            <Setter TargetName="Glyph" Property="IconVariant" Value="Filled" />
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
                         </Trigger>
 
                         <Trigger Property="IsEnabled" Value="False">
@@ -798,114 +1156,122 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPaneShown, RelativeSource={RelativeSource AncestorType={x:Type controls:NavigationPane}}}"
+                         Value="True">
+                <Setter Property="ToolTipService.IsEnabled" Value="False" />
+            </DataTrigger>
+            <Trigger Property="HasChildren" Value="True">
+                <Setter Property="FocusVisualStyle" Value="{StaticResource NavigationFocusStyle}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
-
     <!--
-        The tab strip itself. The panel is a horizontal StackPanel rather than
-        the TabPanel a TabControl uses by default: TabPanel wraps overflow onto
-        further rows, and tabs on two rows stop reading as one set of tabs.
-        Instead the strip keeps one line and scrolls, which is what every tab
-        strip a user has met already does.
+        The sidebar and the page beside it.
+
+        Two layers. Underneath, the page with a strip of room kept clear on its
+        left; on top, the sidebar itself, pinned to the left edge at whatever
+        width it is gliding through. Beside the page the kept room follows the
+        sidebar, so the page gives way as it opens. Over the page - a window too
+        narrow for the names - the kept room stays at the compact width, the
+        sidebar opens across the page, and nothing underneath moves.
+
+        The sidebar and the page are the same surface on the window's ground,
+        two rounded panes with a gutter of ground between them, so the page is
+        visibly the thing the sidebar opens rather than cards scattered on the
+        window. The sidebar takes an edge only while it lies over the page,
+        where it would otherwise meet a surface of its own shade.
     -->
-    <Style x:Key="TabStripStyle" TargetType="{x:Type controls:TabStrip}">
-        <!--
-            A surface of its own, distinct from both the card it heads and the
-            window behind it - contrast without a single rule or outline. The
-            selected tab is then lifted again out of the band.
-        -->
-        <Setter Property="Background" Value="{DynamicResource SectionHeaderBrush}" />
+    <Style TargetType="{x:Type controls:NavigationPane}">
+        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="0,16,0,0" />
-        <Setter Property="ItemContainerStyle" Value="{StaticResource TabStripItemStyle}" />
+        <Setter Property="Padding" Value="6" />
+        <Setter Property="CompactPaneWidth" Value="54" />
+        <Setter Property="OpenPaneWidth" Value="220" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource NavigationItemStyle}" />
         <Setter Property="ItemsPanel">
             <Setter.Value>
+                <!-- A section docked to the bottom sits there, away from the
+                     rest: where a settings entry is expected to be. -->
                 <ItemsPanelTemplate>
-                    <StackPanel Orientation="Horizontal" />
+                    <DockPanel LastChildFill="False"
+                               KeyboardNavigation.DirectionalNavigation="Cycle" />
                 </ItemsPanelTemplate>
             </Setter.Value>
         </Setter>
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="{x:Type controls:TabStrip}">
+                <ControlTemplate TargetType="{x:Type controls:NavigationPane}">
                     <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-
-                        <!--
-                            The strip's own background paints the band behind
-                            the tabs. Transparent by default, so the tabs sit
-                            straight on whatever is behind them; set it and the
-                            strip reads as a band instead.
-
-                            Rounded on all four corners: the band is a strip
-                            standing on the window's ground rather than the top
-                            of a card, so a squared bottom edge would be meeting
-                            nothing.
-                        -->
-                        <Border Grid.Row="0"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="10"
-                                Padding="10,8,10,8"
-                                SnapsToDevicePixels="True">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <Button x:Name="PART_ScrollBack"
-                                    Grid.Column="0"
-                                    Style="{StaticResource TabScrollButtonStyle}"
-                                    Visibility="{Binding IsOverflowing, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibility}}"
-                                    IsEnabled="{Binding CanScrollBack, RelativeSource={RelativeSource TemplatedParent}}"
-                                    AutomationProperties.Name="Scroll tabs left">
-                                <Path Data="M 4 0 L 0 4 L 4 8"
-                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                      StrokeThickness="1.3"
-                                      StrokeStartLineCap="Round"
-                                      StrokeEndLineCap="Round"
-                                      StrokeLineJoin="Round" />
-                            </Button>
+                            <Border Grid.Column="0" Width="{TemplateBinding ReservedWidth}" />
 
                             <!--
-                                Hidden rather than disabled: disabling the bar
-                                would also stop the panel from overflowing, so
-                                the tabs would compress instead of scrolling.
+                                The page's own surface. Clipped to its rounded
+                                shape, because a page scrolls, and a card
+                                scrolled up under a square clip showed its
+                                corners poking past the page's round ones.
                             -->
-                            <ScrollViewer x:Name="PART_Scroll"
-                                          Grid.Column="1"
-                                          Focusable="False"
-                                          PanningMode="HorizontalOnly"
-                                          HorizontalScrollBarVisibility="Hidden"
-                                          VerticalScrollBarVisibility="Disabled">
-                                <ItemsPresenter />
-                            </ScrollViewer>
-
-                            <Button x:Name="PART_ScrollForward"
-                                    Grid.Column="2"
-                                    Style="{StaticResource TabScrollButtonStyle}"
-                                    Visibility="{Binding IsOverflowing, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibility}}"
-                                    IsEnabled="{Binding CanScrollForward, RelativeSource={RelativeSource TemplatedParent}}"
-                                    AutomationProperties.Name="Scroll tabs right">
-                                <Path Data="M 0 0 L 4 4 L 0 8"
-                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                      StrokeThickness="1.3"
-                                      StrokeStartLineCap="Round"
-                                      StrokeEndLineCap="Round"
-                                      StrokeLineJoin="Round" />
-                            </Button>
+                            <Border x:Name="PageSurface"
+                                    Grid.Column="1"
+                                    Margin="12,0,0,0"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="12"
+                                    SnapsToDevicePixels="True">
+                                <controls:RoundClip Radius="12">
+                                    <ContentPresenter x:Name="PART_Body"
+                                                      Content="{TemplateBinding Body}" />
+                                </controls:RoundClip>
+                            </Border>
                         </Grid>
-                        </Border>
 
-                        <ContentPresenter x:Name="PART_SelectedContentHost"
-                                          Grid.Row="1"
-                                          Margin="{TemplateBinding Padding}"
-                                          ContentSource="SelectedContent" />
+                        <Border x:Name="PART_Pane"
+                                HorizontalAlignment="Left"
+                                Width="{TemplateBinding PaneWidth}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <DockPanel ClipToBounds="True">
+                                <ToggleButton x:Name="PART_Toggle"
+                                              DockPanel.Dock="Top"
+                                              Margin="0,0,0,10"
+                                              Style="{StaticResource NavigationToggleStyle}"
+                                              IsChecked="{Binding IsPaneShown, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" />
+
+                                <!--
+                                    Scrolls when the window is shorter than the
+                                    sections, rather than cutting off the last of
+                                    them. The list is held to at least the height
+                                    it is given, so while there is room Settings
+                                    still docks to the bottom. No bar: the folded
+                                    column has no width to spare for one, and the
+                                    wheel and the keyboard both still move it.
+                                -->
+                                <ScrollViewer VerticalScrollBarVisibility="Hidden"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              Focusable="False">
+                                    <ItemsPresenter MinHeight="{Binding ViewportHeight, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" />
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
                     </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsOverlay" Value="True">
+                            <Setter TargetName="PART_Pane"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

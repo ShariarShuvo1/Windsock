@@ -14,22 +14,32 @@ public sealed partial class HistoryRowViewModel : ObservableObject
     public HistoryRowViewModel(UsageBucket bucket, UsageGranularity granularity)
     {
         Start = bucket.Start;
-        End = EndOf(bucket.Start, granularity);
-        BytesDown = bucket.BytesDown;
-        BytesUp = bucket.BytesUp;
-        BytesTotal = bucket.BytesTotal;
+        End = EndOf(bucket, granularity);
+        BytesDown = bucket.AllDown;
+        BytesUp = bucket.AllUp;
+        BytesTotal = bucket.AllTotal;
         PeakDownBytes = bucket.PeakDown;
         PeakUpBytes = bucket.PeakUp;
         MinutesRecorded = bucket.Minutes;
+        IsCountedByWindows = bucket.HasEstimate;
+        IsOnlyWindows = bucket.HasEstimate && bucket.Minutes == 0;
+        Source = !bucket.HasEstimate
+            ? string.Empty
+            : bucket.Minutes == 0
+                ? "Counted by Windows while Windsock was closed"
+                : string.Format(
+                    CultureInfo.CurrentCulture,
+                    "Includes {0} Windows counted while Windsock was closed",
+                    SizeFormatter.Format(bucket.EstimatedDown + bucket.EstimatedUp));
 
         From = Start.ToString(PatternFor(granularity), CultureInfo.CurrentCulture);
         To = granularity == UsageGranularity.Day || End.Date != Start.Date
             ? End.ToString(PatternFor(granularity), CultureInfo.CurrentCulture)
             : End.ToString(ClockPattern, CultureInfo.CurrentCulture);
 
-        Download = SizeFormatter.Format(bucket.BytesDown);
-        Upload = SizeFormatter.Format(bucket.BytesUp);
-        Total = SizeFormatter.Format(bucket.BytesTotal);
+        Download = SizeFormatter.Format(bucket.AllDown);
+        Upload = SizeFormatter.Format(bucket.AllUp);
+        Total = SizeFormatter.Format(bucket.AllTotal);
         PeakDown = Rate(bucket.PeakDown);
         PeakUp = Rate(bucket.PeakUp);
         Recorded = granularity == UsageGranularity.Minute
@@ -77,6 +87,15 @@ public sealed partial class HistoryRowViewModel : ObservableObject
     /// <summary>How many recorded minutes went into the bucket.</summary>
     public int MinutesRecorded { get; }
 
+    /// <summary>Whether any of the row is Windows' count rather than Windsock's.</summary>
+    public bool IsCountedByWindows { get; }
+
+    /// <summary>Whether all of the row is Windows' count: time Windsock was closed.</summary>
+    public bool IsOnlyWindows { get; }
+
+    /// <summary>Where the figures came from, said on hover; empty when all recorded.</summary>
+    public string Source { get; }
+
     /// <summary>
     /// Whether this row is the one being pointed at, here or on the chart.
     /// </summary>
@@ -89,11 +108,15 @@ public sealed partial class HistoryRowViewModel : ObservableObject
     /// <summary>Whether anything went out, so the figure carries its colour.</summary>
     public bool HasSend => BytesUp > 0;
 
-    private static DateTimeOffset EndOf(DateTimeOffset start, UsageGranularity granularity)
+    private static DateTimeOffset EndOf(UsageBucket bucket, UsageGranularity granularity)
     {
+        DateTimeOffset start = bucket.Start;
+
+        // By the minute, a stretch Windows only counts by the hour is one row
+        // covering all of it, not an hour's bytes put down in its first minute.
         DateTime local = granularity switch
         {
-            UsageGranularity.Minute => start.LocalDateTime.AddMinutes(1),
+            UsageGranularity.Minute => start.LocalDateTime.AddMinutes(Math.Max(1, bucket.Minutes == 0 ? bucket.EstimatedMinutes : 1)),
             UsageGranularity.Hour => start.LocalDateTime.AddHours(1),
             _ => start.LocalDateTime.AddDays(1),
         };

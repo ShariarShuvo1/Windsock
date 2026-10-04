@@ -4,20 +4,21 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace Windsock.App.ViewModels;
 
 /// <summary>
-/// One program on this machine, as a node on the map.
+/// One app on this machine as a node on the map - every process of it - or, in
+/// the process view, one process.
 /// </summary>
 public sealed partial class ProcessNodeViewModel : ObservableObject
 {
-    public ProcessNodeViewModel(int processId, string name, long seen)
+    public ProcessNodeViewModel(string key, string name, long seen)
     {
-        ProcessId = processId;
+        Key = key;
         Name = name;
         Label = name;
         Seen = seen;
     }
 
-    /// <summary>The process this node stands for.</summary>
-    public int ProcessId { get; }
+    /// <summary>What the node stands for: an app's key, or a process's.</summary>
+    public string Key { get; }
 
     /// <summary>What the program is called.</summary>
     public string Name { get; }
@@ -41,9 +42,17 @@ public sealed partial class ProcessNodeViewModel : ObservableObject
     [ObservableProperty]
     public partial double ReceiveRate { get; set; }
 
-    /// <summary>Both rates, written out.</summary>
+    /// <summary>Both rates, written out; the socket count while rates are not measured.</summary>
     [ObservableProperty]
     public partial string RateText { get; set; } = "—";
+
+    /// <summary>Whether <see cref="RateText"/> states rates, measured or Windows' count.</summary>
+    [ObservableProperty]
+    public partial bool HasRates { get; set; }
+
+    /// <summary>Where the rates come from, when that needs saying; empty when each second is measured.</summary>
+    [ObservableProperty]
+    public partial string RateNote { get; set; } = string.Empty;
 
     /// <summary>How many sockets it holds open, written out.</summary>
     [ObservableProperty]

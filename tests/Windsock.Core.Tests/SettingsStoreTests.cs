@@ -38,6 +38,42 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.False(store.Load().RecordHistory);
     }
 
+    [Fact]
+    public void TheSidebar_OpensNamedUntilItIsFolded()
+    {
+        var store = new SettingsStore(_file);
+
+        Assert.True(new WindsockSettings().SidebarOpen);
+
+        store.Save(new WindsockSettings { SidebarOpen = false });
+
+        Assert.False(store.Load().SidebarOpen);
+    }
+
+    [Fact]
+    public void TheProcessMap_OpensUntilItIsFolded()
+    {
+        var store = new SettingsStore(_file);
+
+        Assert.True(new WindsockSettings().ProcessMapOpen);
+
+        store.Save(new WindsockSettings { ProcessMapOpen = false });
+
+        Assert.False(store.Load().ProcessMapOpen);
+    }
+
+    [Fact]
+    public void AFileSavedBeforeTheSidebar_OpensItNamed()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(_file, """{ "Theme": "Dark", "OnClose": "KeepRunning" }""");
+
+        WindsockSettings loaded = new SettingsStore(_file).Load();
+
+        Assert.Equal(ThemePreference.Dark, loaded.Theme);
+        Assert.True(loaded.SidebarOpen);
+    }
+
     /// <summary>
     /// Settings written before a cell could look like anything list their slots
     /// as bare names. Those files are on disk now, and have to open.

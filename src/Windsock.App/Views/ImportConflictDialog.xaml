@@ -11,7 +11,7 @@
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
-        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+        Background="{DynamicResource SurfaceBrush}">
 
     <!--
         Asked rather than decided. Whether the file or the recorded history is
@@ -47,7 +47,7 @@
                        Margin="0,0,0,12"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-            <Border Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+            <Border Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardStrokeBrush}" BorderThickness="1"
                     CornerRadius="7"
                     Padding="14,11">
                 <StackPanel>

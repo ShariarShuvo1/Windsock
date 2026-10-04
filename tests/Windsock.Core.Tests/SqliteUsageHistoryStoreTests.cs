@@ -498,10 +498,129 @@ public sealed class SqliteUsageHistoryStoreTests : IDisposable
     {
         Directory.CreateDirectory(_file);
 
-        Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(
-            () => new SqliteUsageHistoryStore(_file));
+        using var store = new SqliteUsageHistoryStore(_file);
 
+        Assert.False(store.RecoveredFromCorruption);
         Assert.Empty(Directory.GetFiles(_directory, "*.corrupt*"));
+    }
+
+    /// <summary>
+    /// The store is built while the app starts, so a file it cannot open must
+    /// not throw from the constructor. It fails each call instead, where the
+    /// callers are ready for it.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Calls))]
+    public void ADatabaseThatCannotBeOpened_FailsEachCallRatherThanTheStart(string call)
+    {
+        Directory.CreateDirectory(_file);
+
+        using var store = new SqliteUsageHistoryStore(_file);
+
+        AssertFailsAsStorage(store, call);
+    }
+
+    /// <summary>
+    /// The file behind the crash on 2026-09-13 opened without complaint and
+    /// failed only when a table was read, so it was never set aside. Every call
+    /// on such a file has to fail in the way the panels and the recorder catch;
+    /// anything else reaches the global handlers and ends the app.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Calls))]
+    public void ADatabaseDamagedPastItsHeader_FailsEachCallAsAStorageFailure(string call)
+    {
+        DamagedHistoryFile.Create(_file);
+
+        using var store = new SqliteUsageHistoryStore(_file);
+
+        Assert.False(store.RecoveredFromCorruption, "the damage must be past what opening reads");
+        AssertFailsAsStorage(store, call);
+    }
+
+    [Fact]
+    public void ADamagedDatabase_IsReportedAsMalformed()
+    {
+        DamagedHistoryFile.Create(_file);
+
+        using var store = new SqliteUsageHistoryStore(_file);
+
+        var failure = Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(() => store.Extent());
+
+        Assert.Equal(11, failure.SqliteErrorCode);
+    }
+
+    [Fact]
+    public void ADamagedDatabase_DoesNotSayItWasErased()
+    {
+        DamagedHistoryFile.Create(_file);
+
+        using var store = new SqliteUsageHistoryStore(_file);
+        int told = 0;
+        store.Erased += (_, _) => told++;
+
+        Assert.ThrowsAny<Exception>(() => store.RemoveEverything());
+        Assert.Equal(0, told);
+    }
+
+    [Fact]
+    public void ADefect_IsNotMistakenForAStorageFailure()
+    {
+        Assert.False(HistoryFailure.IsStorage(new ArgumentNullException("minutes")));
+        Assert.False(HistoryFailure.IsStorage(new ArgumentOutOfRangeException("minute")));
+        Assert.False(HistoryFailure.IsStorage(new FormatException()));
+    }
+
+    public static TheoryData<string> Calls { get; } =
+    [
+        "Extent",
+        "Summarise",
+        "ReadMinutes",
+        "ReadHours",
+        "ReadDays",
+        "ReadCoverage",
+        "CountExisting",
+        "Write",
+        "WriteCoverage",
+        "Merge",
+        "Replace",
+        "Delete",
+        "RemoveEverything",
+    ];
+
+    private static void AssertFailsAsStorage(SqliteUsageHistoryStore store, string call)
+    {
+        Exception? failure = Record.Exception(() => Call(store, call));
+
+        Assert.NotNull(failure);
+        Assert.True(
+            HistoryFailure.IsStorage(failure),
+            $"{call} threw {failure.GetType().Name}, which nothing that calls the store catches");
+    }
+
+    private static void Call(SqliteUsageHistoryStore store, string call)
+    {
+        DateTimeOffset from = Noon.AddYears(-5);
+        DateTimeOffset until = Noon.AddYears(5);
+        UsageMinute[] rows = [new UsageMinute(MinuteOf(Noon), 1, 1, 1, 1)];
+
+        switch (call)
+        {
+            case "Extent": store.Extent(); break;
+            case "Summarise": store.Summarise(from, until); break;
+            case "ReadMinutes": store.Read(Noon, Noon.AddDays(1), UsageGranularity.Minute); break;
+            case "ReadHours": store.Read(from, until, UsageGranularity.Hour); break;
+            case "ReadDays": store.Read(from, until, UsageGranularity.Day); break;
+            case "ReadCoverage": store.ReadCoverage(from, until); break;
+            case "CountExisting": store.CountExisting(rows); break;
+            case "Write": store.Write(rows); break;
+            case "WriteCoverage": store.WriteCoverage(MinuteOf(Noon), MinuteOf(Noon) + 5); break;
+            case "Merge": store.Merge(rows); break;
+            case "Replace": store.Replace(rows); break;
+            case "Delete": store.Delete(from, until); break;
+            case "RemoveEverything": store.RemoveEverything(); break;
+            default: throw new ArgumentOutOfRangeException(nameof(call), call, "No such call.");
+        }
     }
 
     public void Dispose()

@@ -10,8 +10,10 @@
         distinguishable under the common forms of colour blindness where a
         green/red pair would not.
 
-        The light palette redefines these same keys at a lower lightness. Only
-        lightness changes between the two, so the app keeps one identity.
+        The neutrals lean a few degrees toward that navy rather than sitting on
+        pure grey, so the window and the mark read as one thing. The light
+        palette redefines these same keys; only lightness changes between the
+        two, so the app keeps one identity.
     -->
 
     <Color x:Key="BrandNavyColor">#FF0E2231</Color>
@@ -34,60 +36,66 @@
     <SolidColorBrush x:Key="BrandBrush" Color="{StaticResource BrandIceColor}" />
 
     <!--
-        Table rows. The stock subtle fills are pitched for a hover on a button
-        and are too faint to band a table with; these are set so the stripe is
+        Table rows. Set against the card a table sits on, so the stripe is
         legible at a glance while each interactive state stays a clear step
         above the one below it: stripe, hover, selection.
     -->
-    <SolidColorBrush x:Key="RowStripeBrush" Color="#14FFFFFF" />
-    <SolidColorBrush x:Key="RowHoverBrush" Color="#26FFFFFF" />
-    <SolidColorBrush x:Key="AccentSoftBrush" Color="#404DD0E1" />
+    <SolidColorBrush x:Key="RowStripeBrush" Color="#0CFFFFFF" />
+    <SolidColorBrush x:Key="RowHoverBrush" Color="#1AFFFFFF" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#384DD0E1" />
 
     <!--
-        The three surfaces the window is built from, deepest first: the ground
-        the cards sit on, the band that heads a card, and the card itself. Each
-        is a clear step above the one before it, so nothing needs an outline to
-        say where it begins.
+        The surfaces the window is built from, deepest first.
 
-        The ground has to be deeper than the band. Level with it, the top edge
-        of a card disappears into the window and the tabs stop reading as a
-        header at all.
+        The ground is the window itself, and shows only as the gutter around
+        the two panes. The sidebar and the page are one surface, a step up, so
+        the page reads as the thing the sidebar opens rather than as cards
+        loose on a background. Cards sit a step above the page and carry a
+        hairline of their own; wells - the grounds charts and maps are drawn
+        on - sink a step below the card they are in.
     -->
-    <SolidColorBrush x:Key="WindowGroundBrush" Color="#FF141414" />
-    <SolidColorBrush x:Key="SectionHeaderBrush" Color="#FF242424" />
+    <SolidColorBrush x:Key="WindowGroundBrush" Color="#FF0B0D10" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#FF15181C" />
+    <SolidColorBrush x:Key="CardBrush" Color="#FF1C2026" />
+    <SolidColorBrush x:Key="CardHoverBrush" Color="#FF23282F" />
+    <!-- The shapes a page shows in place of what it is still waiting for. -->
+    <SolidColorBrush x:Key="BoneBrush" Color="#FF20242A" />
+    <!-- A figure set on its own ground, a shade off the page, where a rule would otherwise part it from its neighbours. -->
+    <SolidColorBrush x:Key="PlateBrush" Color="#FF1B1E23" />
+    <SolidColorBrush x:Key="CardStrokeBrush" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="CanvasGroundBrush" Color="#FF14171B" />
 
-    <!--
-        The graph's own ground, which is a well sunk into the card rather than
-        part of it: a step below the card so the drawing has an edge, and a step
-        below the nodes so they still sit on top of something.
-    -->
-    <SolidColorBrush x:Key="CanvasGroundBrush" Color="#FF181818" />
+    <!-- Anything that floats: flyouts, drop-downs, the chart's hover readout. -->
+    <SolidColorBrush x:Key="PopupBrush" Color="#FF242931" />
 
     <!-- The world map: land a shade above the sea it sits in, coastlines a
          shade above that, and the country under the pointer picked out. Its own
          tones rather than borrowed ones, because a map is the one drawing where
          the background carries meaning. -->
-    <SolidColorBrush x:Key="MapLandBrush" Color="#FF262626" />
-    <SolidColorBrush x:Key="MapCoastBrush" Color="#FF3F3F3F" />
-    <SolidColorBrush x:Key="MapLandLitBrush" Color="#FF33474B" />
+    <SolidColorBrush x:Key="MapLandBrush" Color="#FF20262D" />
+    <SolidColorBrush x:Key="MapCoastBrush" Color="#FF38424D" />
+    <SolidColorBrush x:Key="MapLandLitBrush" Color="#FF2C4A52" />
 
     <!-- The busiest country, when the map is shaded by traffic. Everything
          else is mixed between this and the plain land. -->
-    <SolidColorBrush x:Key="MapBusyBrush" Color="#FF294A50" />
-
+    <SolidColorBrush x:Key="MapBusyBrush" Color="#FF26525C" />
 
     <!--
         One hue per part of the machine, so a tile is recognisable before its
-        caption is read. Chosen around the accent's cyan rather than against
-        it: cyan for the processor, which is the app's own colour and the tile
-        a reader looks at first, then green, violet and amber at the same
-        lightness so no one tile shouts louder than the others.
+        caption is read. The network takes the mark's cyan, because it is what
+        Windsock is for and the tile a reader looks at first. The other four are
+        spread evenly around the wheel from it - periwinkle, green, violet and
+        rose - at the same lightness, so no one tile shouts louder than the
+        others. Rose rather than amber for storage: amber is upload, and the
+        network tile draws upload beside it.
     -->
-    <Color x:Key="ProcessorColor">#FF4DD0E1</Color>
-    <Color x:Key="GraphicsColor">#FF81C784</Color>
-    <Color x:Key="MemoryColor">#FFB39DDB</Color>
-    <Color x:Key="StorageColor">#FFFFB74D</Color>
+    <Color x:Key="NetworkColor">#FF2DC1FC</Color>
+    <Color x:Key="ProcessorColor">#FF7C9DFF</Color>
+    <Color x:Key="GraphicsColor">#FF6FD49A</Color>
+    <Color x:Key="MemoryColor">#FFC09BF6</Color>
+    <Color x:Key="StorageColor">#FFF48FB8</Color>
 
+    <SolidColorBrush x:Key="NetworkBrush" Color="{StaticResource NetworkColor}" />
     <SolidColorBrush x:Key="ProcessorBrush" Color="{StaticResource ProcessorColor}" />
     <SolidColorBrush x:Key="GraphicsBrush" Color="{StaticResource GraphicsColor}" />
     <SolidColorBrush x:Key="MemoryBrush" Color="{StaticResource MemoryColor}" />
@@ -97,9 +105,12 @@
         The unfilled part of a meter. Dim enough to read as a groove rather
         than as a second value.
     -->
-    <SolidColorBrush x:Key="MeterTrackBrush" Color="#26FFFFFF" />
+    <SolidColorBrush x:Key="MeterTrackBrush" Color="#1FFFFFFF" />
 
     <!-- A reading that has crossed from busy into hot. -->
     <SolidColorBrush x:Key="HotBrush" Color="#FFFF8A65" />
+
+    <!-- A state that is fine: the connection is up. Semantic, not a series. -->
+    <SolidColorBrush x:Key="GoodBrush" Color="#FF6FD49A" />
 
 </ResourceDictionary>

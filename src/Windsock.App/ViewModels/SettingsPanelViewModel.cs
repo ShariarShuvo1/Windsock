@@ -1,8 +1,10 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 using Windsock.App.Services;
 using Windsock.App.Theming;
 using Windsock.App.Views;
@@ -30,11 +32,21 @@ public sealed record CloseOption(CloseAction Action, string Label)
     public override string ToString() => Label;
 }
 
+/// <summary>One entry in the minute-detail picker; zero days keeps it for good.</summary>
+public sealed record DetailOption(int Days, string Label)
+{
+    /// <summary>Returns the label, so automation announces it by name.</summary>
+    public override string ToString() => Label;
+}
+
 /// <summary>
 /// Backs the Settings panel.
 /// </summary>
-public sealed partial class SettingsPanelViewModel : ObservableObject
+public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposable
 {
+    private const string HistoryUnreadable =
+        "The history file could not be read, so what it holds cannot be shown. It may be damaged.";
+
     private readonly ISettingsStore _store;
     private readonly WindsockSettings _settings;
     private readonly ThemeManager _theme;
@@ -47,7 +59,12 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
     private readonly UsageRecorder _recorder;
     private readonly IStartupSwitch _startup;
     private readonly IUsageHistoryStore _history;
+    private readonly IAppDetailStore _detail;
+    private readonly Dispatcher _dispatcher;
+    private readonly ILogger<SettingsPanelViewModel> _logger;
     private bool _mirroring;
+    private bool _historyUnreadable;
+    private volatile bool _disposed;
 
     public SettingsPanelViewModel(
         ISettingsStore store,
@@ -61,35 +78,44 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
         UsageRecorder recorder,
         IStartupSwitch startup,
         UpdateService updates,
-        IUsageHistoryStore history)
+        IUsageHistoryStore history,
+        IAppDetailStore detail,
+        Dispatcher dispatcher,
+        ILogger<SettingsPanelViewModel> logger,
+        NotificationsCardViewModel notifications)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(notifications);
+        ArgumentNullException.ThrowIfNull(detail);
+
+        _detail = detail;
+
+        Notifications = notifications;
 #if !STORE
         ArgumentNullException.ThrowIfNull(routes);
 #endif
 
+        // Before any property below is set: setting one saves, and a user who
+        // had switched update checks off made that save run against a store
+        // and settings not yet assigned, which threw as the window opened.
+        _store = store;
+        _settings = settings;
+
+        _dispatcher = dispatcher;
         _updates = updates;
-        _updates.Changed += (_, _) => DescribeUpdates();
+        _updates.Changed += OnUpdatesChanged;
 
         CheckForUpdates = settings.CheckForUpdates;
         DescribeUpdates();
 
         _history = history;
+        _logger = logger;
         DescribeHistory();
 
-        // A recording that has just started is history where there was none.
-        recorder.Recorded += (_, _) =>
-        {
-            if (!HasHistory)
-            {
-                DescribeHistory();
-            }
-        };
+        recorder.Recorded += OnRecorded;
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(startup);
 
-        _store = store;
-        _settings = settings;
         _theme = theme;
         _totals = totals;
         _monitor = monitor;
@@ -120,12 +146,44 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
         ];
 
         SelectedClosing = settings.OnClose;
+
+        List<DetailOption> keeping =
+        [
+            new DetailOption(0, "Forever"),
+            new DetailOption(730, "2 years"),
+            new DetailOption(365, "1 year"),
+            new DetailOption(182, "6 months"),
+            new DetailOption(90, "3 months"),
+            new DetailOption(30, "1 month"),
+        ];
+
+        // A value written into settings.json by hand is what compaction uses,
+        // so it is shown as itself rather than as "Forever".
+        int kept = settings.KeepMinuteDetailDays;
+
+        if (kept > 0 && !keeping.Exists(option => option.Days == kept))
+        {
+            keeping.Add(new DetailOption(kept, string.Format(CultureInfo.CurrentCulture, "{0:N0} days", kept)));
+        }
+
+        DetailOptions = keeping;
+
+        _mirroring = true;
+        SelectedDetailDays = Math.Max(0, kept);
+        _mirroring = false;
+
         IsRecording = recorder.IsRecording;
         recorder.RecordingChanged += OnRecordingChanged;
         StartWithWindows = startup.State == StartupState.On;
         StartupNote = startup.Detail;
         Refresh();
     }
+
+    /// <summary>
+    /// The Notifications card. Its own view model, disposed with the window's
+    /// scope, because it listens to a service that outlives the window.
+    /// </summary>
+    public NotificationsCardViewModel Notifications { get; }
 
     /// <summary>Whether Windsock looks for a newer version on its own.</summary>
     [ObservableProperty]
@@ -189,6 +247,48 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Stops listening to the updater and the recorder, which outlive the
+    /// window this panel belongs to and would otherwise keep it.
+    /// </summary>
+    public void Dispose()
+    {
+        _disposed = true;
+        _updates.Changed -= OnUpdatesChanged;
+        _recorder.Recorded -= OnRecorded;
+        _recorder.RecordingChanged -= OnRecordingChanged;
+    }
+
+    // Raised on the UI thread: the updater is only ever driven from it, and
+    // awaits with ConfigureAwait(true), so every change comes back there.
+    private void OnUpdatesChanged(object? sender, EventArgs e) => DescribeUpdates();
+
+    /// <summary>
+    /// A recording that has just started is history where there was none.
+    /// </summary>
+    /// <remarks>
+    /// Raised on the recorder's writer thread. Describing the history there
+    /// re-evaluates the erase button's command, and a button refuses that off
+    /// its own thread: the exception landed in the recorder, which reported a
+    /// write that had succeeded as failed and skipped every handler after this
+    /// one.
+    /// </remarks>
+    private void OnRecorded(object? sender, EventArgs e)
+    {
+        if (_disposed || HasHistory)
+        {
+            return;
+        }
+
+        _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            if (!_disposed)
+            {
+                DescribeHistory();
+            }
+        }));
+    }
+
     private void DescribeUpdates()
     {
         UpdateStatus = _updates.Detail;
@@ -236,45 +336,152 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
     [ObservableProperty]
     public partial string HistorySize { get; private set; } = string.Empty;
 
-    /// <summary>Whether there is any history to delete.</summary>
-    public bool HasHistory => _history.Extent().HasData;
+    /// <summary>
+    /// Whether there is any history to delete. False when the file cannot be
+    /// read, since there is then nothing the delete could be shown to cover.
+    /// </summary>
+    /// <remarks>
+    /// As last read, not asked afresh: a command refresh asks this on the UI
+    /// thread, and the file can be busy for a long while being rewritten by
+    /// Reclaim space, which would hold the window still for all of it.
+    /// </remarks>
+    public bool HasHistory => _hasHistory;
 
-    [RelayCommand(CanExecute = nameof(HasHistory))]
-    private void EraseHistory()
+    private volatile bool _hasHistory;
+    private int _describes;
+
+    /// <summary>Whether everything is being deleted right now.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(EraseHistoryCommand), nameof(ReclaimSpaceCommand))]
+    public partial bool IsErasing { get; private set; }
+
+    private bool CanErase => _hasHistory && !IsReclaiming && !IsErasing;
+
+    /// <summary>
+    /// Deletes all history, after asking. The file is read and erased away
+    /// from the UI thread: erasing rewrites it, which takes a while now that
+    /// every app's minutes are kept.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanErase))]
+    private async Task EraseHistoryAsync()
     {
-        UsageExtent extent = _history.Extent();
+        IsErasing = true;
 
-        if (extent is not { First: { } first, Last: { } last })
+        try
         {
-            return;
+            UsageExtent extent;
+            UsageSummary summary;
+
+            try
+            {
+                (extent, summary) = await Task.Run(() =>
+                {
+                    UsageExtent reach = _history.Extent();
+                    UsageSummary total = reach is { First: { } first, Last: { } last }
+                        ? _history.Summarise(first, last.AddMinutes(1))
+                        : UsageSummary.Empty;
+                    return (reach, total);
+                }).ConfigureAwait(true);
+            }
+            catch (Exception ex) when (HistoryFailure.IsStorage(ex))
+            {
+                LogHistoryUnreadable(ex);
+                _historyUnreadable = true;
+                HistorySize = HistoryUnreadable;
+                return;
+            }
+
+            if (!extent.HasData || !EraseHistoryDialog.Ask(extent, summary, Application.Current?.MainWindow))
+            {
+                return;
+            }
+
+            try
+            {
+                await Task.Run(_history.RemoveEverything).ConfigureAwait(true);
+            }
+            catch (Exception ex) when (HistoryFailure.IsStorage(ex))
+            {
+                LogEraseFailed(ex);
+                HistorySize = "The history could not be deleted, because the file could not be written. It may be damaged.";
+                return;
+            }
+
+            DescribeHistory();
         }
-
-        UsageSummary summary = _history.Summarise(first, last.AddMinutes(1));
-
-        if (!EraseHistoryDialog.Ask(extent, summary, Application.Current?.MainWindow))
+        finally
         {
-            return;
+            IsErasing = false;
         }
-
-        _history.RemoveEverything();
-        DescribeHistory();
     }
 
-    private void DescribeHistory()
+    /// <summary>Reads how far history reaches and how big the file is, away from the UI thread.</summary>
+    private void DescribeHistory() => _ = DescribeHistoryAsync();
+
+    private async Task DescribeHistoryAsync()
     {
-        UsageExtent extent = _history.Extent();
+        int token = ++_describes;
 
-        HistorySize = extent is { First: { } first, Last: { } last }
-            ? string.Format(
-                CultureInfo.CurrentCulture,
-                "Recorded from {0:d MMMM yyyy} to {1:d MMMM yyyy}.",
-                first.LocalDateTime,
-                last.LocalDateTime)
-            : "Nothing is recorded yet.";
+        (bool readable, UsageExtent extent, string size) = await Task.Run(() =>
+        {
+            bool ok = TryReadExtent(out UsageExtent reach);
+            return (ok, reach, FileSize());
+        }).ConfigureAwait(true);
 
+        if (token != _describes || _disposed)
+        {
+            return;
+        }
+
+        HistorySize = !readable
+            ? HistoryUnreadable
+            : extent is { First: { } first, Last: { } last }
+                ? string.Format(
+                    CultureInfo.CurrentCulture,
+                    "Recorded from {0:d MMMM yyyy} to {1:d MMMM yyyy}. The file takes {2}.",
+                    first.LocalDateTime,
+                    last.LocalDateTime,
+                    size)
+                : "Nothing is recorded yet.";
+
+        _hasHistory = readable && extent.HasData;
         OnPropertyChanged(nameof(HasHistory));
         EraseHistoryCommand.NotifyCanExecuteChanged();
     }
+
+    /// <summary>
+    /// Asks how far history reaches, answering false rather than throwing when
+    /// the file cannot say. A damaged file must not be described as an empty
+    /// one, and must not stop the window opening.
+    /// </summary>
+    private bool TryReadExtent(out UsageExtent extent)
+    {
+        try
+        {
+            extent = _history.Extent();
+            _historyUnreadable = false;
+            return true;
+        }
+        catch (Exception ex) when (HistoryFailure.IsStorage(ex))
+        {
+            extent = default;
+
+            // Asked on every command refresh, so said once rather than each time.
+            if (!_historyUnreadable)
+            {
+                _historyUnreadable = true;
+                LogHistoryUnreadable(ex);
+            }
+
+            return false;
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not read the usage history")]
+    private partial void LogHistoryUnreadable(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not delete the usage history")]
+    private partial void LogEraseFailed(Exception exception);
 
     [RelayCommand]
     private void ToggleRecording() => IsRecording = !IsRecording;
@@ -311,6 +518,8 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
     /// </summary>
     public void Refresh()
     {
+        Notifications.Refresh();
+
         // Asking Windows takes a round trip in the packaged edition, so the
         // cached answer goes up first and the fresh one follows.
         _mirroring = true;
@@ -418,6 +627,82 @@ public sealed partial class SettingsPanelViewModel : ObservableObject
         _settings.OnClose = value;
         _store.Save(_settings);
     }
+
+    /// <summary>How long minute-by-minute detail is kept.</summary>
+    public IReadOnlyList<DetailOption> DetailOptions { get; } = [];
+
+    /// <summary>Days of minute detail kept; zero for good.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DetailNote))]
+    public partial int SelectedDetailDays { get; set; }
+
+    /// <summary>What the chosen keeping does, in words.</summary>
+    public string DetailNote => SelectedDetailDays <= 0
+        ? "Every minute is kept for good."
+        : "Each app's minutes older than that are folded into quarter hours. No total is lost.";
+
+    /// <summary>Whether space is being given back to the disk right now.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ReclaimSpaceCommand), nameof(EraseHistoryCommand))]
+    public partial bool IsReclaiming { get; private set; }
+
+    partial void OnSelectedDetailDaysChanged(int value)
+    {
+        if (_mirroring)
+        {
+            return;
+        }
+
+        _settings.KeepMinuteDetailDays = Math.Max(0, value);
+        _store.Save(_settings);
+    }
+
+    private bool CanReclaim => !IsReclaiming && !IsErasing;
+
+    /// <summary>
+    /// Folds away the minutes the chosen keeping no longer wants, then rewrites
+    /// the file so the space goes back to the disk. The folding happens by
+    /// itself within a few hours; this does it now, and shrinks the file, which
+    /// nothing else does.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanReclaim))]
+    private async Task ReclaimSpaceAsync()
+    {
+        IsReclaiming = true;
+        int days = _settings.KeepMinuteDetailDays;
+        string before = FileSize();
+
+        try
+        {
+            await Task.Run(() =>
+            {
+                if (days > 0)
+                {
+                    _detail.CompactAppDetail(EpochMinute.From(DateTimeOffset.UtcNow) - ((long)days * 24 * 60));
+                }
+
+                _detail.Reclaim();
+            }).ConfigureAwait(true);
+
+            ReclaimNote = string.Format(CultureInfo.CurrentCulture, "Was {0}, now {1}.", before, FileSize());
+        }
+        catch (Exception ex) when (HistoryFailure.IsStorage(ex))
+        {
+            LogHistoryUnreadable(ex);
+            ReclaimNote = "The file could not be rewritten. It may be in use or damaged; nothing was lost.";
+        }
+        finally
+        {
+            IsReclaiming = false;
+            DescribeHistory();
+        }
+    }
+
+    /// <summary>What the last reclaim did.</summary>
+    [ObservableProperty]
+    public partial string ReclaimNote { get; private set; } = string.Empty;
+
+    private string FileSize() => Windsock.Core.Formatting.SizeFormatter.Format(_detail.FileBytes);
 
     partial void OnIsRecordingChanged(bool value)
     {

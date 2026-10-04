@@ -1,5 +1,4 @@
-﻿using System.Data.Common;
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Windsock.Core.Networking;
@@ -86,7 +85,7 @@ public sealed partial class UsageRecorder : BackgroundService
                 else if (_minute >= 0)
                 {
                     closing = Snapshot();
-                    _minute = -1;
+                    Reset(-1);
                 }
             }
 
@@ -148,17 +147,13 @@ public sealed partial class UsageRecorder : BackgroundService
 
             if (_minute < 0)
             {
-                _minute = minute;
+                Reset(minute);
                 _sessionStart = minute;
             }
             else if (minute != _minute)
             {
                 finished = Snapshot();
-                _minute = minute;
-                _bytesDown = 0;
-                _bytesUp = 0;
-                _peakDown = 0;
-                _peakUp = 0;
+                Reset(minute);
             }
             _bytesDown += delta.BytesReceived;
             _bytesUp += delta.BytesSent;
@@ -181,6 +176,24 @@ public sealed partial class UsageRecorder : BackgroundService
     private UsageMinute Snapshot() =>
         new(_minute, _bytesDown, _bytesUp, _peakDown, _peakUp);
 
+    /// <summary>
+    /// Moves on to a minute with nothing counted in it yet, or to no minute at
+    /// all when given -1. Call with the gate held.
+    /// </summary>
+    /// <remarks>
+    /// The counters go with the minute. Closing one by setting it to -1 alone
+    /// left its bytes behind, and the next minute to open added to them, so
+    /// the first minute after a pause repeated the one written before it.
+    /// </remarks>
+    private void Reset(long minute)
+    {
+        _minute = minute;
+        _bytesDown = 0;
+        _bytesUp = 0;
+        _peakDown = 0;
+        _peakUp = 0;
+    }
+
     internal void FlushOnShutdown()
     {
         List<UsageMinute> remaining = [];
@@ -195,7 +208,7 @@ public sealed partial class UsageRecorder : BackgroundService
             if (_minute >= 0)
             {
                 remaining.Add(Snapshot());
-                _minute = -1;
+                Reset(-1);
             }
         }
 
@@ -227,8 +240,9 @@ public sealed partial class UsageRecorder : BackgroundService
 
             Recorded?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception ex) when (ex is DbException or IOException or InvalidOperationException)
+        catch (Exception ex) when (HistoryFailure.IsStorage(ex))
         {
+            // These minutes are lost; the next ones are still measured and tried.
             LogWriteFailed(ex, batch.Count);
         }
     }

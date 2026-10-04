@@ -1,0 +1,564 @@
+<UserControl x:Class="Windsock.App.Views.ConnectionPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             xmlns:views="clr-namespace:Windsock.App.Views"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ConnectionPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="900">
+
+    <!--
+        Read top down, the section answers in the order people ask: is the
+        internet there, what was asked to decide that, how well it has been
+        answering, when did it last go, and how is all that decided. Somebody who
+        only wants the first answer never has to read past the first card.
+    -->
+    <UserControl.Resources>
+        <Style x:Key="FigureValueStyle" TargetType="TextBlock" BasedOn="{StaticResource StatValueStyle}">
+            <Setter Property="FontSize" Value="18" />
+        </Style>
+
+        <!-- The state in colour as well as words, but never in colour alone. -->
+        <Style x:Key="MoodBrushStyle" TargetType="Ellipse">
+            <Setter Property="Fill" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Mood}" Value="Good">
+                    <Setter Property="Fill" Value="{DynamicResource GoodBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Mood}" Value="Bad">
+                    <Setter Property="Fill" Value="{DynamicResource HotBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <controls:SectionPage Title="Connection" Subtitle="{Binding Circumstance}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="{StaticResource PagePadding}">
+            <StackPanel>
+                <!-- ============ The answer, what it rests on, and the last hour ============ -->
+                <controls:Card>
+                    <controls:RuledPanel>
+                        <Border Style="{StaticResource SectionStyle}" Padding="20,18">
+                            <DockPanel LastChildFill="True">
+                                <!-- A dot in a ring of its own colour, so the state reads from across the room. -->
+                                <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,16,0" VerticalAlignment="Center">
+                                    <Ellipse Style="{StaticResource MoodBrushStyle}" Opacity="0.18" />
+                                    <Ellipse Style="{StaticResource MoodBrushStyle}" Width="14" Height="14" />
+                                </Grid>
+
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Headline}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"
+                                               AutomationProperties.LiveSetting="Polite"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                                    <TextBlock Text="{Binding Explanation}"
+                                               Margin="0,3,0,0"
+                                               FontSize="13"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <!--
+                            The evidence behind the answer. Each figure is one thing
+                            that was asked and what it said, so a person who wants to
+                            know why the headline says what it says can see it.
+                        -->
+                        <controls:FlowGrid Style="{StaticResource StatStripStyle}" MinimumColumnWidth="136">
+                            <Border Style="{StaticResource StatCellStyle}"
+                                    ToolTip="How long your router took to answer a ping. Your router is the box that connects this PC to the internet.">
+                                <StackPanel>
+                                    <TextBlock Text="ROUTER" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding RouterValue}" AutomationProperties.Name="Router">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource FigureValueStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RouterSilent}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding RouterDetail}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource StatCellStyle}"
+                                    ToolTip="How long the internet address you chose took to answer. Choose one under Checks and alerts.">
+                                <StackPanel>
+                                    <TextBlock Text="INTERNET" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding InternetValue}" AutomationProperties.Name="Internet">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource FigureValueStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding InternetSilent}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding InternetDetail}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource StatCellStyle}"
+                                    ToolTip="What Windows itself thinks - the same verdict as the network icon on the taskbar.">
+                                <StackPanel>
+                                    <TextBlock Text="WINDOWS SAYS" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding WindowsValue}"
+                                               Style="{StaticResource FigureValueStyle}"
+                                               AutomationProperties.Name="Windows says" />
+                                    <TextBlock Text="{Binding WindowsDetail}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource StatCellStyle}"
+                                    ToolTip="The network this PC is using, and whether a VPN is on.">
+                                <StackPanel>
+                                    <TextBlock Text="NETWORK" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding NetworkValue}"
+                                               Style="{StaticResource FigureValueStyle}"
+                                               AutomationProperties.Name="Network" />
+                                    <TextBlock Text="{Binding NetworkDetail}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource StatCellStyle}"
+                                    ToolTip="The share of pings in the last hour that got no answer. A few now and then is normal on Wi-Fi.">
+                                <StackPanel>
+                                    <TextBlock Text="LOST" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding LossValue}"
+                                               Style="{StaticResource FigureValueStyle}"
+                                               AutomationProperties.Name="Lost pings" />
+                                    <TextBlock Text="{Binding LossDetail}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+                        </controls:FlowGrid>
+
+                        <Border Style="{StaticResource SectionStyle}">
+                            <StackPanel>
+                                <controls:AdaptiveRow Breakpoint="520" Spacing="10" LeadFills="True" LeadMinimumWidth="220">
+                                    <DockPanel LastChildFill="True" MinHeight="34">
+                                        <Ellipse DockPanel.Dock="Left"
+                                                 Width="8"
+                                                 Height="8"
+                                                 Margin="0,0,10,0"
+                                                 VerticalAlignment="Center"
+                                                 Fill="{DynamicResource MemoryBrush}" />
+
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Response time" Style="{StaticResource CardTitleStyle}" />
+                                            <TextBlock Text="The last hour. Lower is better; gaps are checks nobody answered, or times nobody was watching."
+                                                       Style="{StaticResource CardNoteStyle}" />
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <!-- The legend, beside the name while there is room and under it when not. -->
+                                    <controls:FlowRow Spacing="14" LineSpacing="4" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Rectangle Width="12" Height="3" RadiusX="1.5" RadiusY="1.5" VerticalAlignment="Center"
+                                                       Fill="{DynamicResource MemoryBrush}" Margin="0,0,6,0" />
+                                            <TextBlock Text="Router" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal"
+                                                    Visibility="{Binding HasInternetLine, Converter={StaticResource BooleanToVisibility}}">
+                                            <Rectangle Width="12" Height="3" RadiusX="1.5" RadiusY="1.5" VerticalAlignment="Center"
+                                                       Fill="{DynamicResource DownloadBrush}" Margin="0,0,6,0" />
+                                            <TextBlock Text="Internet" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center" Opacity="0.35"
+                                                       Fill="{DynamicResource HotBrush}" Margin="0,0,6,0" />
+                                            <TextBlock Text="Outage or no answer" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                    </controls:FlowRow>
+                                </controls:AdaptiveRow>
+
+                                <Border Style="{StaticResource ChartWellStyle}" Height="220" Margin="0,10,0,0">
+                                    <controls:LatencyChart x:Name="Chart"
+                                                           Points="{Binding Points}"
+                                                           Revision="{Binding Revision}"
+                                                           WindowEnd="{Binding ChartEnd}"
+                                                           Span="{Binding ChartSpanValue, Mode=OneTime}"
+                                                           RouterBrush="{DynamicResource MemoryBrush}"
+                                                           InternetBrush="{DynamicResource DownloadBrush}"
+                                                           OutageBrush="{DynamicResource HotBrush}"
+                                                           GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                           AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                           EmptyText="The first checks will appear here in a few seconds"
+                                                           AutomationProperties.Name="Response time over the last hour" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </controls:RuledPanel>
+                </controls:Card>
+
+                <!-- ============ The log ============ -->
+                <controls:Card Margin="{StaticResource BlockGap}">
+                    <controls:RuledPanel>
+                        <Border Style="{StaticResource SectionStyle}">
+                            <StackPanel>
+                                <controls:AdaptiveRow Breakpoint="520" Spacing="10" LeadFills="True" LeadMinimumWidth="200">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="Outages" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="{Binding LogSummary}"
+                                                   Style="{StaticResource CardNoteStyle}"
+                                                   TextTrimming="None"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <controls:FlowRow Spacing="8" LineSpacing="8" VerticalAlignment="Center">
+                                        <controls:Picker Style="{StaticResource PickerStyle}"
+                                                         MinWidth="132"
+                                                         ItemsSource="{Binding Ranges}"
+                                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                         SelectedValuePath="Range"
+                                                         SelectedValue="{Binding SelectedRange, Mode=TwoWay}"
+                                                         AutomationProperties.Name="Outage period"
+                                                         ToolTip="Which stretch of the log to show" />
+
+                                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                Command="{Binding ExportCommand}"
+                                                AutomationProperties.Name="Export outages"
+                                                ToolTip="Write the outages in this period to a CSV file">
+                                            <StackPanel Orientation="Horizontal">
+                                                <fluent:SymbolIcon Symbol="ArrowDownload" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Export" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <!-- Asks once, in place, rather than in a dialog. -->
+                                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                Command="{Binding AskClearCommand}"
+                                                Visibility="{Binding IsConfirmingClear, Converter={StaticResource InverseBooleanToVisibility}}"
+                                                AutomationProperties.Name="Clear the outage log"
+                                                ToolTip="Forget every outage Windsock has logged. You will be asked first.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <fluent:SymbolIcon Symbol="Delete" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Clear log" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <StackPanel Orientation="Horizontal"
+                                                    Visibility="{Binding IsConfirmingClear, Converter={StaticResource BooleanToVisibility}}">
+                                            <TextBlock Text="Forget every outage?"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       Margin="0,0,8,0"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            <Button Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding ClearCommand}"
+                                                    Content="Clear"
+                                                    Margin="0,0,6,0"
+                                                    AutomationProperties.Name="Confirm clearing the outage log" />
+                                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                    Command="{Binding CancelClearCommand}"
+                                                    Content="Keep"
+                                                    AutomationProperties.Name="Keep the outage log" />
+                                        </StackPanel>
+                                    </controls:FlowRow>
+                                </controls:AdaptiveRow>
+
+                                <TextBlock Text="{Binding LogNotice}"
+                                           Margin="0,10,0,0"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource AccentBrush}"
+                                           Visibility="{Binding LogNotice, Converter={StaticResource TextToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!--
+                            Two lines a row rather than columns, so a narrow window
+                            wraps nothing and truncates nothing that matters: when
+                            and for how long on the first, why and where on the
+                            second.
+                        -->
+                        <ItemsControl ItemsSource="{Binding Rows}"
+                                      Visibility="{Binding HasRows, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="Outages">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <controls:RuledPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:OutageRowViewModel}">
+                                    <DockPanel LastChildFill="True" Margin="20,12,20,12">
+                                        <Border DockPanel.Dock="Left"
+                                                Width="32"
+                                                Height="32"
+                                                CornerRadius="8"
+                                                Margin="0,0,12,0"
+                                                VerticalAlignment="Top"
+                                                Background="{DynamicResource CanvasGroundBrush}">
+                                            <fluent:SymbolIcon Symbol="PlugDisconnected"
+                                                               FontSize="16"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center">
+                                                <fluent:SymbolIcon.Style>
+                                                    <Style TargetType="fluent:SymbolIcon">
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsOngoing}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </fluent:SymbolIcon.Style>
+                                            </fluent:SymbolIcon>
+                                        </Border>
+
+                                        <StackPanel VerticalAlignment="Center">
+                                            <DockPanel LastChildFill="True">
+                                                <TextBlock DockPanel.Dock="Right"
+                                                           Text="{Binding Duration}"
+                                                           Margin="12,0,0,0"
+                                                           FontWeight="SemiBold"
+                                                           Typography.NumeralAlignment="Tabular">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsOngoing}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <TextBlock Text="{Binding When}"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            </DockPanel>
+
+                                            <TextBlock Text="{Binding Details}"
+                                                       Margin="0,2,0,0"
+                                                       FontSize="12"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- One page of the log at a time; see PagedView. -->
+                        <views:PagerBar Margin="20,10,20,14"
+                                        controls:RuledPanel.RuleAbove="False"
+                                        DataContext="{Binding LogPager}" />
+                    </controls:RuledPanel>
+                </controls:Card>
+
+                <!--
+                    ============ How it is decided and told ============
+
+                    Each option is its name beside its control while there is
+                    room, and the control under the name when there is not, so a
+                    narrow window never cuts a sentence off to make room for a
+                    tick box.
+                -->
+                <controls:Card Margin="{StaticResource BlockGap}">
+                    <controls:RuledPanel>
+                        <Border Style="{StaticResource GroupHeadStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Checks and alerts" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="How Windsock decides the internet is gone, and what it tells you when it is"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingRowStyle}" controls:RuledPanel.RuleAbove="False">
+                            <controls:AdaptiveRow Breakpoint="560" Spacing="10" LeadFills="True" VerticalAlignment="Center">
+                                <controls:SettingHead
+                                    Text="When the internet drops and comes back"
+                                    Hint="A notification when an outage starts, saying what is probably at fault, and a quiet one when the internet is back, saying how long it was gone. Notifications themselves are switched on and off in Settings." />
+
+                                <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Content="Tell me"
+                                          IsChecked="{Binding NotifyLostAndRestored, Mode=TwoWay}"
+                                          AutomationProperties.Name="Notify when the internet drops and comes back" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingRowStyle}">
+                            <controls:AdaptiveRow Breakpoint="560" Spacing="10" LeadFills="True" VerticalAlignment="Center">
+                                <controls:SettingHead
+                                    Text="When this PC changes network, or a VPN goes on or off"
+                                    Hint="Useful on a laptop that moves between networks, or to know straight away when a VPN drops. Off by default." />
+
+                                <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Content="Tell me"
+                                          IsChecked="{Binding NotifyNetworkChanges, Mode=TwoWay}"
+                                          AutomationProperties.Name="Notify when the network or VPN changes" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingRowStyle}">
+                            <controls:AdaptiveRow Breakpoint="560" Spacing="10" LeadFills="True" VerticalAlignment="Center">
+                                <controls:SettingHead
+                                    Text="Keep watching with this section closed"
+                                    Hint="Needed for the alerts above, for outages to be logged while you are doing something else, and for the taskbar meter to show a dash while the internet is gone. Turned off, Windsock checks only while this section is on screen." />
+
+                                <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Content="Watch in the background"
+                                          IsChecked="{Binding WatchInBackground, Mode=TwoWay}"
+                                          AutomationProperties.Name="Watch the connection in the background" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingRowStyle}">
+                            <StackPanel VerticalAlignment="Center">
+                                <controls:AdaptiveRow Breakpoint="560" Spacing="10" LeadFills="True">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <controls:SettingHead
+                                            HorizontalAlignment="Left"
+                                            Text="How to check the internet"
+                                            Hint="Windows' own check is right for most people. Pinging an address as well catches an outage sooner and more surely, and is how a flaky connection shows up on the chart." />
+                                        <TextBlock Text="{Binding CheckNote}"
+                                                   Style="{StaticResource DetailNoteStyle}"
+                                                   Margin="0,4,0,0" />
+                                    </StackPanel>
+
+                                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                                     MinWidth="220"
+                                                     HorizontalAlignment="Left"
+                                                     VerticalAlignment="Center"
+                                                     ItemsSource="{Binding Checks}"
+                                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                     SelectedValuePath="Check"
+                                                     SelectedValue="{Binding SelectedCheck, Mode=TwoWay}"
+                                                     AutomationProperties.Name="How to check the internet" />
+                                </controls:AdaptiveRow>
+
+                                <StackPanel Margin="0,12,0,0"
+                                            Visibility="{Binding IsCustom, Converter={StaticResource BooleanToVisibility}}">
+                                    <DockPanel LastChildFill="True">
+                                        <Button DockPanel.Dock="Right"
+                                                Style="{StaticResource ToolbarButtonStyle}"
+                                                Margin="8,0,0,0"
+                                                Content="Use this address"
+                                                Command="{Binding ApplyCustomTargetCommand}" />
+                                        <TextBox x:Name="CustomTargetBox"
+                                                 Text="{Binding CustomTarget, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 MinHeight="30"
+                                                 VerticalContentAlignment="Center"
+                                                 MaxLength="253"
+                                                 AutomationProperties.Name="Address to ping"
+                                                 ToolTip="An IP address such as 1.1.1.1, or a name such as example.com">
+                                            <TextBox.InputBindings>
+                                                <KeyBinding Key="Enter" Command="{Binding ApplyCustomTargetCommand}" />
+                                            </TextBox.InputBindings>
+                                        </TextBox>
+                                    </DockPanel>
+
+                                    <TextBlock Text="{Binding CustomProblem}"
+                                               Margin="0,6,0,0"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource HotBrush}"
+                                               Visibility="{Binding CustomProblem, Converter={StaticResource TextToVisibility}}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- For whoever wants them; the defaults suit nearly everyone. -->
+                        <Border Style="{StaticResource SettingRowStyle}" Visibility="{Binding ShowsMore, Converter={StaticResource BooleanToVisibility}}">
+                            <controls:AdaptiveRow Breakpoint="560" Spacing="10" LeadFills="True" VerticalAlignment="Center">
+                                <controls:SettingHead
+                                    Text="How often to check"
+                                    Hint="More often notices a drop sooner and draws a finer chart. Each check is a few tiny packets, so even every 2 seconds costs nothing you would notice." />
+
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="170"
+                                                 HorizontalAlignment="Left"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding Intervals}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Seconds"
+                                                 SelectedValue="{Binding SelectedInterval, Mode=TwoWay}"
+                                                 AutomationProperties.Name="How often to check" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingRowStyle}" Visibility="{Binding ShowsMore, Converter={StaticResource BooleanToVisibility}}">
+                            <controls:AdaptiveRow Breakpoint="560" Spacing="10" LeadFills="True" VerticalAlignment="Center">
+                                <controls:SettingHead
+                                    Text="When to call it an outage"
+                                    Hint="How long the internet has to be gone before it counts. Shorter catches every blip; longer ignores the few seconds Wi-Fi sometimes takes to recover, so you are only told about drops that matter. The outage is still timed from the moment it began." />
+
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="170"
+                                                 HorizontalAlignment="Left"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding Delays}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Seconds"
+                                                 SelectedValue="{Binding SelectedDelay, Mode=TwoWay}"
+                                                 AutomationProperties.Name="When to call it an outage" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingRowStyle}" MinHeight="0" Padding="14,8,20,8">
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    HorizontalAlignment="Left"
+                                    Background="Transparent"
+                                    BorderBrush="Transparent"
+                                    Command="{Binding ToggleMoreCommand}"
+                                    AutomationProperties.Name="More options">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0">
+                                        <fluent:SymbolIcon.Style>
+                                            <Style TargetType="fluent:SymbolIcon">
+                                                <Setter Property="Symbol" Value="ChevronDown" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowsMore}" Value="True">
+                                                        <Setter Property="Symbol" Value="ChevronUp" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </fluent:SymbolIcon.Style>
+                                    </fluent:SymbolIcon>
+                                    <TextBlock VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="More options" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowsMore}" Value="True">
+                                                        <Setter Property="Text" Value="Fewer options" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Button>
+                        </Border>
+                    </controls:RuledPanel>
+                </controls:Card>
+            </StackPanel>
+        </ScrollViewer>
+    </controls:SectionPage>
+</UserControl>

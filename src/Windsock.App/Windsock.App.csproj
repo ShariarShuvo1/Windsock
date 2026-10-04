@@ -74,6 +74,24 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The mark at the head of the sidebar, compiled in so both editions have it. -->
+    <Resource Include="..\..\packaging\msix\Images\Square44x44Logo.targetsize-256_altform-unplated.png"
+              Link="Assets\Logo.png" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(StoreBuild)' != 'true'">
+    <!--
+      The picture in a notification's header, for the editions installed without
+      a package. Windows reads it from a file path named in the registration, so
+      it has to exist on disk; the Store edition takes the same picture from its
+      package logos instead and does not carry this copy.
+    -->
+    <Content Include="..\..\packaging\msix\Images\Square44x44Logo.targetsize-256_altform-unplated.png"
+             Link="Assets\Notification.png"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Windsock.Core\Windsock.Core.csproj" />
   </ItemGroup>
 

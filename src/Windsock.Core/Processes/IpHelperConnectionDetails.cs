@@ -17,6 +17,10 @@ public sealed unsafe class IpHelperConnectionDetails : IProcessConnectionDetailS
     private const uint NoError = 0;
     private const uint InsufficientBuffer = 122;  // ERROR_INSUFFICIENT_BUFFER
 
+    // One buffer, reused, and shared by the map and every details window, which
+    // read from worker threads at the same time: without the lock one reading
+    // could parse a table header another had just written over.
+    private readonly Lock _gate = new();
     private byte[] _buffer = new byte[64 * 1024];
 
     /// <inheritdoc />
@@ -24,10 +28,13 @@ public sealed unsafe class IpHelperConnectionDetails : IProcessConnectionDetailS
     {
         List<ProcessConnection> connections = [];
 
-        ReadTcp(connections, Anyone, AddressFamilyIpv4);
-        ReadTcp(connections, Anyone, AddressFamilyIpv6);
-        ReadUdp(connections, Anyone, AddressFamilyIpv4);
-        ReadUdp(connections, Anyone, AddressFamilyIpv6);
+        lock (_gate)
+        {
+            ReadTcp(connections, Anyone, AddressFamilyIpv4);
+            ReadTcp(connections, Anyone, AddressFamilyIpv6);
+            ReadUdp(connections, Anyone, AddressFamilyIpv4);
+            ReadUdp(connections, Anyone, AddressFamilyIpv6);
+        }
 
         return connections;
     }
@@ -41,10 +48,13 @@ public sealed unsafe class IpHelperConnectionDetails : IProcessConnectionDetailS
             return connections;
         }
 
-        ReadTcp(connections, processId, AddressFamilyIpv4);
-        ReadTcp(connections, processId, AddressFamilyIpv6);
-        ReadUdp(connections, processId, AddressFamilyIpv4);
-        ReadUdp(connections, processId, AddressFamilyIpv6);
+        lock (_gate)
+        {
+            ReadTcp(connections, processId, AddressFamilyIpv4);
+            ReadTcp(connections, processId, AddressFamilyIpv6);
+            ReadUdp(connections, processId, AddressFamilyIpv4);
+            ReadUdp(connections, processId, AddressFamilyIpv6);
+        }
 
         return connections;
     }

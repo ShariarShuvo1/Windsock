@@ -10,6 +10,9 @@ namespace Windsock.Core.Tests;
 /// </summary>
 public sealed class CpuThermalTests
 {
+#if !STORE
+    // The decoding and the channel are compiled only into the full edition.
+
     /// <summary>Intel publishes a distance below the throttle point, not a temperature.</summary>
     [Fact]
     public void Intel_SubtractsReadoutFromThrottlePoint()
@@ -115,6 +118,7 @@ public sealed class CpuThermalTests
     {
         Assert.Null(CpuThermalProbe.AmdCelsius(0));
     }
+#endif
 
     /// <summary>
     /// The taskbar slot writes the reading in degrees.
@@ -151,6 +155,7 @@ public sealed class CpuThermalTests
             new MemoryReading(0, 0, 0, 0, 0, 0, 0),
             []));
 
+#if !STORE
     /// <summary>
     /// Asking whether PawnIO is installed works on a machine where it is not.
     /// </summary>
@@ -161,4 +166,5 @@ public sealed class CpuThermalTests
 
         Assert.Equal(version is not null, PawnIo.IsInstalled);
     }
+#endif
 }

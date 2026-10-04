@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Windsock.App.Services;
+using Windsock.Core.Apps;
 using Windsock.Core.Formatting;
 using Windsock.Core.Geography;
 using Windsock.Core.Networking;
@@ -18,16 +19,24 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
 {
     private const int Listed = 4;
     private const int Shown = 8;
+
+    /// <summary>How many of one app's places are drawn on their own; see <see cref="PlaceShortlist"/>.</summary>
+    private const int MostPlaces = 16;
     private readonly ProcessUsageMonitor _monitor;
     private readonly IProcessConnectionDetailSource _details;
     private readonly IProcessEndpointSource _endpoints;
     private readonly NetworkRouteCache _routes;
     private readonly HostNameCache _hosts;
     private readonly ProcessIconCache _icons;
+    private readonly AppIconCache _appIcons;
+    private readonly AppNames _names;
+    private readonly RecentAppFigures _figures;
     private readonly PlaceFinder _where;
     private readonly Dispatcher _dispatcher;
-    private readonly Dictionary<int, Program> _programs = [];
+    private readonly Dictionary<string, Program> _programs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, Program> _owners = [];
     private readonly List<Program> _ordered = [];
+    private long _units;
     private HashSet<int>? _only;
 
     private readonly Dictionary<string, PeerNodeViewModel> _abroad = new(StringComparer.Ordinal);
@@ -53,6 +62,9 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         NetworkRouteCache routes,
         HostNameCache hosts,
         ProcessIconCache icons,
+        AppIconCache appIcons,
+        AppNames names,
+        RecentAppFigures figures,
         IpLocations? places,
         WorldMap? world,
         Dispatcher dispatcher)
@@ -63,6 +75,9 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         ArgumentNullException.ThrowIfNull(routes);
         ArgumentNullException.ThrowIfNull(hosts);
         ArgumentNullException.ThrowIfNull(icons);
+        ArgumentNullException.ThrowIfNull(appIcons);
+        ArgumentNullException.ThrowIfNull(names);
+        ArgumentNullException.ThrowIfNull(figures);
 
         _monitor = monitor;
         _details = details;
@@ -70,6 +85,9 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         _routes = routes;
         _hosts = hosts;
         _icons = icons;
+        _appIcons = appIcons;
+        _names = names;
+        _figures = figures;
         _where = new PlaceFinder(places);
         World = world;
         _dispatcher = dispatcher;
@@ -78,11 +96,61 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         _watch = _monitor.Watch();
 
         _monitor.Updated += OnUpdated;
+        _monitor.RateStateChanged += OnRateStateChanged;
+        _figures.Changed += OnFiguresChanged;
         _hosts.Resolved += OnNamesResolved;
         _routes.RouteChanged += OnRouteFound;
 
+        // The earth first, where there is an earth to draw and a way to place
+        // addresses on it; the free layout otherwise.
+        IsWorld = HasWorld;
+
         Refresh();
     }
+
+    /// <summary>
+    /// Whether a node stands for an app - every process of it - rather than for
+    /// one process. Set by the page, which shows the same unit in its table.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool GroupByApp { get; set; } = true;
+
+    partial void OnGroupByAppChanged(bool value)
+    {
+        OnPropertyChanged(nameof(RateNotice));
+
+        // Every node stood for the other unit; start the picture again.
+        foreach (Program program in _ordered)
+        {
+            foreach (int processId in program.ProcessIds)
+            {
+                _endpoints.Unwatch(processId);
+            }
+        }
+
+        _programs.Clear();
+        _owners.Clear();
+        _ordered.Clear();
+        _followed = null;
+
+        Apply(_monitor.Latest);
+        Redraw();
+    }
+
+    private void OnFiguresChanged(object? sender, EventArgs e) =>
+        _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            if (!_disposed && IsLive && _monitor.RateState != TrafficSourceState.Running)
+            {
+                Apply(_monitor.Latest);
+            }
+        }));
+
+    /// <summary>Says a count of what the nodes stand for.</summary>
+    private string Units(int many) => GroupByApp ? Count(many, "app", "apps") : Count(many, "process", "processes");
+
+    private void OnRateStateChanged(object? sender, EventArgs e) =>
+        _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => OnPropertyChanged(nameof(RateNotice))));
 
     /// <summary>What to call the middle of the map.</summary>
     public string Caption { get; }
@@ -136,10 +204,12 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
     public partial bool ShowSignals { get; set; } = true;
 
     /// <summary>
-    /// Whether the way to each far end is drawn, or only the far end.
+    /// Whether the way to each far end is drawn, or only the far end. Off
+    /// until asked for: a route is found by sending to every place, and the
+    /// hops can double what the map has to lay out.
     /// </summary>
     [ObservableProperty]
-    public partial bool ShowRoutes { get; set; } = true;
+    public partial bool ShowRoutes { get; set; }
 
     /// <summary>Whether the countries with something on them are named.</summary>
     [ObservableProperty]
@@ -160,10 +230,11 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
     public partial bool ShowNames { get; set; } = true;
 
     /// <summary>
-    /// Whether programs talking to this machine itself are drawn.
+    /// Whether programs talking to this machine itself are drawn. Off until
+    /// asked for, because none of it is network use.
     /// </summary>
     [ObservableProperty]
-    public partial bool ShowLoopback { get; set; } = true;
+    public partial bool ShowLoopback { get; set; }
 
     /// <summary>
     /// Whether the picture is drawn on the earth rather than laid out freely.
@@ -195,7 +266,15 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
     /// <summary>Said when nothing can be broken down by far end.</summary>
     public string RateNotice => _endpoints.CanAttribute
         ? string.Empty
-        : "Rates are per program. Run Windsock as administrator to see them per site.";
+#if STORE
+        : "Rates are Windows' count for each app over the last five minutes. How much goes to each place is not measured in this edition.";
+#else
+        : _monitor.RateState == TrafficSourceState.Running
+            ? GroupByApp
+                ? "Rates are per app. Run Windsock as administrator to see them per site."
+                : "Rates are per process. Run Windsock as administrator to see them per site."
+            : "Rates are Windows' count for each app over the last five minutes. Run Windsock as administrator to measure them each second, per site too.";
+#endif
 
     /// <summary>
     /// Acts on a node being clicked.
@@ -229,7 +308,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
     public void Highlight(object? item)
     {
         Program? only = item is ProcessNodeViewModel process
-            ? _programs.GetValueOrDefault(process.ProcessId)
+            ? _programs.GetValueOrDefault(process.Key)
             : null;
 
         IReadOnlyList<string>? reach = item switch
@@ -356,7 +435,9 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
             return;
         }
 
-        HashSet<int> here = [];
+        bool measured = _monitor.RateState == TrafficSourceState.Running;
+        Dictionary<string, List<ProcessUsage>> units = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<int, string>? apps = GroupByApp ? RunningApps.KeysFor(usage) : null;
 
         foreach (ProcessUsage each in usage)
         {
@@ -365,43 +446,131 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
                 continue;
             }
 
-            here.Add(each.ProcessId);
+            string key = apps is not null
+                ? apps[each.ProcessId]
+                : each.ProcessId.ToString(CultureInfo.InvariantCulture);
 
-            if (!_programs.TryGetValue(each.ProcessId, out Program? program))
+            if (!units.TryGetValue(key, out List<ProcessUsage>? members))
             {
-                program = new Program(each.ProcessId, each.Name, ++_sightings)
-                {
-                    MeasuredAt = DateTimeOffset.Now,
-                };
-                _endpoints.Watch(each.ProcessId);
-
-                _programs[each.ProcessId] = program;
-                _ordered.Add(program);
+                members = [];
+                units[key] = members;
             }
-            program.Node.FilePath = each.Identity.FilePath ?? string.Empty;
-            program.Node.Icon ??= _icons.Find(each.Identity.FilePath);
 
-            program.Node.SendRate = each.SendBytesPerSecond;
-            program.Node.ReceiveRate = each.ReceiveBytesPerSecond;
-            program.Node.Sockets = Count(each.Connections, "connection", "connections");
-            program.Node.RateText = Rates(each.ReceiveBytesPerSecond, each.SendBytesPerSecond);
+            members.Add(each);
+        }
+
+        _owners.Clear();
+
+        foreach ((string key, List<ProcessUsage> members) in units)
+        {
+            ProcessIdentity identity = Representative(members);
+
+            if (!_programs.TryGetValue(key, out Program? program))
+            {
+                program = new Program(key, string.Create(CultureInfo.InvariantCulture, $"u{++_units}"), identity.Name, ++_sightings, new EndpointMeter(_endpoints));
+                _programs[key] = program;
+                _ordered.Add(program);
+
+                if (GroupByApp && identity.PackageFamily is { } family
+                    && _names.Describe(family) is { Name.Length: > 0 } package)
+                {
+                    program.Node.Label = package.Name;
+                    program.Node.Icon = _appIcons.Find(package);
+                }
+                else if (GroupByApp && !string.IsNullOrWhiteSpace(identity.Description))
+                {
+                    program.Node.Label = identity.Description;
+                }
+            }
+
+            // Watch the processes that joined, let go of those that left.
+            HashSet<int> now = [.. members.Select(member => member.ProcessId)];
+
+            foreach (int joined in now.Where(id => !program.ProcessIds.Contains(id)))
+            {
+                _endpoints.Watch(joined);
+            }
+
+            foreach (int left in program.ProcessIds.Where(id => !now.Contains(id)))
+            {
+                _endpoints.Unwatch(left);
+            }
+
+            program.ProcessIds = now;
+
+            foreach (int processId in now)
+            {
+                _owners[processId] = program;
+            }
+
+            program.Node.FilePath = identity.FilePath ?? string.Empty;
+            program.Node.Icon ??= _icons.Find(identity.FilePath);
+
+            double send = 0;
+            double receive = 0;
+            int sockets = 0;
+
+            foreach (ProcessUsage member in members)
+            {
+                send += member.SendBytesPerSecond;
+                receive += member.ReceiveBytesPerSecond;
+                sockets += member.Connections;
+            }
+
+            program.Node.Sockets = Count(sockets, "connection", "connections");
+
+            // Without a trace nothing measured these processes: the rates are
+            // Windows' count for the app where it has one, and otherwise the
+            // node says what is known rather than a zero nobody measured.
+            AppUsageRecord? counted = !measured && GroupByApp ? _figures.For(identity) : null;
+
+            if (counted is { } record)
+            {
+                send = record.BytesSent / RecentAppFigures.Seconds;
+                receive = record.BytesReceived / RecentAppFigures.Seconds;
+            }
+
+            program.Node.SendRate = send;
+            program.Node.ReceiveRate = receive;
+            program.Node.HasRates = measured || counted is not null;
+            program.Node.RateNote = counted is not null ? "Windows' count for this app, averaged over the last five minutes" : string.Empty;
+            program.Node.RateText = program.Node.HasRates
+                ? Rates(receive, send)
+                : program.Node.Sockets;
         }
 
         for (int which = _ordered.Count - 1; which >= 0; which--)
         {
             Program program = _ordered[which];
 
-            if (here.Contains(program.ProcessId))
+            if (units.ContainsKey(program.Key))
             {
                 continue;
             }
 
-            _endpoints.Unwatch(program.ProcessId);
-            _programs.Remove(program.ProcessId);
+            foreach (int processId in program.ProcessIds)
+            {
+                _endpoints.Unwatch(processId);
+            }
+
+            _programs.Remove(program.Key);
             _ordered.RemoveAt(which);
         }
 
         Refresh();
+    }
+
+    private static ProcessIdentity Representative(List<ProcessUsage> members)
+    {
+        foreach (ProcessUsage member in members)
+        {
+            if (member.Identity.FilePath is not null)
+            {
+                return member.Identity;
+            }
+        }
+
+        return members[0].Identity;
     }
 
     private void Regroup()
@@ -417,7 +586,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         {
             if (socket.IsListening
                 || socket.RemoteAddress is not { Length: > 0 } address
-                || !_programs.TryGetValue(socket.ProcessId, out Program? program))
+                || !_owners.TryGetValue(socket.ProcessId, out Program? program))
             {
                 continue;
             }
@@ -442,8 +611,22 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         {
             Measure(program);
             Publish(program);
+            Choose(program);
         }
     }
+
+    private void Choose(Program program) =>
+        program.Shown = PlaceShortlist.Choose(
+            program.Peers.Values,
+            MostPlaces,
+            program.Shown,
+            _followed,
+            program.Rest,
+            static (receive, send) => string.Format(
+                CultureInfo.CurrentCulture,
+                "{0} in, {1} out",
+                RateFormatter.Format(receive, RateFamily.Bytes, RateScale.Auto),
+                RateFormatter.Format(send, RateFamily.Bytes, RateScale.Auto)));
 
     private void Measure(Program program)
     {
@@ -452,45 +635,31 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _endpoints.CopyEndpoints(program.ProcessId, program.Traffic);
-
-        DateTimeOffset now = DateTimeOffset.Now;
-        double seconds = (now - program.MeasuredAt).TotalSeconds;
-        program.MeasuredAt = now;
-        bool usable = seconds is > 0.2 and < 30;
-
-        foreach ((EndpointKey key, EndpointTraffic traffic) in program.Traffic)
+        foreach (EndpointReading reading in program.Meter.Measure(program.ProcessIds))
         {
-            if (!key.HasAddress)
+            if (!reading.Key.HasAddress)
             {
                 continue;
             }
 
-            string address = key.Address();
+            string address = reading.Key.Address();
             bool here = LoopbackEnds.IsLoopback(address);
 
             if (here && !ShowLoopback)
             {
                 continue;
             }
+
             Draft draft = here
-                ? Near(program, address, _ends.Owner(key.IsIpv6, key.Port))
+                ? Near(program, address, _ends.Owner(reading.Key.IsIpv6, reading.Key.Port))
                 : For(program, address);
 
             draft.Addresses.Add(address);
-            draft.Ports.Add(key.Port);
+            draft.Ports.Add(reading.Key.Port);
             draft.Measured = true;
-
-            if (!usable || !program.Earlier.TryGetValue(key, out EndpointTraffic before))
-            {
-                continue;
-            }
-
-            draft.Send += Math.Max(0, traffic.BytesSent - before.BytesSent) / seconds;
-            draft.Receive += Math.Max(0, traffic.BytesReceived - before.BytesReceived) / seconds;
+            draft.Send += reading.SendBytesPerSecond;
+            draft.Receive += reading.ReceiveBytesPerSecond;
         }
-
-        (program.Earlier, program.Traffic) = (program.Traffic, program.Earlier);
     }
 
     private Draft For(Program program, string address)
@@ -529,8 +698,8 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
     }
 
     private string Called(int processId) =>
-        _programs.TryGetValue(processId, out Program? program)
-            ? program.Node.Name
+        _owners.TryGetValue(processId, out Program? program)
+            ? program.Node.Label
             : string.Create(CultureInfo.InvariantCulture, $"process {processId}");
 
     private void Publish(Program program)
@@ -556,9 +725,11 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
     {
         List<string> wanted = [];
 
-        foreach (Program program in _ordered)
+        // Only what is drawn, and nothing at all with routes off: a route is
+        // found by sending to the place, which nobody asked for then.
+        foreach (Program program in ShowRoutes ? _ordered : [])
         {
-            foreach (PeerNodeViewModel peer in program.Peers.Values)
+            foreach (PeerNodeViewModel peer in program.Shown)
             {
                 foreach (string address in peer.Probes)
                 {
@@ -627,8 +798,8 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
             ? Narrowed ? "Nothing the table is showing" : "Nothing is talking yet"
             : string.Concat(
                 Narrowed
-                    ? string.Concat(Count(built.Count, "program", "programs"), " the table is showing")
-                    : Count(built.Count, "program", "programs"),
+                    ? string.Concat(Units(built.Count), " the table is showing")
+                    : Units(built.Count),
                 ", ",
                 Count(places, "place", "places"));
 
@@ -752,9 +923,22 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         Hint = lit is null ? string.Empty : "Click here to show the whole map again.";
     }
 
+    /// <summary>
+    /// Folds every far end the drawn programs reach into the dots the earth
+    /// shows: one per far end, or one per city.
+    /// </summary>
+    /// <remarks>
+    /// The key a dot is filed under and the key its route leaf carries must be
+    /// the same string. They were not: a city was filed under "city:" and its
+    /// name but grew its leaf from the name alone, so every lookup from the
+    /// route tree missed and each city was drawn as a nameless waypoint with no
+    /// traffic, placed wherever a waypoint lands rather than at the city.
+    /// </remarks>
     private void Gather()
     {
         _together.Clear();
+
+        List<(Program Program, PeerNodeViewModel Peer)> reached = [];
 
         foreach (Program program in _ordered)
         {
@@ -763,36 +947,50 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
                 continue;
             }
 
-            foreach (PeerNodeViewModel peer in program.Peers.Values)
+            foreach (PeerNodeViewModel peer in program.Shown)
             {
-                if (peer.IsLocal)
+                if (!peer.IsLocal && !ReferenceEquals(peer, program.Rest))
                 {
-                    continue;
+                    reached.Add((program, peer));
                 }
-                string key = peer.Key;
-                string? city = null;
-
-                if (ByCity && _where.Find(peer) is { IsKnown: true } place)
-                {
-                    city = Named(place);
-                    key = string.Concat("city:", city);
-                }
-
-                if (!_together.TryGetValue(key, out Together? end))
-                {
-                    end = new Together(city ?? peer.Key, peer.Seen);
-                    _together[key] = end;
-                }
-
-                end.Add(program.Node.Name, program.Node.Icon, peer);
             }
+        }
+
+        // First seen first, so the same connections make the same cities on
+        // every redraw and no dot jumps from one reading to the next.
+        reached.Sort(static (left, right) => left.Peer.Seen.CompareTo(right.Peer.Seen));
+
+        CityClusters cities = new();
+
+        foreach ((Program program, PeerNodeViewModel peer) in reached)
+        {
+            string key = peer.Key;
+            City? city = null;
+
+            if (ByCity && _where.Find(peer) is { IsKnown: true } place)
+            {
+                city = cities.Join(place);
+                key = string.Concat("city:", city.Key);
+            }
+
+            if (!_together.TryGetValue(key, out Together? end))
+            {
+                end = new Together(key, peer.Seen) { City = city };
+                _together[key] = end;
+            }
+
+            end.Add(program.Node.Label, program.Node.Icon, peer);
         }
     }
 
-    private static string Named(WorldPlace place) =>
-        place.City.Length > 0 && place.Country.Length > 0
-            ? string.Concat(place.City, ", ", place.Country)
-            : place.City.Length > 0 ? place.City : place.Country;
+    /// <summary>
+    /// Where a dot on the earth goes: at its city, when it is one, rather than
+    /// wherever the first of its addresses happens to be.
+    /// </summary>
+    private WorldPlace? PlaceOf(PeerNodeViewModel peer) =>
+        _together.TryGetValue(peer.Key, out Together? end) && end.City is { } city
+            ? city.Place
+            : _where.Find(peer);
 
     private IEnumerable<PeerNodeViewModel> Abroad(List<Together> ordered)
     {
@@ -847,7 +1045,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
             IsMuted = muted,
             Place = item switch
             {
-                PeerNodeViewModel peer => _where.Find(peer),
+                PeerNodeViewModel peer => PlaceOf(peer),
                 HopNodeViewModel hop => _where.Find(hop.Address),
                 _ => null,
             },
@@ -881,7 +1079,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
             }
 
             peer.Hint = Prompt(ReferenceEquals(peer, _followed));
-            peer.Where = PlaceFinder.Describe(_where.Find(peer), Home, node.RoundTrip);
+            peer.Where = PlaceFinder.Describe(PlaceOf(peer), Home, node.RoundTrip);
 
             return peer;
         }
@@ -1047,12 +1245,12 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         }
 
         return Narrowed
-            ? string.Concat(Count(drawn, "program", "programs"), " the table is showing")
-            : Count(drawn, "program", "programs");
+            ? string.Concat(Units(drawn), " the table is showing")
+            : Units(drawn);
     }
 
     private bool Drawn(Program program) =>
-        !FollowTable || _only is null || _only.Contains(program.ProcessId);
+        !FollowTable || _only is null || program.ProcessIds.Overlaps(_only);
 
     partial void OnByCityChanged(bool value)
     {
@@ -1062,11 +1260,11 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
 
     partial void OnIsWorldChanged(bool value) => Redraw();
 
-    partial void OnShowRoutesChanged(bool value) => Redraw();
+    partial void OnShowRoutesChanged(bool value) => Regraph();
 
     private RouteNode Grow(Program program)
     {
-        List<PeerNodeViewModel> ordered = [.. program.Peers.Values];
+        List<PeerNodeViewModel> ordered = [.. program.Shown];
         ordered.Sort(static (left, right) => left.Seen.CompareTo(right.Seen));
 
         List<RouteLeaf> leaves = new(ordered.Count);
@@ -1155,7 +1353,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
 
         foreach (string key in node.Reach)
         {
-            if (program.Peers.TryGetValue(key, out PeerNodeViewModel? beyond))
+            if (program.Find(key) is { } beyond)
             {
                 send += beyond.SendRate;
                 receive += beyond.ReceiveRate;
@@ -1185,7 +1383,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
 
     private object Dress(Program program, RouteNode node, bool muted, HashSet<string> seen)
     {
-        if (node.LeafKey is { } key && program.Peers.TryGetValue(key, out PeerNodeViewModel? peer))
+        if (node.LeafKey is { } key && program.Find(key) is { } peer)
         {
             peer.IsSelected = ReferenceEquals(peer, _followed);
             peer.IsMuted = muted;
@@ -1314,8 +1512,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
     private bool Owns(Program program, RouteNode node) => _followed switch
     {
         PeerNodeViewModel peer => node.LeafKey is { } key
-            && program.Peers.TryGetValue(key, out PeerNodeViewModel? mine)
-            && ReferenceEquals(mine, peer),
+            && ReferenceEquals(program.Find(key), peer),
         HopNodeViewModel hop => string.Equals(program.Id + node.Id, hop.Id, StringComparison.Ordinal),
         _ => false,
     };
@@ -1376,6 +1573,8 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
 
         _disposed = true;
         _monitor.Updated -= OnUpdated;
+        _monitor.RateStateChanged -= OnRateStateChanged;
+        _figures.Changed -= OnFiguresChanged;
         _hosts.Resolved -= OnNamesResolved;
         _routes.RouteChanged -= OnRouteFound;
 
@@ -1385,25 +1584,39 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
 
         foreach (Program program in _ordered)
         {
-            _endpoints.Unwatch(program.ProcessId);
+            foreach (int processId in program.ProcessIds)
+            {
+                _endpoints.Unwatch(processId);
+            }
         }
 
         _programs.Clear();
+        _owners.Clear();
         _ordered.Clear();
     }
 
+    /// <summary>One node's worth of the machine: an app, or a process.</summary>
     private sealed class Program
     {
-        public Program(int processId, string name, long seen)
+        public Program(string key, string id, string name, long seen, EndpointMeter meter)
         {
-            ProcessId = processId;
-            Id = string.Create(CultureInfo.InvariantCulture, $"p{processId}");
-            Node = new ProcessNodeViewModel(processId, name, seen);
+            Key = key;
+            Id = id;
+            Meter = meter;
+            Node = new ProcessNodeViewModel(key, name, seen);
+            Rest = new PeerNodeViewModel(PlaceShortlist.RestKey, long.MaxValue);
         }
 
-        public int ProcessId { get; }
+        /// <summary>The app's key, or the process id as text.</summary>
+        public string Key { get; }
 
-        /// <summary>What every node of this program's branch is filed under.</summary>
+        /// <summary>The processes the node stands for, as of the last reading.</summary>
+        public HashSet<int> ProcessIds { get; set; } = [];
+
+        /// <summary>Reads what those processes move to each far end.</summary>
+        public EndpointMeter Meter { get; }
+
+        /// <summary>What every node of this branch is filed under.</summary>
         public string Id { get; }
 
         public ProcessNodeViewModel Node { get; }
@@ -1414,11 +1627,19 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
 
         public Dictionary<string, Draft> Drafts { get; } = new(StringComparer.Ordinal);
 
-        public Dictionary<EndpointKey, EndpointTraffic> Traffic { get; set; } = [];
+        /// <summary>The places drawn, the rest folded into <see cref="Rest"/> when there are too many.</summary>
+        public List<PeerNodeViewModel> Shown { get; set; } = [];
 
-        public Dictionary<EndpointKey, EndpointTraffic> Earlier { get; set; } = [];
+        /// <summary>The one node standing for the quieter places.</summary>
+        public PeerNodeViewModel Rest { get; }
 
-        public DateTimeOffset MeasuredAt { get; set; }
+        /// <summary>A drawn place by its key, the folded rest included.</summary>
+        public PeerNodeViewModel? Find(string key) =>
+            Peers.TryGetValue(key, out PeerNodeViewModel? peer)
+                ? peer
+                : string.Equals(key, PlaceShortlist.RestKey, StringComparison.Ordinal) && Shown.Contains(Rest)
+                    ? Rest
+                    : null;
     }
 
     private sealed class Together
@@ -1429,8 +1650,14 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
             Seen = seen;
         }
 
-        /// <summary>What identifies the place across readings.</summary>
+        /// <summary>
+        /// What identifies the place across readings: the key it is filed
+        /// under, and the key its route leaf carries.
+        /// </summary>
         public string Key { get; }
+
+        /// <summary>The city this stands for, when servers are gathered by city.</summary>
+        public City? City { get; init; }
 
         /// <summary>When the first program to reach it started doing so.</summary>
         public long Seen { get; private set; }
@@ -1485,7 +1712,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         {
             ArgumentNullException.ThrowIfNull(peer);
 
-            peer.Label = Key;
+            peer.Label = City?.Name ?? Key;
             peer.SendRate = Send;
             peer.ReceiveRate = Receive;
             peer.HasRates = Measured;

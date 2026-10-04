@@ -12,7 +12,20 @@ using Windsock.Core.Geography;
 namespace Windsock.App.Controls;
 
 /// <summary>A node with nothing behind it but the words on it.</summary>
-public sealed record GraphNote(string Title, string Body, string Detail = "", ImageSource? Icon = null);
+public sealed record GraphNote(string Title, string Body, string Detail = "", ImageSource? Icon = null)
+{
+#pragma warning disable CA1822 // A binding reads instance properties only.
+    /// <summary>
+    /// Never: nothing selects the machine itself. Here because the world map's
+    /// dot styles ask every node, and the machine's dot shares their base; each
+    /// redraw logged two binding errors without it.
+    /// </summary>
+    public bool IsSelected => false;
+
+    /// <summary>Never, for the same reason as <see cref="IsSelected"/>.</summary>
+    public bool IsHighlighted => false;
+#pragma warning restore CA1822
+}
 
 /// <summary>What the pointer is over.</summary>
 public sealed class GraphHoverEventArgs(object? item) : EventArgs
@@ -551,6 +564,14 @@ public sealed class NetworkGraphView : Panel, IViewAnchor
     public Point Anchor => _middle is { } hub && hub.Area.Width > 0
         ? Middle(hub.Area)
         : new Point(DesiredSize.Width / 2, DesiredSize.Height / 2);
+
+    /// <summary>
+    /// The machine sits in the middle of the free layout. The picture's own
+    /// middle is wherever the busiest app's places spread to, and fitting to
+    /// that put a torrent client in the middle with the machine off at the side.
+    /// The earth is framed whole.
+    /// </summary>
+    public bool IsFramedOnAnchor => !IsWorld;
 
     private static DependencyProperty Register<T>(string name, T fallback) =>
         DependencyProperty.Register(
@@ -1510,10 +1531,11 @@ public sealed class NetworkGraphView : Panel, IViewAnchor
     {
         _hub ??= Create(NodeStyle);
 
+        // What the hub stands for before how it looks, for the reason Wear gives.
+        Fill(_hub, new GraphNote(Caption, Subtitle, Hint, Icon));
+
         _hub.Style = IsWorld ? WorldProcessStyle ?? NodeStyle : NodeStyle;
         _hub.ContentTemplate = IsWorld ? null : NoteTemplate;
-
-        Fill(_hub, new GraphNote(Caption, Subtitle, Hint, Icon));
 
         _wanted.Clear();
         _here.Clear();
@@ -1585,6 +1607,13 @@ public sealed class NetworkGraphView : Panel, IViewAnchor
 
     private void Wear(Button node, object item)
     {
+        // What the node stands for before how it looks. A node is on the canvas
+        // from the moment it is made, so until it has an item of its own it
+        // inherits the whole map as its data; a style applied then evaluates its
+        // triggers against the map, and every new node wrote two binding errors
+        // for paths the map does not have.
+        Fill(node, item);
+
         node.Style = IsWorld
             ? item switch
             {
@@ -1608,8 +1637,6 @@ public sealed class NetworkGraphView : Panel, IViewAnchor
                 HopNodeViewModel => HopTemplate,
                 _ => NoteTemplate,
             };
-
-        Fill(node, item);
     }
 
     private Button Create(Style? style)

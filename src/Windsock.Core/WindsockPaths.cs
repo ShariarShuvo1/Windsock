@@ -34,6 +34,9 @@ public static class WindsockPaths
     /// <summary>Full path to the usage database.</summary>
     public static string Database => Path.Combine(Root, "Windsock.db");
 
+    /// <summary>Full path to the outage log.</summary>
+    public static string Outages => Path.Combine(Root, "Outages.db");
+
     /// <summary>Full path to the settings file.</summary>
     public static string Settings => Path.Combine(Root, "settings.json");
 

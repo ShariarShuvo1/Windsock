@@ -31,9 +31,20 @@ public sealed partial class SystemMonitor : BackgroundService
     private readonly Lock _gate = new();
 
     private PerformanceQuery? _query;
+#if !STORE
     private CpuThermalProbe? _cpuThermal;
+#endif
     private int _watchers;
+    private int _quietWatchers;
     private long _tick;
+    private long _beats;
+
+    /// <summary>
+    /// How many of the timer's beats pass between readings while only history
+    /// is asking: a reading every five seconds is plenty for a minute's average
+    /// and peak, at a fifth of the cost of what a page on screen needs.
+    /// </summary>
+    private const int QuietEvery = 5;
 
     public SystemMonitor(IOptions<SystemMonitorOptions> options, ILogger<SystemMonitor> logger)
     {
@@ -64,10 +75,17 @@ public sealed partial class SystemMonitor : BackgroundService
     /// <summary>
     /// Whether the processor's temperature is being read, and if not, why not.
     /// </summary>
+#if STORE
+#pragma warning disable CA1822 // An instance member in the full edition; the Store edition has nothing to read.
+    public (PawnIoState State, string? Detail, string? Explanation) CpuTemperature =>
+        (PawnIoState.Stopped, null, null);
+#pragma warning restore CA1822
+#else
     public (PawnIoState State, string? Detail, string? Explanation) CpuTemperature =>
         _cpuThermal is { } probe
             ? (probe.State, probe.Detail, probe.Explanation)
             : (PawnIoState.Stopped, null, null);
+#endif
 
     /// <summary>
     /// Asks for readings, and keeps them coming until the token is let go.
@@ -79,14 +97,47 @@ public sealed partial class SystemMonitor : BackgroundService
             _watchers++;
         }
 
-        return new Watcher(this);
+        return new Watcher(this, quiet: false);
     }
 
-    private void Release()
+    /// <summary>
+    /// Asks for readings now and then, for history, until the token is let go.
+    /// While anything on screen watches too, readings come at the full rate
+    /// and a quiet watcher sees every one.
+    /// </summary>
+    public IDisposable WatchQuietly()
     {
         lock (_gate)
         {
-            _watchers = Math.Max(0, _watchers - 1);
+            _quietWatchers++;
+        }
+
+        return new Watcher(this, quiet: true);
+    }
+
+    private void Release(bool quiet)
+    {
+        lock (_gate)
+        {
+            if (quiet)
+            {
+                _quietWatchers = Math.Max(0, _quietWatchers - 1);
+            }
+            else
+            {
+                _watchers = Math.Max(0, _watchers - 1);
+            }
+        }
+    }
+
+    private bool IsQuietlyWatched
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _quietWatchers > 0;
+            }
         }
     }
 
@@ -118,7 +169,9 @@ public sealed partial class SystemMonitor : BackgroundService
     {
         while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
         {
-            if (!IsWatched)
+            bool quietTurn = _beats++ % QuietEvery == 0;
+
+            if (!IsWatched && !(quietTurn && IsQuietlyWatched))
             {
                 continue;
             }
@@ -159,7 +212,11 @@ public sealed partial class SystemMonitor : BackgroundService
 
         SystemSnapshot snapshot = new(
             DateTimeOffset.Now,
+#if STORE
+            _processor.Read(query, counts, null),
+#else
             _processor.Read(query, counts, _cpuThermal?.Read()),
+#endif
             _graphics.Read(query),
             Memory(counts),
             _storage.Read(query, rescan),
@@ -176,7 +233,9 @@ public sealed partial class SystemMonitor : BackgroundService
         Machine = MachineProbe.Read(graphics);
         IsIdentified = true;
         Identified?.Invoke(this, EventArgs.Empty);
+#if !STORE
         _cpuThermal = new CpuThermalProbe();
+#endif
 
         PerformanceQuery? query = PerformanceQuery.Open();
 
@@ -211,18 +270,20 @@ public sealed partial class SystemMonitor : BackgroundService
 
         _query?.Dispose();
         _query = null;
+#if !STORE
         _cpuThermal?.Dispose();
         _cpuThermal = null;
+#endif
         _graphics.Dispose();
     }
 
-    private sealed class Watcher(SystemMonitor monitor) : IDisposable
+    private sealed class Watcher(SystemMonitor monitor, bool quiet) : IDisposable
     {
         private SystemMonitor? _monitor = monitor;
 
         public void Dispose()
         {
-            _monitor?.Release();
+            _monitor?.Release(quiet);
             _monitor = null;
         }
     }

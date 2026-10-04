@@ -44,11 +44,13 @@ public sealed record ProcessConnection(
     DateTimeOffset? Created)
 {
     /// <summary>
-    /// Identifies the socket across readings.
+    /// Identifies the socket across readings. The process is part of it: two
+    /// processes of one app can each hold a socket on the same shared port, and
+    /// a window listing the app's sockets together must not fold them into one.
     /// </summary>
     public string Key { get; } = string.Create(
         CultureInfo.InvariantCulture,
-        $"{Protocol}|{LocalAddress}|{LocalPort}|{RemoteAddress}|{RemotePort}");
+        $"{ProcessId}|{Protocol}|{LocalAddress}|{LocalPort}|{RemoteAddress}|{RemotePort}");
 
     /// <summary>Whether the socket is waiting for callers rather than talking.</summary>
     public bool IsListening =>

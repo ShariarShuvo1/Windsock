@@ -5,6 +5,29 @@ using Xunit;
 
 namespace Windsock.Core.Tests;
 
+#if STORE
+public sealed class NetworkRouteCacheTests
+{
+    [Fact]
+    public void TheStoreEdition_WalksNoRoute_HoweverItIsAsked()
+    {
+        using NetworkRouteCache cache = new(new NeverProbe()) { IsEnabled = true };
+
+        Assert.False(cache.IsEnabled);
+        cache.Want(this, ["1.1.1.1"]);
+        Assert.Null(cache.Route("1.1.1.1"));
+    }
+
+    private sealed class NeverProbe : INetworkPathProbe
+    {
+        public IAsyncEnumerable<PathHop> TraceAsync(string address, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The Store edition must not walk a route.");
+
+        public Task<TimeSpan?> PingAsync(string address, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The Store edition must not walk a route.");
+    }
+}
+#else
 public sealed class NetworkRouteCacheTests
 {
     private static readonly TimeSpan Patience = TimeSpan.FromMinutes(5);
@@ -498,3 +521,4 @@ public sealed class NetworkRouteCacheTests
             Task.FromResult<TimeSpan?>(null);
     }
 }
+#endif

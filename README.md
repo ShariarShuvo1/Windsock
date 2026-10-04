@@ -29,8 +29,8 @@ Network speed meter for the Windows 11 taskbar.
 ---
 
 Live upload and download rates on the taskbar itself, a table of which programs
-are using the network, a map of where their traffic goes, and per-minute history
-you can chart and export.
+are using the network, how much each app has used, a map of where the traffic
+goes, and per-minute history you can chart and export.
 
 <img src="assets/screenshots/world-map.png" alt="Traffic drawn on a world map">
 
@@ -40,33 +40,61 @@ you can chart and export.
 inside it or floating above it. Each slot shows network rates, processor,
 graphics, memory or storage readings, with independent units and colour.
 
-**Live view.** Download and upload against a rolling 30 minute chart. Zoom the
-time axis with the wheel, hover for values, and set the sampling interval
-anywhere from 100 ms to an hour.
+**Live view.** Download and upload against a rolling 30 minute chart, with the
+peak and average across it and what has moved today. Zoom the time axis with the
+wheel, hover for values, and pause the chart to read it while measuring carries
+on.
 
-**History.** Every minute is recorded to a local SQLite database and stays at
-full resolution. Query any period by minute, hour or day. Export and import CSV.
-A year is about a dozen megabytes.
+**History.** Every minute is recorded to a local SQLite database and kept for
+good at full resolution. Query any period by minute, hour or day. Point at a bar
+to see which apps made it up: measured by Windsock itself while the full edition
+runs as administrator, and from Windows' own count otherwise, each in its own
+shade. Under the usage chart the processor, graphics, memory, disk and the
+connection's response time and outages run on the same time axis, so a busy
+minute, a hot processor and a dropped connection line up. Export and import CSV.
+Time Windsock was closed is filled in, drawn fainter, from what Windows itself
+counted, for as far back as Windows keeps it. Minute detail of each app can be
+folded into quarter hours after a chosen time, in Settings, if disk is short.
 
-**Processes.** Per-process upload and download rates, open sockets, and the
-remote address of each connection. Loopback connections are resolved to the
-program at the other end instead of showing `127.0.0.1`.
+**Apps.** Every app on the network, live: its rate, its open sockets and the
+remote address of each connection, named from the DNS cache, under a map of where
+the traffic goes. An app is what Windows counts - every process running one
+program, or one Store package - so without administrator rights, and always in
+the Store edition, each app's rate is Windows' own count over the last five
+minutes. Run as administrator, the full edition measures every second and can
+show each process instead. Loopback connections are resolved to the app at the
+other end instead of showing `127.0.0.1`, and never counted as network use.
 
-**Network map.** Traces the route to each remote address with ICMP and merges
-shared hops, so the graph shows which branch of the network carries the traffic.
-Can be drawn on a world map using an offline geolocation database.
+Pick a period instead of Live and the same page totals each app over the last
+hour, a day, a week or a month: the figures Settings shows under Data usage, kept
+in Windsock's history so they last, covering every network the PC has used and
+time Windsock was not running.
 
-**System.** Processor, memory, graphics and storage readings with per-core bars.
-Graphics temperatures for NVIDIA, AMD and Intel adapters.
+**Connection.** Says plainly whether the internet is there and, when it is not,
+whether the router, the internet provider or a sign-in page is the likely cause.
+Notifies when it drops and comes back, logs every outage with CSV export, and
+charts router and internet response times over the last hour. The taskbar meter
+shows a dash while the internet is gone.
+
+**Network map.** Every remote address the machine is talking to, drawn on a
+world map using an offline geolocation database, with this PC in the middle. An
+app talking to hundreds of places, such as a torrent client, shows its busiest
+and gathers the rest into one node. Ask for routes and the full edition traces
+the way to each place with ICMP and merges shared hops, so the graph shows which
+branch of the network carries the traffic.
+
+**System.** Network, processor, graphics, memory and storage each have an entry
+in the sidebar with their live figure beside it, and a page of their own: a chart
+of the last few minutes, then per-core bars, adapters, drives and memory modules. Graphics temperatures for NVIDIA, AMD and Intel adapters.
 
 <table>
 <tr>
 <td width="50%"><img src="assets/screenshots/system.png" alt="System tab"><br><sub><b>System</b>: processor, graphics, memory and storage, with per-core bars and temperatures.</sub></td>
-<td width="50%"><img src="assets/screenshots/processes.png" alt="Process tab"><br><sub><b>Processes</b>: per-process rates and sockets, over a graph of where the traffic goes.</sub></td>
+<td width="50%"><img src="assets/screenshots/processes.png" alt="Apps page"><br><sub><b>Apps</b>: rates and sockets for every app, over a graph of where the traffic goes.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="assets/screenshots/history.png" alt="History tab"><br><sub><b>History</b>: any period by minute, hour or day. Gaps are drawn as gaps, not zeroes.</sub></td>
-<td width="50%"><img src="assets/screenshots/process-window.png" alt="Per-process window"><br><sub><b>One program</b>: double-click a row for its own rates, sockets and routes.</sub></td>
+<td width="50%"><img src="assets/screenshots/process-window.png" alt="Per-process window"><br><sub><b>One app</b>: double-click a row for its own rates, sockets and routes.</sub></td>
 </tr>
 <tr>
 <td colspan="2"><img src="assets/screenshots/taskbar-settings.png" alt="Taskbar tab"><br><sub><b>Taskbar</b>: each slot picks its own reading, units, size, alignment and colour.</sub></td>
@@ -98,12 +126,21 @@ msiexec /i Windsock-win.msi VELOPACK_INSTALLDIR="D:\Apps\Windsock"
 | | Full | Store |
 | :-- | :--: | :--: |
 | Live rates, history, taskbar meter, system readings | Yes | Yes |
-| Process table and network map | Yes | No |
-| Processor temperature | Yes | No |
+| Connection watching, outage log and alerts | Yes | Yes |
+| Apps: every app live, with its sockets and the network map | Yes | Yes |
+| Apps: each app's usage over a period, as Windows counts it | Yes | Yes |
+| Each app's rate over the last five minutes, from Windows | Yes | Yes |
+| Rates measured each second, and a view of each process | As administrator | No |
+| Route tracing on the network map, reverse DNS | Yes | No |
+| Processor temperature | As administrator | No |
 | Code signed | No | Yes, by Microsoft |
 
-The two excluded features require administrator rights, which a Store app cannot
-obtain. They are removed from the Store build rather than disabled in it.
+Live per-process rates and processor temperature need administrator rights,
+which the Store edition never asks for. They are removed from the Store build
+rather than disabled in it: neither the kernel trace behind the rates nor the
+code that talks to PawnIO is in the package. Route tracing and reverse DNS are
+left out of the Store edition, whatever its settings say, so that its only
+packets are the connection checks.
 
 Windsock installs no kernel driver and contains none.
 
@@ -160,7 +197,7 @@ through [PawnIO](https://pawnio.eu) if you install it yourself.
 1. Install PawnIO from <https://pawnio.eu> and choose the official signed build.
 2. Run Windsock as an administrator. PawnIO's device only admits administrators.
 
-The reading then appears on the processor tile, in the System tab and as a
+The reading then appears on the Processor page and as a
 taskbar slot. Until then:
 
 | Shown | Meaning |
@@ -183,15 +220,23 @@ author, and there is no server behind the application.
 Data is written to `%LOCALAPPDATA%\Shariar Shuvo\Windsock`:
 
 ```
-Windsock.db        usage history, one row per minute
+Windsock.db        usage history, one row per minute: the network, each app, the machine, the connection
+Outages.db         the outage log
 settings.json      settings
 logs\              rolling logs, seven days
 ```
 
-The Store edition makes no network requests. The full edition performs reverse
-DNS lookups, ICMP route traces when a graph requires one, and update checks. All
-three can be turned off, and geolocation is resolved offline from a database
-shipped with the application.
+Per-app usage is read from Windows, which already counts it, and addresses are
+named from the DNS client's cache; neither sends anything. Both editions ping
+your own router every few seconds to watch the connection, which never leaves
+your local network, and ping a public address only if you choose one in the
+Connection section. Background watching can be turned off. The full edition also
+performs reverse DNS lookups for addresses the cache cannot name, ICMP route
+traces when a graph requires one, and update checks. Route traces and update
+checks can be turned off in Settings. Reverse DNS happens only while the network
+map or an app's own window is naming addresses, and each has a names switch
+that stops it there. Geolocation is resolved offline
+from a database shipped with the application.
 
 See [PRIVACY.md](PRIVACY.md).
 

@@ -18,7 +18,8 @@ public sealed class UsageHoverEventArgs(bool hasValue, Point position, UsageBuck
 }
 
 /// <summary>
-/// Draws recorded usage as one bar per bucket, upload stacked on download.
+/// Draws recorded usage as one bar per bucket, upload stacked on download, and
+/// what Windows counted while Windsock was closed stacked above that, fainter.
 /// </summary>
 public sealed class UsageBarChart : FrameworkElement
 {
@@ -29,6 +30,10 @@ public sealed class UsageBarChart : FrameworkElement
     private const double MinimumBarWidth = 1.0;
     private const double ZoomPerNotch = 1.35;
     private const double MinimumBucketsVisible = 2;
+
+    // Windows' count is drawn in the same colours, fainter: the same kind of
+    // figure, measured by somebody else.
+    private const double EstimateOpacity = 0.4;
     private double _span = 1;
     private double _offset;
     private Point _dragFrom;
@@ -158,12 +163,24 @@ public sealed class UsageBarChart : FrameworkElement
     /// <summary>Whether the time axis is showing less than the whole period.</summary>
     public bool IsZoomed => _span < 0.999;
 
+    /// <summary>Where the view starts, as a fraction of the period, and how much of it shows.</summary>
+    public (double Offset, double Span) View => (_offset, _span);
+
+    /// <summary>Raised when the view is zoomed, panned or reset, so a chart beside it can follow.</summary>
+    public event EventHandler? ViewChanged;
+
+    /// <summary>Raised when a bar is clicked, rather than the view dragged.</summary>
+    public event EventHandler<UsageHoverEventArgs>? BucketClicked;
+
+    private Point _pressedAt;
+
     /// <summary>Returns the whole period to view.</summary>
     public void ResetZoom()
     {
         _span = 1;
         _offset = 0;
         InvalidateVisual();
+        ViewChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private static DependencyProperty Register<T>(string name, T fallback, bool resetsZoom = false) =>
@@ -182,6 +199,7 @@ public sealed class UsageBarChart : FrameworkElement
         {
             chart._span = 1;
             chart._offset = 0;
+            chart.ViewChanged?.Invoke(chart, EventArgs.Empty);
         }
     }
 
@@ -209,6 +227,7 @@ public sealed class UsageBarChart : FrameworkElement
         _span = span;
 
         InvalidateVisual();
+        ViewChanged?.Invoke(this, EventArgs.Empty);
         Track(e.GetPosition(this));
         e.Handled = true;
     }
@@ -217,6 +236,8 @@ public sealed class UsageBarChart : FrameworkElement
     {
         base.OnMouseLeftButtonDown(e);
         ArgumentNullException.ThrowIfNull(e);
+
+        _pressedAt = e.GetPosition(this);
 
         if (!IsZoomed)
         {
@@ -233,7 +254,18 @@ public sealed class UsageBarChart : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        ArgumentNullException.ThrowIfNull(e);
         EndDrag();
+
+        // A press that barely moved is a click on the bar under it.
+        Point at = e.GetPosition(this);
+
+        if (Math.Abs(at.X - _pressedAt.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(at.Y - _pressedAt.Y) < SystemParameters.MinimumVerticalDragDistance
+            && Find(at) is { } bucket)
+        {
+            BucketClicked?.Invoke(this, new UsageHoverEventArgs(true, at, bucket));
+        }
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -249,6 +281,7 @@ public sealed class UsageBarChart : FrameworkElement
             double moved = (at.X - _dragFrom.X) / width * _span;
             _offset = Math.Clamp(_dragOffset - moved, 0, 1 - _span);
             InvalidateVisual();
+            ViewChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
@@ -279,21 +312,33 @@ public sealed class UsageBarChart : FrameworkElement
 
     private void Track(Point at)
     {
+        if (Find(at) is { } bucket)
+        {
+            HoverChanged?.Invoke(this, new UsageHoverEventArgs(true, at, bucket));
+        }
+        else
+        {
+            Clear();
+        }
+    }
+
+    /// <summary>The bucket under a point, if any.</summary>
+    private UsageBucket? Find(Point at)
+    {
         IReadOnlyList<UsageBucket> buckets = Buckets;
         double total = (RangeEnd - RangeStart).TotalSeconds;
 
         if (buckets.Count == 0 || total <= 0 || at.X < LeftGutter || at.Y > ActualHeight - BottomGutter)
         {
-            Clear();
-            return;
+            return null;
         }
         double seconds = (_offset + (Fraction(at.X) * _span)) * total;
-        double width = SecondsPer(Granularity);
         int found = -1;
 
         for (int i = 0; i < buckets.Count; i++)
         {
             double start = (buckets[i].Start - RangeStart).TotalSeconds;
+            double width = SecondsOf(buckets[i], Granularity);
 
             if (seconds >= start - (width / 2) && seconds < start + width + (width / 2))
             {
@@ -306,13 +351,7 @@ public sealed class UsageBarChart : FrameworkElement
             }
         }
 
-        if (found < 0)
-        {
-            Clear();
-            return;
-        }
-
-        HoverChanged?.Invoke(this, new UsageHoverEventArgs(true, at, buckets[found]));
+        return found < 0 ? null : buckets[found];
     }
 
     private double Fraction(double x) =>
@@ -351,7 +390,7 @@ public sealed class UsageBarChart : FrameworkElement
         double plotHeight = height - TopPadding - BottomGutter;
 
         IReadOnlyList<UsageBucket> buckets = Buckets;
-        long ceiling = Ceiling(buckets);
+        long ceiling = Ceiling(buckets, Granularity);
 
         DrawGrid(drawingContext, plotLeft, plotTop, plotWidth, plotHeight, ceiling);
 
@@ -366,15 +405,15 @@ public sealed class UsageBarChart : FrameworkElement
         DrawTimeLabels(drawingContext, plotLeft, plotWidth, height);
     }
 
-    private static long Ceiling(IReadOnlyList<UsageBucket> buckets)
+    private static long Ceiling(IReadOnlyList<UsageBucket> buckets, UsageGranularity granularity)
     {
         long tallest = 0;
 
         foreach (UsageBucket bucket in buckets)
         {
-            if (bucket.BytesTotal > tallest)
+            if (DrawnBytes(bucket, granularity) > tallest)
             {
-                tallest = bucket.BytesTotal;
+                tallest = DrawnBytes(bucket, granularity);
             }
         }
 
@@ -426,9 +465,6 @@ public sealed class UsageBarChart : FrameworkElement
 
         double visible = total * _span;
         double from = total * _offset;
-        double bucketSeconds = SecondsPer(Granularity);
-        double slot = width * bucketSeconds / visible;
-        double barWidth = Math.Max(MinimumBarWidth, slot > 4 ? slot - 1 : slot);
 
         Brush? download = DownloadBrush;
         Brush? upload = UploadBrush;
@@ -438,6 +474,9 @@ public sealed class UsageBarChart : FrameworkElement
         for (int i = 0; i < buckets.Count; i++)
         {
             UsageBucket bucket = buckets[i];
+            double bucketSeconds = SecondsOf(bucket, Granularity);
+            double slot = width * bucketSeconds / visible;
+            double barWidth = Math.Max(MinimumBarWidth, slot > 4 ? slot - 1 : slot);
             double offset = (bucket.Start - RangeStart).TotalSeconds - from;
 
             if (offset < -bucketSeconds || offset > visible)
@@ -445,15 +484,27 @@ public sealed class UsageBarChart : FrameworkElement
                 continue;
             }
 
+            // A stretch Windows counts only by the hour spreads its bytes over
+            // the whole stretch, drawn at the height of its average minute, so
+            // it neither towers over the minutes beside it nor hides among them.
+            double spread = Spread(bucket, Granularity);
             double x = left + (width * offset / visible);
             double downHeight = height * bucket.BytesDown / ceiling;
             double upHeight = height * bucket.BytesUp / ceiling;
+            double estimatedDownHeight = height * bucket.EstimatedDown / spread / ceiling;
+            double estimatedUpHeight = height * bucket.EstimatedUp / spread / ceiling;
             double stacked = downHeight + upHeight;
 
             if (stacked > 0 && stacked < 1)
             {
                 downHeight = bucket.BytesDown > 0 ? 1 : 0;
                 upHeight = bucket.BytesUp > 0 ? 1 : 0;
+            }
+
+            if (bucket.HasEstimate && estimatedDownHeight + estimatedUpHeight is > 0 and < 1)
+            {
+                estimatedDownHeight = bucket.EstimatedDown > 0 ? 1 : 0;
+                estimatedUpHeight = bucket.EstimatedUp > 0 ? 1 : 0;
             }
 
             if (lit == bucket.Start && HighlightBrush is { } highlight)
@@ -476,8 +527,52 @@ public sealed class UsageBarChart : FrameworkElement
                     null,
                     new Rect(x, bottom - downHeight - upHeight, barWidth, upHeight));
             }
+
+            if (!bucket.HasEstimate)
+            {
+                continue;
+            }
+
+            double top0 = bottom - downHeight - upHeight;
+            context.PushOpacity(EstimateOpacity);
+
+            if (download is not null && estimatedDownHeight > 0)
+            {
+                context.DrawRectangle(
+                    download,
+                    null,
+                    new Rect(x, top0 - estimatedDownHeight, barWidth, estimatedDownHeight));
+            }
+
+            if (upload is not null && estimatedUpHeight > 0)
+            {
+                context.DrawRectangle(
+                    upload,
+                    null,
+                    new Rect(x, top0 - estimatedDownHeight - estimatedUpHeight, barWidth, estimatedUpHeight));
+            }
+
+            context.Pop();
         }
     }
+
+    /// <summary>
+    /// How many of the chart's buckets a bucket's estimate is spread across:
+    /// one, except by the minute, where a stretch Windows counted by the hour
+    /// covers many.
+    /// </summary>
+    private static double Spread(UsageBucket bucket, UsageGranularity granularity) =>
+        granularity == UsageGranularity.Minute && bucket.Minutes == 0 && bucket.EstimatedMinutes > 1
+            ? bucket.EstimatedMinutes
+            : 1;
+
+    /// <summary>The height a bucket is drawn to, in bytes.</summary>
+    private static long DrawnBytes(UsageBucket bucket, UsageGranularity granularity) =>
+        bucket.BytesTotal + (long)((bucket.EstimatedDown + bucket.EstimatedUp) / Spread(bucket, granularity));
+
+    /// <summary>How much time a bucket spans on the axis.</summary>
+    private static double SecondsOf(UsageBucket bucket, UsageGranularity granularity) =>
+        SecondsPer(granularity) * Spread(bucket, granularity);
 
     private void DrawTimeLabels(DrawingContext context, double left, double width, double height)
     {

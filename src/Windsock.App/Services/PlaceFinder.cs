@@ -11,11 +11,39 @@ namespace Windsock.App.Services;
 /// </summary>
 public sealed class PlaceFinder
 {
+    /// <summary>One guess at home per table, worked out away from the UI thread.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IpLocations, Task<WorldPlace?>> Guesses = [];
+
     private readonly IpLocations? _places;
+    private readonly Task<WorldPlace?>? _guess;
     private readonly Dictionary<string, WorldPlace> _known = new(StringComparer.Ordinal);
     private readonly HashSet<string> _nowhere = new(StringComparer.Ordinal);
 
-    public PlaceFinder(IpLocations? places) => _places = places;
+    public PlaceFinder(IpLocations? places)
+    {
+        _places = places;
+
+        if (places is not null)
+        {
+            _guess = Guesses.GetValue(places, static table => Task.Run(() => Guess(table)));
+        }
+    }
+
+    private static WorldPlace? Guess(IpLocations table)
+    {
+        try
+        {
+            return HomeGuess.Estimate(
+                table,
+                TimeZoneInfo.Local,
+                System.Globalization.RegionInfo.CurrentRegion.TwoLetterISORegionName,
+                HomeGuess.OwnAddresses());
+        }
+        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or ObjectDisposedException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>Whether anything can be located at all.</summary>
     public bool CanLocate => _places is not null;
@@ -76,7 +104,6 @@ public sealed class PlaceFinder
         Dictionary<string, List<(string Name, double Rate)>> holds =
             new(StringComparer.OrdinalIgnoreCase);
 
-        WorldPlace? anywhere = null;
         bool any = false;
 
         foreach (PeerNodeViewModel peer in peers)
@@ -87,7 +114,6 @@ public sealed class PlaceFinder
             }
 
             any = true;
-            anywhere ??= place;
 
             if (!holds.TryGetValue(place.Country, out List<(string, double)>? there))
             {
@@ -98,13 +124,18 @@ public sealed class PlaceFinder
             there.Add((peer.Label, peer.SendRate + peer.ReceiveRate));
         }
 
-        WorldPlace? home = null;
+        WorldPlace? hop = null;
         int nearest = int.MaxValue;
 
         foreach (RouteNode root in roots)
         {
-            Closest(root, ref home, ref nearest);
+            Closest(root, ref hop, ref nearest);
         }
+
+        // Never a far end: a peer is wherever the peer is. The first traced
+        // hop only sharpens the guess, and only inside the guess's country.
+        WorldPlace? guess = _guess is { IsCompletedSuccessfully: true } done ? done.Result : null;
+        WorldPlace? home = _guess is { IsCompleted: false } ? null : HomeGuess.Refine(guess, hop);
 
         Dictionary<string, CountryNote> notes = new(StringComparer.OrdinalIgnoreCase);
         double loudest = 0;
@@ -138,7 +169,7 @@ public sealed class PlaceFinder
                 loudest > 0 ? moving / loudest : (double)there.Count / most);
         }
 
-        return new Survey(home ?? anywhere, any || home is not null, notes);
+        return new Survey(home, any || home is not null, notes);
     }
 
     private static string Name(List<(string Name, double Rate)> there)

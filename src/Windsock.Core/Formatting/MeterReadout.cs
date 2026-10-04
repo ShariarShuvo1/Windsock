@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text;
+using Windsock.Core.Connectivity;
 using Windsock.Core.Hardware;
 using Windsock.Core.Settings;
 
@@ -15,6 +16,12 @@ public readonly record struct MeterReading(
 {
     /// <summary>A reading before anything has been measured.</summary>
     public static MeterReading Empty { get; } = new(0, 0, SystemSnapshot.Empty);
+
+    /// <summary>
+    /// Whether the internet is reachable. Checking - the default - when nobody is
+    /// watching the connection, which leaves the network figures as they are.
+    /// </summary>
+    public ConnectionState Connection { get; init; }
 }
 
 /// <summary>
@@ -193,6 +200,11 @@ public static class MeterReadout
         var text = new StringBuilder();
         var seen = new HashSet<MeterField>();
 
+        if (Offline(reading) is { } offline)
+        {
+            text.Append(offline);
+        }
+
         foreach (MeterSlot slot in slots)
         {
             MeterField field = slot.Field;
@@ -223,6 +235,31 @@ public static class MeterReadout
         return text.Length > 0 ? text.ToString() : "Windsock";
     }
 
+    /// <summary>
+    /// What the meter says about an outage in progress - "Internet unreachable
+    /// since 21:04" - or nothing while the internet is there or not being watched.
+    /// </summary>
+    public static string? Offline(in MeterReading reading)
+    {
+        if (reading.Connection is not { IsOffline: true } state)
+        {
+            return null;
+        }
+
+        string headline = OutageWords.Headline(state.Cause ?? OutageCause.Unknown);
+
+        return state.Since is { } since
+            ? string.Create(CultureInfo.CurrentCulture, $"{headline} since {since.ToLocalTime():t}")
+            : headline;
+    }
+
+    /// <summary>
+    /// The rate below which, during an outage, a network figure is shown as a
+    /// dash. Enough to cover the trickle of local chatter a disconnected PC
+    /// still makes; a real transfer on the local network still shows.
+    /// </summary>
+    public const double OfflineTrickle = 1024;
+
     private static (string Value, string Unit) Measure(
         MeterField field,
         in MeterReading reading,
@@ -233,6 +270,7 @@ public static class MeterReadout
 
         return field switch
         {
+            MeterField.Download or MeterField.Upload or MeterField.NetworkTotal when Disconnected(reading) => Missing,
             MeterField.Download => Rate(reading.DownloadBytesPerSecond, family, scale),
             MeterField.Upload => Rate(reading.UploadBytesPerSecond, family, scale),
             MeterField.NetworkTotal =>
@@ -291,6 +329,14 @@ public static class MeterReadout
     }
 
     private static (string Value, string Unit) Missing => (Unknown, string.Empty);
+
+    /// <summary>
+    /// Whether the network figures should be a dash: the internet is gone and
+    /// what little is moving is not worth a number that reads as "connected".
+    /// </summary>
+    private static bool Disconnected(in MeterReading reading) =>
+        reading.Connection.IsOffline
+        && Usable(reading.DownloadBytesPerSecond) + Usable(reading.UploadBytesPerSecond) < OfflineTrickle;
 
     private static (string Value, string Unit) Rate(double bytesPerSecond, RateFamily family, RateScale scale) =>
         RateFormatter.Split(bytesPerSecond, family, scale);

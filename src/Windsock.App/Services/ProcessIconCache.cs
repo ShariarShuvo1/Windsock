@@ -22,6 +22,12 @@ public sealed class ProcessIconCache
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Raised on a background thread when an icon has been read, so a view that
+    /// does not refresh by itself can ask again.
+    /// </summary>
+    public event EventHandler? Loaded;
+
+    /// <summary>
     /// The icon for a program if it is known, otherwise null and a read starts
     /// in the background.
     /// </summary>
@@ -58,6 +64,11 @@ public sealed class ProcessIconCache
 
         _icons[path] = icon;
         _asking.TryRemove(path, out _);
+
+        if (icon is not null)
+        {
+            Loaded?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private static unsafe BitmapSource? Extract(string path)

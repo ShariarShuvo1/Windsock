@@ -99,9 +99,19 @@ public sealed partial class ThroughputMonitor : BackgroundService
 
     private void SeedHistory()
     {
+        DateTimeOffset now = DateTimeOffset.Now;
+
         History.Clear();
-        History.Prefill(_options.InitialVisibleSamples, DateTimeOffset.Now, _interval);
+        History.Prefill(_options.InitialVisibleSamples, now, _interval);
+        MeasuringSince = now;
     }
+
+    /// <summary>
+    /// When the history began holding real readings. Everything timestamped
+    /// before it is the zero filler that gives a chart its axes at launch, and
+    /// is not a measurement: a peak or an average must not count it.
+    /// </summary>
+    public DateTimeOffset MeasuringSince { get; private set; }
 
     /// <summary>The most recent sample, or <see cref="ThroughputSample.Empty"/>.</summary>
     public ThroughputSample Latest => _latest;

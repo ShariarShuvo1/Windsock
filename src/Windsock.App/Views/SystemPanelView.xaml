@@ -8,588 +8,804 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:SystemPanelViewModel}"
              d:DesignWidth="880"
-             d:DesignHeight="470">
+             d:DesignHeight="700">
 
     <!--
-        What the machine is, and what it is doing. Four tiles read across the
-        top, and one panel below them elaborating whichever is chosen - the same
-        readings at two depths rather than two different things being measured.
-    -->
-    <!--
-        One scroller around the whole body rather than one around the detail
-        alone: the machine line and the tiles are part of what is being read, and
-        pinning them while everything under them moves splits one page into two
-        that scroll differently.
+        One part of the machine, chosen in the sidebar, with no heading over it:
+        its chart is the first thing on the page, from its very top.
+
+        Under the chart, for the network, what that chart adds up to; under
+        that, everything the machine will say about the part, and a line naming
+        the machine at the foot. The two groups have neither fill nor outline,
+        only the rules inside them, so they sit on the page rather than on boxes
+        of their own.
     -->
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
-                  Padding="0,0,4,0">
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+                  Padding="8,4,8,16">
+        <Grid>
+            <StackPanel>
+                <!-- ===================== The live picture ===================== -->
+                <Border>
+                    <controls:RuledPanel>
+                        <!-- The live network chart, handed in from the code behind. -->
+                        <ContentControl x:Name="NetworkChart"
+                                        Focusable="False"
+                                        Visibility="{Binding IsNetworkShowing, Converter={StaticResource BooleanToVisibility}}" />
 
-        <!--
-            One line saying which machine this is. Wrapped rather than in a row,
-            because a narrow window has to put these on two lines and a row that
-            cannot wrap runs the last of them off the edge.
-        -->
-        <WrapPanel Grid.Row="0" Margin="2,0,2,10">
-            <TextBlock Text="{Binding MachineName}"
-                       FontSize="13"
-                       FontWeight="SemiBold"
-                       Margin="0,0,12,0"
-                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-
-            <TextBlock Text="{Binding Windows}"
-                       FontSize="12"
-                       Margin="0,0,12,0"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-
-            <TextBlock Text="{Binding Board}"
-                       FontSize="12"
-                       Margin="0,0,12,0"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="up "
-                           FontSize="12"
-                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                <TextBlock Text="{Binding Uptime}"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-            </StackPanel>
-        </WrapPanel>
-
-        <!--
-            The four tiles, in as many columns as will fit. Four across in a
-            window of any normal width, two by two in a narrow one, and one
-            below the other when the window is at its narrowest.
-
-            Held to one row instead, a tile at four hundred pixels is eighty
-            pixels wide, which is not enough for the word PROCESSOR let alone a
-            figure under it. Two rows of two is still a set to be read together;
-            four columns of ellipses is not.
-
-            The negative margin takes back the gutter the last tile in a row
-            carries, so the row ends flush with everything above and below it.
-        -->
-        <controls:FlowGrid Grid.Row="1"
-                           MinimumColumnWidth="180"
-                           IsBalanced="True"
-                           Margin="0,0,-10,2">
-            <RadioButton Style="{StaticResource SystemTileStyle}"
-                         Margin="0,0,10,10"
-                         DataContext="{Binding Processor}"
-                         Tag="{DynamicResource ProcessorBrush}"
-                         IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                         AutomationProperties.Name="Processor"
-                         ToolTip="How hard the processor is working" />
-
-            <RadioButton Style="{StaticResource SystemTileStyle}"
-                         Margin="0,0,10,10"
-                         DataContext="{Binding Graphics}"
-                         Tag="{DynamicResource GraphicsBrush}"
-                         IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                         AutomationProperties.Name="Graphics"
-                         ToolTip="How hard the display adapter is working" />
-
-            <RadioButton Style="{StaticResource SystemTileStyle}"
-                         Margin="0,0,10,10"
-                         DataContext="{Binding Memory}"
-                         Tag="{DynamicResource MemoryBrush}"
-                         IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                         AutomationProperties.Name="Memory"
-                         ToolTip="How much memory is in use" />
-
-            <RadioButton Style="{StaticResource SystemTileStyle}"
-                         Margin="0,0,10,10"
-                         DataContext="{Binding Storage}"
-                         Tag="{DynamicResource StorageBrush}"
-                         IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                         AutomationProperties.Name="Storage"
-                         ToolTip="How hard the drives are working" />
-        </controls:FlowGrid>
-
-        <!-- Everything about whichever tile is chosen. -->
-        <Grid Grid.Row="2">
-            <Grid>
-                <!-- ===================== Processor ===================== -->
-                <StackPanel Visibility="{Binding IsProcessorShowing, Converter={StaticResource BooleanToVisibility}}">
-                    <Border Style="{StaticResource DetailCardStyle}">
-                        <StackPanel>
-                            <TextBlock Text="{Binding ProcessorName}"
-                                       FontSize="15"
-                                       FontWeight="SemiBold"
-                                       TextTrimming="CharacterEllipsis"
-                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-
-                            <TextBlock Text="{Binding ProcessorCores}"
-                                       FontSize="12"
-                                       Margin="0,3,0,0"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-
-                            <TextBlock Text="{Binding ProcessorSilicon}"
-                                       FontSize="12"
-                                       Margin="0,2,0,0"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- The live figures the name above does not carry. -->
-                    <controls:FlowGrid MinimumColumnWidth="180" Margin="0,10,-10,0">
-                        <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
+                        <!--
+                            The chart for any other part, laid out as the
+                            network's is - the figures that matter on the left,
+                            the last five minutes on the right - so
+                            choosing a different tile changes what the chart
+                            says and nothing about where to look for it.
+                        -->
+                        <Border Style="{StaticResource SectionStyle}"
+                                DataContext="{Binding Selected}"
+                                Visibility="{Binding DataContext.IsPartShowing, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibility}}">
                             <StackPanel>
-                                <TextBlock Text="CLOCK" Style="{StaticResource DetailCaptionStyle}" />
-                                <TextBlock Text="{Binding ProcessorClock}" Style="{StaticResource DetailValueStyle}" />
-                            </StackPanel>
-                        </Border>
+                                <controls:AdaptiveRow Breakpoint="600"
+                                                      LeadWidth="{StaticResource ChartLeadWidth}"
+                                                      Spacing="24">
+                                    <StackPanel VerticalAlignment="Top">
+                                        <StackPanel Orientation="Horizontal" Height="46" Margin="0,0,0,14">
+                                            <TextBlock Text="{Binding Value}"
+                                                       FontSize="40"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Bottom"
+                                                       LineHeight="44"
+                                                       LineStackingStrategy="BlockLineHeight"
+                                                       Typography.NumeralAlignment="Tabular"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            <TextBlock Text="{Binding Unit}"
+                                                       FontSize="15"
+                                                       FontWeight="SemiBold"
+                                                       Margin="4,0,0,7"
+                                                       VerticalAlignment="Bottom"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
 
-                        <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
-                            <StackPanel>
-                                <TextBlock Text="KERNEL" Style="{StaticResource DetailCaptionStyle}" />
-                                <TextBlock Text="{Binding ProcessorKernel}" Style="{StaticResource DetailValueStyle}" />
-                            </StackPanel>
-                        </Border>
+                                        <ItemsControl ItemsSource="{Binding Facts}"
+                                                      ItemTemplate="{StaticResource TileFactTemplate}"
+                                                      Focusable="False" />
+                                    </StackPanel>
 
-                        <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
-                            <StackPanel>
-                                <TextBlock Text="RUNNING" Style="{StaticResource DetailCaptionStyle}" />
-                                <TextBlock Text="{Binding ProcessorProcesses}" Style="{StaticResource DetailValueStyle}" />
-                                <TextBlock Text="{Binding ProcessorThreads}"
-                                           Style="{StaticResource DetailNoteStyle}"
-                                           Margin="0,2,0,0" />
+                                    <Border Style="{StaticResource ChartWellStyle}" Height="232">
+                                        <controls:ShareChart Style="{StaticResource PartChartStyle}"
+                                                             Values="{Binding History}"
+                                                             Revision="{Binding Revision}"
+                                                             SampleSeconds="1"
+                                                             AutomationProperties.Name="{Binding Heading}" />
+                                    </Border>
+                                </controls:AdaptiveRow>
                             </StackPanel>
                         </Border>
 
                         <!--
-                            Collapses entirely where the value is empty, which
-                            is the Store edition: that build ships without the
-                            feature rather than with a card that can never fill.
-
-                            Elsewhere the card is always here, dash and all. The
-                            note under it carries the reason - no PawnIO, or no
-                            elevation - and is itself absent while degrees are
-                            arriving, so a working machine shows a figure and
-                            nothing else.
+                            What the chart adds up to: today from the history,
+                            and the fastest and the usual across what the chart
+                            holds.
                         -->
-                        <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10"
-                                Visibility="{Binding ProcessorTemperature, Converter={StaticResource TextToVisibility}}">
+                        <controls:FlowGrid Style="{StaticResource PlateStripStyle}"
+                                           controls:RuledPanel.RuleAbove="False"
+                                           MinimumColumnWidth="180"
+                                           Visibility="{Binding IsNetworkShowing, Converter={StaticResource BooleanToVisibility}}">
+                            <Border Style="{StaticResource PlateCellStyle}"
+                                    ToolTip="Downloaded since midnight, as the history recorded it">
+                                <StackPanel>
+                                    <ContentControl Content="DOWNLOADED TODAY" Style="{StaticResource DirectionLabelStyle}" />
+                                    <TextBlock Text="{Binding TodayDownload}" Style="{StaticResource StatValueStyle}" />
+                                    <TextBlock Text="{Binding TodayNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource PlateCellStyle}"
+                                    ToolTip="Uploaded since midnight, as the history recorded it">
+                                <StackPanel>
+                                    <ContentControl Content="UPLOADED TODAY" Style="{StaticResource UploadLabelStyle}" />
+                                    <TextBlock Text="{Binding TodayUpload}" Style="{StaticResource StatValueStyle}" />
+                                    <TextBlock Text="{Binding TodayNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <ContentControl Content="PEAK DOWNLOAD" Style="{StaticResource DirectionLabelStyle}" />
+                                    <TextBlock Text="{Binding Rates.PeakDownload}" Style="{StaticResource StatValueStyle}" />
+                                    <TextBlock Text="{Binding Rates.StatsSpan}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <ContentControl Content="PEAK UPLOAD" Style="{StaticResource UploadLabelStyle}" />
+                                    <TextBlock Text="{Binding Rates.PeakUpload}" Style="{StaticResource StatValueStyle}" />
+                                    <TextBlock Text="{Binding Rates.StatsSpan}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <ContentControl Content="AVERAGE DOWNLOAD" Style="{StaticResource DirectionLabelStyle}" />
+                                    <TextBlock Text="{Binding Rates.AverageDownload}" Style="{StaticResource StatValueStyle}" />
+                                    <TextBlock Text="{Binding Rates.StatsSpan}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <ContentControl Content="AVERAGE UPLOAD" Style="{StaticResource UploadLabelStyle}" />
+                                    <TextBlock Text="{Binding Rates.AverageUpload}" Style="{StaticResource StatValueStyle}" />
+                                    <TextBlock Text="{Binding Rates.StatsSpan}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+                        </controls:FlowGrid>
+                    </controls:RuledPanel>
+                </Border>
+
+                <!-- ===================== The detail ===================== -->
+                <Border Margin="{StaticResource BlockGap}">
+                    <Grid>
+                        <!-- Network -->
+                        <Border Style="{StaticResource SectionStyle}"
+                                Padding="20,16,20,8"
+                                Visibility="{Binding IsNetworkShowing, Converter={StaticResource BooleanToVisibility}}">
                             <StackPanel>
-                                <TextBlock Text="TEMPERATURE" Style="{StaticResource DetailCaptionStyle}" />
-                                <TextBlock Text="{Binding ProcessorTemperature}" Style="{StaticResource DetailValueStyle}" />
-                                <TextBlock Text="{Binding ProcessorTemperatureNote}"
-                                           Style="{StaticResource DetailNoteStyle}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,2,0,0"
-                                           ToolTip="{Binding ProcessorTemperatureHint}"
-                                           Visibility="{Binding ProcessorTemperatureNote, Converter={StaticResource TextToVisibility}}" />
+                                <TextBlock Text="Adapters" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="The network connections carrying traffic, fastest link first"
+                                           Style="{StaticResource CardNoteStyle}" />
+
+                                <StackPanel Margin="0,6,0,0" Grid.IsSharedSizeScope="True">
+                                    <ItemsControl ItemsSource="{Binding Adapters}"
+                                                  ItemTemplate="{StaticResource AdapterRowTemplate}"
+                                                  Focusable="False"
+                                                  AutomationProperties.Name="Network adapters">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <controls:RuledPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="No adapter is connected."
+                                               Style="{StaticResource DetailNoteStyle}"
+                                               Margin="0,10,0,10"
+                                               Visibility="{Binding Adapters.Count, Converter={StaticResource EmptyToVisibility}}" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
-                    </controls:FlowGrid>
 
-                    <!--
-                        One bar per logical processor. Two columns rather than
-                        one long list, because sixteen bars in a column is a
-                        scroll and sixteen in two is a picture.
-                    -->
-                    <Border Style="{StaticResource DetailCardStyle}" Margin="0,10,0,0">
-                        <StackPanel>
-                            <TextBlock Text="LOGICAL PROCESSORS" Style="{StaticResource DetailCaptionStyle}" />
-
-                            <ItemsControl ItemsSource="{Binding Cores}"
-                                          Margin="0,6,0,0"
-                                          ItemTemplate="{StaticResource CoreMeterTemplate}"
-                                          AutomationProperties.Name="Logical processors">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <controls:FlowGrid MinimumColumnWidth="200" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
-
-                </StackPanel>
-
-                <!-- ===================== Graphics ===================== -->
-                <ItemsControl ItemsSource="{Binding Cards}"
-                              Visibility="{Binding IsGraphicsShowing, Converter={StaticResource BooleanToVisibility}}"
-                              AutomationProperties.Name="Display adapters">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="0,0,0,10">
-                                <Border Style="{StaticResource DetailCardStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Name}"
+                        <!-- Processor -->
+                        <controls:RuledPanel Visibility="{Binding IsProcessorShowing, Converter={StaticResource BooleanToVisibility}}">
+                            <Border Style="{StaticResource SectionStyle}">
+                                <controls:AdaptiveRow Breakpoint="560" Spacing="16" LeadFills="True">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ProcessorName}"
                                                    FontSize="15"
                                                    FontWeight="SemiBold"
                                                    TextTrimming="CharacterEllipsis"
                                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
-                                        <!-- Only where the adapter's own library will say. -->
-                                        <StackPanel Orientation="Horizontal"
-                                                    Margin="0,3,0,0"
-                                                    Visibility="{Binding Driver, Converter={StaticResource TextToVisibility}}">
-                                            <TextBlock Text="driver "
-                                                       FontSize="12"
-                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                            <TextBlock Text="{Binding Driver}"
-                                                       FontSize="12"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        </StackPanel>
+                                        <TextBlock Text="{Binding ProcessorCores}"
+                                                   FontSize="12"
+                                                   Margin="0,3,0,0"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                                        <!-- What the card is doing, and how hard. -->
-                                        <Grid Margin="0,12,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding ProcessorSilicon}"
+                                                   FontSize="12"
+                                                   Margin="0,2,0,0"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
 
-                                            <controls:MeterBar Grid.Column="0"
-                                                               Height="10"
-                                                               Margin="0,0,12,0"
+                                        <TextBlock Text="{Binding ProcessorThreads}"
+                                                   FontSize="12"
+                                                   Margin="0,2,0,0"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    </StackPanel>
+
+                                    <!--
+                                        Collapses entirely where the value is
+                                        empty, which is the Store edition: that
+                                        build ships without the feature rather
+                                        than with a figure that can never fill.
+
+                                        Elsewhere it is always here, dash and
+                                        all. The note under it carries the
+                                        reason - no PawnIO, or no elevation -
+                                        and is itself absent while degrees are
+                                        arriving.
+                                    -->
+                                    <StackPanel MinWidth="150"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding ProcessorTemperature, Converter={StaticResource TextToVisibility}}">
+                                        <TextBlock Text="TEMPERATURE" Style="{StaticResource StatLabelStyle}" />
+                                        <TextBlock Text="{Binding ProcessorTemperature}" Style="{StaticResource StatValueStyle}" />
+                                        <TextBlock Text="{Binding ProcessorTemperatureNote}"
+                                                   Style="{StaticResource StatNoteStyle}"
+                                                   ToolTip="{Binding ProcessorTemperatureHint}"
+                                                   Visibility="{Binding ProcessorTemperatureNote, Converter={StaticResource TextToVisibility}}" />
+                                    </StackPanel>
+                                </controls:AdaptiveRow>
+                            </Border>
+
+                            <!--
+                                One bar per logical processor. Columns rather
+                                than one long list, because sixteen bars in a
+                                column is a scroll and sixteen in four is a
+                                picture.
+                            -->
+                            <Border Style="{StaticResource SectionStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Logical processors" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="How busy each thread of execution is right now"
+                                               Style="{StaticResource CardNoteStyle}" />
+
+                                    <ItemsControl ItemsSource="{Binding Cores}"
+                                                  Margin="0,12,0,0"
+                                                  ItemTemplate="{StaticResource CoreMeterTemplate}"
+                                                  AutomationProperties.Name="Logical processors">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <controls:FlowGrid MinimumColumnWidth="200" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </controls:RuledPanel>
+
+                        <!-- Graphics: one run of parts per adapter, ruled off from the next -->
+                        <ItemsControl ItemsSource="{Binding Cards}"
+                                      Focusable="False"
+                                      Visibility="{Binding IsGraphicsShowing, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="Display adapters">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <controls:RuledPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <controls:RuledPanel>
+                                        <Border Style="{StaticResource SectionStyle}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="15"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                                                <!-- Only where the adapter's own library will say. -->
+                                                <TextBlock Margin="0,3,0,0"
+                                                           FontSize="12"
+                                                           Visibility="{Binding Driver, Converter={StaticResource TextToVisibility}}">
+                                                    <Run Text="Driver " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    <Run Text="{Binding Driver, Mode=OneWay}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </TextBlock>
+
+                                                <!-- What the card is doing, and how hard. -->
+                                                <Grid Margin="0,14,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="10" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+
+                                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                                               Text="Load"
+                                                               FontSize="12"
+                                                               Margin="0,0,14,0"
                                                                VerticalAlignment="Center"
-                                                               Fraction="{Binding BusyFraction}"
-                                                               Fill="{DynamicResource GraphicsBrush}"
-                                                               Track="{DynamicResource MeterTrackBrush}" />
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding Busy}"
-                                                       Style="{StaticResource DetailValueStyle}"
-                                                       VerticalAlignment="Center" />
-                                        </Grid>
+                                                    <controls:MeterBar Grid.Row="0" Grid.Column="1"
+                                                                       Height="8"
+                                                                       Margin="0,0,14,0"
+                                                                       VerticalAlignment="Center"
+                                                                       Fraction="{Binding BusyFraction}"
+                                                                       Fill="{DynamicResource GraphicsBrush}"
+                                                                       Track="{DynamicResource MeterTrackBrush}" />
 
-                                        <Grid Margin="0,10,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Row="0" Grid.Column="2"
+                                                               Text="{Binding Busy}"
+                                                               Style="{StaticResource DetailValueStyle}"
+                                                               VerticalAlignment="Center" />
 
-                                            <controls:MeterBar Grid.Column="0"
-                                                               Height="10"
-                                                               Margin="0,0,12,0"
+                                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                                               Text="Memory"
+                                                               FontSize="12"
+                                                               Margin="0,0,14,0"
                                                                VerticalAlignment="Center"
-                                                               Fraction="{Binding MemoryFraction}"
-                                                               Fill="{DynamicResource GraphicsBrush}"
-                                                               Track="{DynamicResource MeterTrackBrush}" />
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding Memory}"
+                                                    <controls:MeterBar Grid.Row="2" Grid.Column="1"
+                                                                       Height="8"
+                                                                       Margin="0,0,14,0"
+                                                                       VerticalAlignment="Center"
+                                                                       Fraction="{Binding MemoryFraction}"
+                                                                       Fill="{DynamicResource GraphicsBrush}"
+                                                                       Track="{DynamicResource MeterTrackBrush}" />
+
+                                                    <TextBlock Grid.Row="2" Grid.Column="2"
+                                                               Text="{Binding Memory}"
+                                                               FontSize="12"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- The card's own sensors, where it has any. -->
+                                        <controls:FlowGrid Style="{StaticResource PlateStripStyle}"
+                                                           controls:RuledPanel.RuleAbove="False"
+                                                           Visibility="{Binding HasSensors, Converter={StaticResource BooleanToVisibility}}">
+                                            <Border Style="{StaticResource PlateCellStyle}">
+                                                <StackPanel>
+                                                    <TextBlock Text="TEMPERATURE" Style="{StaticResource StatLabelStyle}" />
+                                                    <TextBlock Text="{Binding Temperature}" Style="{StaticResource StatValueStyle}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource PlateCellStyle}">
+                                                <StackPanel>
+                                                    <TextBlock Text="POWER" Style="{StaticResource StatLabelStyle}" />
+                                                    <TextBlock Text="{Binding Power}" Style="{StaticResource StatValueStyle}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource PlateCellStyle}">
+                                                <StackPanel>
+                                                    <TextBlock Text="FAN" Style="{StaticResource StatLabelStyle}" />
+                                                    <TextBlock Text="{Binding Fan}" Style="{StaticResource StatValueStyle}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource PlateCellStyle}">
+                                                <StackPanel>
+                                                    <TextBlock Text="CLOCKS" Style="{StaticResource StatLabelStyle}" />
+                                                    <TextBlock Style="{StaticResource StatValueStyle}">
+                                                        <Run Text="{Binding Clock, Mode=OneWay}" />
+                                                        <Run Text="{Binding MemoryClock, Mode=OneWay}"
+                                                             FontSize="13"
+                                                             FontWeight="Normal"
+                                                             Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Border>
+                                        </controls:FlowGrid>
+
+                                        <controls:FlowGrid controls:RuledPanel.RuleAbove="False" MinimumColumnWidth="300" DividerBrush="{DynamicResource CardStrokeBrush}">
+                                            <Border Style="{StaticResource SectionStyle}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Engines" Style="{StaticResource CardTitleStyle}" />
+
+                                                    <ItemsControl ItemsSource="{Binding Engines}"
+                                                                  Margin="0,10,0,0"
+                                                                  Grid.IsSharedSizeScope="True"
+                                                                  ItemTemplate="{StaticResource EngineMeterTemplate}" />
+
+                                                    <TextBlock Text="Idle"
+                                                               Style="{StaticResource DetailNoteStyle}"
+                                                               Margin="0,8,0,0"
+                                                               Visibility="{Binding Engines.Count, Converter={StaticResource EmptyToVisibility}}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource SectionStyle}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Busiest processes" Style="{StaticResource CardTitleStyle}" />
+
+                                                    <ItemsControl ItemsSource="{Binding Processes}"
+                                                                  Margin="0,10,0,0"
+                                                                  Grid.IsSharedSizeScope="True"
+                                                                  ItemTemplate="{StaticResource EngineMeterTemplate}" />
+
+                                                    <TextBlock Text="Nothing is using it"
+                                                               Style="{StaticResource DetailNoteStyle}"
+                                                               Margin="0,8,0,0"
+                                                               Visibility="{Binding Processes.Count, Converter={StaticResource EmptyToVisibility}}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </controls:FlowGrid>
+                                    </controls:RuledPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Memory -->
+                        <controls:RuledPanel Visibility="{Binding IsMemoryShowing, Converter={StaticResource BooleanToVisibility}}">
+                            <controls:FlowGrid MinimumColumnWidth="300" DividerBrush="{DynamicResource CardStrokeBrush}">
+                                <Border Style="{StaticResource SectionStyle}">
+                                    <StackPanel>
+                                        <DockPanel LastChildFill="True">
+                                            <TextBlock DockPanel.Dock="Right"
+                                                       Text="{Binding MemoryAvailable}"
                                                        FontSize="12"
                                                        VerticalAlignment="Center"
                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        </Grid>
+                                            <TextBlock Text="In use" Style="{StaticResource CardTitleStyle}" />
+                                        </DockPanel>
+
+                                        <controls:MeterBar Height="10"
+                                                           Margin="0,12,0,10"
+                                                           Fraction="{Binding MemoryFraction}"
+                                                           Fill="{DynamicResource MemoryBrush}"
+                                                           Track="{DynamicResource MeterTrackBrush}" />
+
+                                        <TextBlock Text="{Binding MemoryUsed}" Style="{StaticResource DetailValueStyle}" />
+
+                                        <TextBlock Text="{Binding MemoryFitted}"
+                                                   Style="{StaticResource DetailNoteStyle}"
+                                                   Margin="0,2,0,0" />
                                     </StackPanel>
                                 </Border>
 
-                                <!-- The card's own sensors, where it has any. -->
-                                <controls:FlowGrid MinimumColumnWidth="150"
-                                                   Margin="0,10,-10,0"
-                                                   Visibility="{Binding HasSensors, Converter={StaticResource BooleanToVisibility}}">
-                                    <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
-                                        <StackPanel>
-                                            <TextBlock Text="TEMPERATURE" Style="{StaticResource DetailCaptionStyle}" />
-                                            <TextBlock Text="{Binding Temperature}" Style="{StaticResource DetailValueStyle}" />
-                                        </StackPanel>
-                                    </Border>
+                                <Border Style="{StaticResource SectionStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="Committed" Style="{StaticResource CardTitleStyle}" />
 
-                                    <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
-                                        <StackPanel>
-                                            <TextBlock Text="POWER" Style="{StaticResource DetailCaptionStyle}" />
-                                            <TextBlock Text="{Binding Power}" Style="{StaticResource DetailValueStyle}" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
-                                        <StackPanel>
-                                            <TextBlock Text="FAN" Style="{StaticResource DetailCaptionStyle}" />
-                                            <TextBlock Text="{Binding Fan}" Style="{StaticResource DetailValueStyle}" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
-                                        <StackPanel>
-                                            <TextBlock Text="CLOCKS" Style="{StaticResource DetailCaptionStyle}" />
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Clock}" Style="{StaticResource DetailValueStyle}" />
-                                                <TextBlock Text=" · " Style="{StaticResource DetailValueStyle}" />
-                                                <TextBlock Text="{Binding MemoryClock}"
-                                                           FontSize="14"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
-                                </controls:FlowGrid>
-
-                                <controls:FlowGrid MinimumColumnWidth="260" Margin="0,10,-10,0">
-                                    <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
-                                        <StackPanel>
-                                            <TextBlock Text="ENGINES" Style="{StaticResource DetailCaptionStyle}" />
-
-                                            <ItemsControl ItemsSource="{Binding Engines}"
-                                                          Margin="0,6,0,0"
-                                                          Grid.IsSharedSizeScope="True"
-                                                          ItemTemplate="{StaticResource EngineMeterTemplate}" />
-
-                                            <TextBlock Text="Idle"
-                                                       Style="{StaticResource DetailNoteStyle}"
-                                                       Margin="0,2,0,0"
-                                                       Visibility="{Binding Engines.Count, Converter={StaticResource EmptyToVisibility}}" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
-                                        <StackPanel>
-                                            <TextBlock Text="BUSIEST PROCESSES" Style="{StaticResource DetailCaptionStyle}" />
-
-                                            <ItemsControl ItemsSource="{Binding Processes}"
-                                                          Margin="0,6,0,0"
-                                                          Grid.IsSharedSizeScope="True"
-                                                          ItemTemplate="{StaticResource EngineMeterTemplate}" />
-
-                                            <TextBlock Text="Nothing is using it"
-                                                       Style="{StaticResource DetailNoteStyle}"
-                                                       Margin="0,2,0,0"
-                                                       Visibility="{Binding Processes.Count, Converter={StaticResource EmptyToVisibility}}" />
-                                        </StackPanel>
-                                    </Border>
-                                </controls:FlowGrid>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <!-- ====================== Memory ====================== -->
-                <StackPanel Visibility="{Binding IsMemoryShowing, Converter={StaticResource BooleanToVisibility}}">
-                    <Border Style="{StaticResource DetailCardStyle}">
-                        <StackPanel>
-                            <Grid>
-                                <TextBlock Text="IN USE"
-                                           Style="{StaticResource DetailCaptionStyle}"
-                                           HorizontalAlignment="Left" />
-
-                                <TextBlock Text="{Binding MemoryAvailable}"
-                                           Style="{StaticResource DetailCaptionStyle}"
-                                           HorizontalAlignment="Right" />
-                            </Grid>
-
-                            <controls:MeterBar Height="12"
-                                               Margin="0,3,0,7"
-                                               Fraction="{Binding MemoryFraction}"
-                                               Fill="{DynamicResource MemoryBrush}"
-                                               Track="{DynamicResource MeterTrackBrush}" />
-
-                            <TextBlock Text="{Binding MemoryUsed}" Style="{StaticResource DetailValueStyle}" />
-
-                            <TextBlock Text="{Binding MemoryFitted}"
-                                       Style="{StaticResource DetailNoteStyle}"
-                                       Margin="0,2,0,0" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource DetailCardStyle}" Margin="0,10,0,0">
-                        <StackPanel>
-                            <TextBlock Text="COMMITTED" Style="{StaticResource DetailCaptionStyle}" />
-
-                            <controls:MeterBar Height="10"
-                                               Margin="0,3,0,7"
-                                               Fraction="{Binding CommitFraction}"
-                                               Fill="{DynamicResource MemoryBrush}"
-                                               Track="{DynamicResource MeterTrackBrush}" />
-
-                            <TextBlock Text="{Binding Committed}" Style="{StaticResource DetailValueStyle}" />
-
-                            <TextBlock Style="{StaticResource DetailNoteStyle}" Margin="0,2,0,0">
-                                What every process has been promised, against what the machine and its
-                                page file can promise in total.
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
-
-                    <controls:FlowGrid MinimumColumnWidth="240" Margin="0,10,-10,0">
-                        <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
-                            <StackPanel>
-                                <TextBlock Text="CACHED" Style="{StaticResource DetailCaptionStyle}" />
-                                <TextBlock Text="{Binding Cached}" Style="{StaticResource DetailValueStyle}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,10,10">
-                            <StackPanel>
-                                <TextBlock Text="KERNEL POOLS" Style="{StaticResource DetailCaptionStyle}" />
-                                <TextBlock Text="{Binding Pools}" Style="{StaticResource DetailValueStyle}" />
-                            </StackPanel>
-                        </Border>
-                    </controls:FlowGrid>
-
-                    <Border Style="{StaticResource DetailCardStyle}" Margin="0,10,0,0">
-                        <StackPanel>
-                            <TextBlock Text="MODULES FITTED" Style="{StaticResource DetailCaptionStyle}" />
-
-                            <ItemsControl ItemsSource="{Binding Modules}"
-                                          Margin="0,8,0,0"
-                                          Grid.IsSharedSizeScope="True"
-                                          ItemTemplate="{StaticResource MemoryModuleTemplate}"
-                                          AutomationProperties.Name="Memory modules" />
-
-                            <TextBlock Text="The firmware does not describe the memory on this machine."
-                                       Style="{StaticResource DetailNoteStyle}"
-                                       Visibility="{Binding Modules.Count, Converter={StaticResource EmptyToVisibility}}" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <!-- ====================== Storage ====================== -->
-                <ItemsControl ItemsSource="{Binding Drives}"
-                              Visibility="{Binding IsStorageShowing, Converter={StaticResource BooleanToVisibility}}"
-                              AutomationProperties.Name="Drives">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Style="{StaticResource DetailCardStyle}" Margin="0,0,0,10">
-                                <StackPanel>
-                                    <Grid>
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Model}"
-                                                       FontSize="14"
-                                                       FontWeight="SemiBold"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-
-                                            <TextBlock Text="{Binding Description}"
-                                                       FontSize="11.5"
-                                                       Margin="0,2,0,0"
-                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                        </StackPanel>
-
-                                        <StackPanel Orientation="Horizontal"
-                                                    HorizontalAlignment="Right"
-                                                    VerticalAlignment="Top">
-                                            <Border Style="{StaticResource TileBadgeStyle}"
-                                                    Margin="0,0,6,0"
-                                                    Visibility="{Binding Life, Converter={StaticResource TextToVisibility}}">
-                                                <TextBlock Text="{Binding Life}"
-                                                           FontSize="10.5"
-                                                           FontWeight="SemiBold">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground"
-                                                                    Value="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsWorn}" Value="True">
-                                                                    <Setter Property="Foreground"
-                                                                            Value="{DynamicResource HotBrush}" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </Border>
-
-                                            <Border Style="{StaticResource TileBadgeStyle}"
-                                                    Visibility="{Binding Temperature, Converter={StaticResource TextToVisibility}}">
-                                                <TextBlock Text="{Binding Temperature}"
-                                                           FontSize="10.5"
-                                                           FontWeight="SemiBold">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground"
-                                                                    Value="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsHot}" Value="True">
-                                                                    <Setter Property="Foreground"
-                                                                            Value="{DynamicResource HotBrush}" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </Border>
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <!-- How full it is. -->
-                                    <Grid Margin="0,12,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <controls:MeterBar Grid.Column="0"
-                                                           Height="10"
-                                                           Margin="0,0,12,0"
-                                                           VerticalAlignment="Center"
-                                                           Fraction="{Binding Fraction}"
-                                                           Fill="{DynamicResource StorageBrush}"
+                                        <controls:MeterBar Height="10"
+                                                           Margin="0,12,0,10"
+                                                           Fraction="{Binding CommitFraction}"
+                                                           Fill="{DynamicResource MemoryBrush}"
                                                            Track="{DynamicResource MeterTrackBrush}" />
 
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding Capacity}"
-                                                   FontSize="12"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    </Grid>
+                                        <TextBlock Text="{Binding Committed}" Style="{StaticResource DetailValueStyle}" />
 
-                                    <!-- What it is doing. -->
-                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                        <TextBlock Text="read "
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                        <TextBlock Text="{Binding Reading}"
-                                                   FontSize="12"
-                                                   Margin="0,0,14,0"
-                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-
-                                        <TextBlock Text="write "
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                        <TextBlock Text="{Binding Writing}"
-                                                   FontSize="12"
-                                                   Margin="0,0,14,0"
-                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-
-                                        <TextBlock Text="active "
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                        <TextBlock Text="{Binding Busy}"
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        <TextBlock Style="{StaticResource DetailNoteStyle}" Margin="0,2,0,0">
+                                            What every process has been promised, against what the machine and its
+                                            page file can promise in total.
+                                        </TextBlock>
                                     </StackPanel>
+                                </Border>
+                            </controls:FlowGrid>
 
-                                    <ItemsControl ItemsSource="{Binding Volumes}"
-                                                  Margin="0,4,0,0"
+                            <controls:FlowGrid Style="{StaticResource PlateStripStyle}"
+                                               controls:RuledPanel.RuleAbove="False" MinimumColumnWidth="220">
+                                <Border Style="{StaticResource PlateCellStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="CACHED" Style="{StaticResource StatLabelStyle}" />
+                                        <TextBlock Text="{Binding Cached}" Style="{StaticResource StatValueStyle}" />
+                                        <TextBlock Text="File data held in memory, given back on demand" Style="{StaticResource StatNoteStyle}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource PlateCellStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="KERNEL POOLS" Style="{StaticResource StatLabelStyle}" />
+                                        <TextBlock Text="{Binding Pools}" Style="{StaticResource StatValueStyle}" />
+                                        <TextBlock Text="Held by Windows itself" Style="{StaticResource StatNoteStyle}" />
+                                    </StackPanel>
+                                </Border>
+                            </controls:FlowGrid>
+
+                            <Border controls:RuledPanel.RuleAbove="False" Style="{StaticResource SectionStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Modules fitted" Style="{StaticResource CardTitleStyle}" />
+
+                                    <ItemsControl ItemsSource="{Binding Modules}"
+                                                  Margin="0,12,0,0"
                                                   Grid.IsSharedSizeScope="True"
-                                                  ItemTemplate="{StaticResource VolumeTemplate}" />
+                                                  ItemTemplate="{StaticResource MemoryModuleTemplate}"
+                                                  AutomationProperties.Name="Memory modules" />
+
+                                    <TextBlock Text="The firmware does not describe the memory on this machine."
+                                               Style="{StaticResource DetailNoteStyle}"
+                                               Margin="0,8,0,0"
+                                               Visibility="{Binding Modules.Count, Converter={StaticResource EmptyToVisibility}}" />
                                 </StackPanel>
                             </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </Grid>
-        </Grid>
+                        </controls:RuledPanel>
 
-        <!--
-            Until the first reading arrives there is nothing to show, and an
-            empty set of tiles reads as a machine doing nothing rather than as
-            one that has not been asked yet.
-        -->
-        <Border Grid.Row="0"
-                Grid.RowSpan="3"
-                Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
-                Visibility="{Binding HasReading, Converter={StaticResource InverseBooleanToVisibility}}">
-            <TextBlock Text="Reading the machine…"
-                       FontSize="12.5"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-        </Border>
-    </Grid>
+                        <!-- Storage: one part per drive, ruled off from the next -->
+                        <ItemsControl ItemsSource="{Binding Drives}"
+                                      Focusable="False"
+                                      Grid.IsSharedSizeScope="True"
+                                      Visibility="{Binding IsStorageShowing, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="Drives">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <controls:RuledPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource SectionStyle}">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="True">
+                                                <StackPanel DockPanel.Dock="Right"
+                                                            Orientation="Horizontal"
+                                                            Margin="12,0,0,0"
+                                                            VerticalAlignment="Top">
+                                                    <Border Style="{StaticResource TileBadgeStyle}"
+                                                            Margin="0,0,6,0"
+                                                            Visibility="{Binding Life, Converter={StaticResource TextToVisibility}}">
+                                                        <TextBlock Text="{Binding Life}"
+                                                                   FontSize="10.5"
+                                                                   FontWeight="SemiBold">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground"
+                                                                            Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsWorn}" Value="True">
+                                                                            <Setter Property="Foreground"
+                                                                                    Value="{DynamicResource HotBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Border>
+
+                                                    <Border Style="{StaticResource TileBadgeStyle}"
+                                                            Visibility="{Binding Temperature, Converter={StaticResource TextToVisibility}}">
+                                                        <TextBlock Text="{Binding Temperature}"
+                                                                   FontSize="10.5"
+                                                                   FontWeight="SemiBold">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground"
+                                                                            Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsHot}" Value="True">
+                                                                            <Setter Property="Foreground"
+                                                                                    Value="{DynamicResource HotBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Border>
+                                                </StackPanel>
+
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Model}"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                                                    <TextBlock Text="{Binding Description}"
+                                                               FontSize="12"
+                                                               Margin="0,2,0,0"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                </StackPanel>
+                                            </DockPanel>
+
+                                            <!-- How full it is. -->
+                                            <Grid Margin="0,14,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <controls:MeterBar Grid.Column="0"
+                                                                   Height="8"
+                                                                   Margin="0,0,14,0"
+                                                                   VerticalAlignment="Center"
+                                                                   Fraction="{Binding Fraction}"
+                                                                   Fill="{DynamicResource StorageBrush}"
+                                                                   Track="{DynamicResource MeterTrackBrush}" />
+
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding Capacity}"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </Grid>
+
+                                            <!-- What it is doing. -->
+                                            <WrapPanel Margin="0,10,0,0">
+                                                <TextBlock FontSize="12" Margin="0,0,18,2">
+                                                    <Run Text="Read " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    <Run Text="{Binding Reading, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </TextBlock>
+
+                                                <TextBlock FontSize="12" Margin="0,0,18,2">
+                                                    <Run Text="Write " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    <Run Text="{Binding Writing, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </TextBlock>
+
+                                                <TextBlock FontSize="12" Margin="0,0,0,2">
+                                                    <Run Text="Active " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    <Run Text="{Binding Busy, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </TextBlock>
+                                            </WrapPanel>
+
+                                            <ItemsControl ItemsSource="{Binding Volumes}"
+                                                          Margin="0,4,0,0"
+                                                          ItemTemplate="{StaticResource VolumeTemplate}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </Border>
+
+                <!-- The machine itself: what the page heading used to say. -->
+                <TextBlock Text="{Binding MachineLine}"
+                           Margin="20,14,20,0"
+                           TextWrapping="Wrap"
+                           Style="{StaticResource CardNoteStyle}" />
+            </StackPanel>
+
+            <!--
+                Until the first reading arrives, the page's own shape in placeholders:
+                the chart and the figures beside it, then the chosen part's detail,
+                with as many processors, adapters, modules and drives as the machine
+                is known to have. So nothing moves when the readings land, and an
+                empty page never reads as a machine doing nothing.
+            -->
+            <Border Background="{DynamicResource SurfaceBrush}"
+                    Visibility="{Binding IsWaiting, Converter={StaticResource BooleanToVisibility}}"
+                    AutomationProperties.Name="Reading the machine">
+                <StackPanel Style="{StaticResource SkeletonStyle}">
+                    <!-- The chart, and the figure and facts beside it. -->
+                    <Border Style="{StaticResource SectionStyle}">
+                        <controls:AdaptiveRow Breakpoint="600"
+                                              LeadWidth="{StaticResource ChartLeadWidth}"
+                                              Spacing="24">
+                            <StackPanel>
+                                <Border Style="{StaticResource BoneStyle}" Width="96" Height="36" Margin="0,6,0,18" />
+                                <ContentControl Style="{StaticResource FactBoneStyle}" />
+                                <ContentControl Style="{StaticResource FactBoneStyle}" />
+                                <ContentControl Style="{StaticResource FactBoneStyle}" />
+                            </StackPanel>
+
+                            <Border Height="232" Padding="0,6,0,0">
+                                <Border Style="{StaticResource BoneStyle}"
+                                        Height="Auto"
+                                        Margin="12,4,0,20"
+                                        CornerRadius="6"
+                                        HorizontalAlignment="Stretch"
+                                        Opacity="0.6" />
+                            </Border>
+                        </controls:AdaptiveRow>
+                    </Border>
+
+                    <!-- Processor -->
+                    <controls:RuledPanel Margin="{StaticResource BlockGap}"
+                                         Visibility="{Binding IsProcessorShowing, Converter={StaticResource BooleanToVisibility}}">
+                        <Border Style="{StaticResource SectionStyle}">
+                            <controls:AdaptiveRow Breakpoint="560" Spacing="16" LeadFills="True">
+                                <StackPanel>
+                                    <Border Style="{StaticResource BoneStyle}" Width="260" Height="16" />
+                                    <Border Style="{StaticResource BoneStyle}" Width="220" Height="11" Margin="0,7,0,0" />
+                                    <Border Style="{StaticResource BoneStyle}" Width="190" Height="11" Margin="0,6,0,0" />
+                                    <Border Style="{StaticResource BoneStyle}" Width="160" Height="11" Margin="0,6,0,0" />
+                                </StackPanel>
+
+                                <StackPanel MinWidth="150" VerticalAlignment="Center">
+                                    <Border Style="{StaticResource BoneStyle}" Width="80" Height="9" />
+                                    <Border Style="{StaticResource BoneStyle}" Width="56" Height="20" Margin="0,8,0,0" />
+                                </StackPanel>
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionStyle}">
+                            <StackPanel>
+                                <Border Style="{StaticResource BoneStyle}" Width="130" Height="14" />
+                                <Border Style="{StaticResource BoneStyle}" Width="240" Height="10" Margin="0,6,0,0" />
+
+                                <ItemsControl ItemsSource="{Binding CoreBones}" Margin="0,14,0,0" Focusable="False">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <controls:FlowGrid MinimumColumnWidth="200" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <ContentControl Style="{StaticResource MeterBoneStyle}" Margin="0,0,24,8" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </controls:RuledPanel>
+
+                    <!-- Graphics: one run per adapter -->
+                    <ItemsControl ItemsSource="{Binding GraphicsBones}"
+                                  Margin="{StaticResource BlockGap}"
+                                  Focusable="False"
+                                  Visibility="{Binding IsGraphicsShowing, Converter={StaticResource BooleanToVisibility}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <controls:RuledPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <controls:RuledPanel>
+                                    <Border Style="{StaticResource SectionStyle}">
+                                        <StackPanel>
+                                            <Border Style="{StaticResource BoneStyle}" Width="220" Height="16" />
+                                            <Border Style="{StaticResource BoneStyle}" Width="100" Height="11" Margin="0,7,0,0" />
+                                            <ContentControl Style="{StaticResource MeterBoneStyle}" Margin="0,16,0,0" />
+                                            <ContentControl Style="{StaticResource MeterBoneStyle}" Margin="0,10,0,0" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <controls:FlowGrid Style="{StaticResource PlateStripStyle}"
+                                                       controls:RuledPanel.RuleAbove="False">
+                                        <ContentControl Style="{StaticResource StatBoneStyle}" />
+                                        <ContentControl Style="{StaticResource StatBoneStyle}" />
+                                        <ContentControl Style="{StaticResource StatBoneStyle}" />
+                                        <ContentControl Style="{StaticResource StatBoneStyle}" />
+                                    </controls:FlowGrid>
+
+                                    <controls:FlowGrid controls:RuledPanel.RuleAbove="False" MinimumColumnWidth="300" DividerBrush="{DynamicResource CardStrokeBrush}">
+                                        <ContentControl Style="{StaticResource ListBoneStyle}" />
+                                        <ContentControl Style="{StaticResource ListBoneStyle}" />
+                                    </controls:FlowGrid>
+                                </controls:RuledPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Memory -->
+                    <controls:RuledPanel Margin="{StaticResource BlockGap}"
+                                         Visibility="{Binding IsMemoryShowing, Converter={StaticResource BooleanToVisibility}}">
+                        <controls:FlowGrid MinimumColumnWidth="300" DividerBrush="{DynamicResource CardStrokeBrush}">
+                            <ContentControl Style="{StaticResource GaugeBoneStyle}" />
+                            <ContentControl Style="{StaticResource GaugeBoneStyle}" />
+                        </controls:FlowGrid>
+
+                        <controls:FlowGrid Style="{StaticResource PlateStripStyle}"
+                                           controls:RuledPanel.RuleAbove="False" MinimumColumnWidth="220">
+                            <ContentControl Style="{StaticResource StatBoneStyle}" />
+                            <ContentControl Style="{StaticResource StatBoneStyle}" />
+                        </controls:FlowGrid>
+
+                        <Border controls:RuledPanel.RuleAbove="False" Style="{StaticResource SectionStyle}">
+                            <StackPanel>
+                                <Border Style="{StaticResource BoneStyle}" Width="110" Height="14" />
+                                <ItemsControl ItemsSource="{Binding ModuleBones}" Margin="0,14,0,0" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource BoneStyle}" Width="420" Height="11" Margin="0,0,0,11" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </controls:RuledPanel>
+
+                    <!-- Storage: one part per drive -->
+                    <ItemsControl ItemsSource="{Binding DriveBones}"
+                                  Margin="{StaticResource BlockGap}"
+                                  Focusable="False"
+                                  Visibility="{Binding IsStorageShowing, Converter={StaticResource BooleanToVisibility}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <controls:RuledPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource SectionStyle}">
+                                    <StackPanel>
+                                        <Border Style="{StaticResource BoneStyle}" Width="220" Height="14" />
+                                        <Border Style="{StaticResource BoneStyle}" Width="150" Height="11" Margin="0,6,0,0" />
+                                        <Border Style="{StaticResource BoneStyle}" Height="8" Margin="0,18,0,0" HorizontalAlignment="Stretch" />
+                                        <Border Style="{StaticResource BoneStyle}" Width="240" Height="11" Margin="0,14,0,0" />
+                                        <Border Style="{StaticResource BoneStyle}" Height="8" Margin="0,16,0,6" HorizontalAlignment="Stretch" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Grid>
     </ScrollViewer>
 </UserControl>

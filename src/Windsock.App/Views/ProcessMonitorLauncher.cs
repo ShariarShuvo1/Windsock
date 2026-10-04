@@ -1,7 +1,9 @@
-﻿using System.Windows;
+using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Windsock.App.Services;
 using Windsock.App.ViewModels;
+using Windsock.Core.Apps;
 using Windsock.Core.Geography;
 using Windsock.Core.Networking;
 using Windsock.Core.Processes;
@@ -9,7 +11,8 @@ using Windsock.Core.Processes;
 namespace Windsock.App.Views;
 
 /// <summary>
-/// Opens and keeps track of the per-process monitor windows.
+/// Opens and keeps track of the details windows - one per app or process - and
+/// builds the network map for the Apps page.
 /// </summary>
 public sealed class ProcessMonitorLauncher
 {
@@ -21,9 +24,12 @@ public sealed class ProcessMonitorLauncher
     private readonly IProcessIdentityResolver _identities;
     private readonly HostNameCache _hosts;
     private readonly ProcessIconCache _icons;
+    private readonly AppIconCache _appIcons;
+    private readonly AppNames _names;
+    private readonly RecentAppFigures _figures;
     private readonly ThroughputOverviewViewModel _overview;
     private readonly Dispatcher _dispatcher;
-    private readonly Dictionary<int, ProcessMonitorWindow> _open = [];
+    private readonly Dictionary<string, ProcessMonitorWindow> _open = new(RunningApps.KeyComparer);
     private IpLocations? _addresses;
     private WorldMap? _world;
     private bool _looked;
@@ -37,6 +43,9 @@ public sealed class ProcessMonitorLauncher
         IProcessIdentityResolver identities,
         HostNameCache hosts,
         ProcessIconCache icons,
+        AppIconCache appIcons,
+        AppNames names,
+        RecentAppFigures figures,
         ThroughputOverviewViewModel overview,
         Dispatcher dispatcher)
     {
@@ -47,6 +56,9 @@ public sealed class ProcessMonitorLauncher
         _identities = identities;
         _hosts = hosts;
         _icons = icons;
+        _appIcons = appIcons;
+        _names = names;
+        _figures = figures;
         _overview = overview;
         _dispatcher = dispatcher;
     }
@@ -65,6 +77,9 @@ public sealed class ProcessMonitorLauncher
             _routes,
             _hosts,
             _icons,
+            _appIcons,
+            _names,
+            _figures,
             _addresses,
             _world,
             _dispatcher);
@@ -90,7 +105,90 @@ public sealed class ProcessMonitorLauncher
             return;
         }
 
-        if (_open.TryGetValue(processId, out ProcessMonitorWindow? existing))
+        ProcessIdentity identity = _identities.Resolve(processId);
+
+        Open(
+            "pid:" + processId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            () => new ProcessMonitorViewModel(
+                processId,
+                null,
+                identity,
+                identity.Name,
+                _icons.Find(identity.FilePath),
+                _monitor,
+                _details,
+                _endpoints,
+                _routes,
+                _hosts,
+                _figures,
+                _addresses,
+                _world,
+                _overview.SelectedFamily,
+                _overview.SelectedScale,
+                _dispatcher));
+    }
+
+    /// <summary>
+    /// Shows the window for an app - every process running it - or brings its
+    /// window forward. Does nothing when none of its processes is running.
+    /// </summary>
+    public void ShowApp(string appKey)
+    {
+        ArgumentNullException.ThrowIfNull(appKey);
+
+        ProcessIdentity? identity = null;
+        IReadOnlyList<ProcessUsage> latest = _monitor.Latest;
+        Dictionary<int, string> keys = RunningApps.KeysFor(latest);
+
+        foreach (ProcessUsage usage in latest)
+        {
+            if (RunningApps.KeyComparer.Equals(keys[usage.ProcessId], appKey)
+                && (identity is null || (identity.FilePath is null && usage.Identity.FilePath is not null)))
+            {
+                identity = usage.Identity;
+            }
+        }
+
+        if (identity is null)
+        {
+            return;
+        }
+
+        string name = string.IsNullOrWhiteSpace(identity.Description) ? identity.Name : identity.Description;
+        ImageSource? icon = _icons.Find(identity.FilePath);
+
+        if (identity.PackageFamily is { } family && _names.Describe(family) is { Name.Length: > 0 } package)
+        {
+            name = package.Name;
+            icon = _appIcons.Find(package) ?? icon;
+        }
+
+        ProcessIdentity found = identity;
+
+        Open(
+            "app:" + appKey,
+            () => new ProcessMonitorViewModel(
+                0,
+                appKey,
+                found,
+                name,
+                icon,
+                _monitor,
+                _details,
+                _endpoints,
+                _routes,
+                _hosts,
+                _figures,
+                _addresses,
+                _world,
+                _overview.SelectedFamily,
+                _overview.SelectedScale,
+                _dispatcher));
+    }
+
+    private void Open(string key, Func<ProcessMonitorViewModel> build)
+    {
+        if (_open.TryGetValue(key, out ProcessMonitorWindow? existing))
         {
             if (existing.WindowState == WindowState.Minimized)
             {
@@ -103,28 +201,13 @@ public sealed class ProcessMonitorLauncher
 
         Look();
 
-        ProcessMonitorViewModel viewModel = new(
-            processId,
-            _identities.Resolve(processId),
-            _monitor,
-            _details,
-            _endpoints,
-            _routes,
-            _hosts,
-            _icons,
-            _addresses,
-            _world,
-            _overview.SelectedFamily,
-            _overview.SelectedScale,
-            _dispatcher);
-
-        ProcessMonitorWindow window = new(viewModel);
+        ProcessMonitorWindow window = new(build());
         int step = _opened++ % 6;
         window.Left += step * Cascade;
         window.Top += step * Cascade;
 
-        window.Closed += (_, _) => _open.Remove(processId);
-        _open[processId] = window;
+        window.Closed += (_, _) => _open.Remove(key);
+        _open[key] = window;
         window.Show();
     }
 }
