@@ -8,8 +8,8 @@ namespace Windsock.App.ViewModels;
 /// <summary>One row of the history table: a minute, an hour or a day.</summary>
 public sealed partial class HistoryRowViewModel : ObservableObject
 {
-    // A 12 hour clock, matching the picker the range is chosen with.
-    private const string ClockPattern = "h:mm tt";
+    /// <summary>A time to the minute on Windows' own clock, 12 or 24-hour, read afresh each time.</summary>
+    private static string ClockPattern => ClockFormat.Current.ShortTime;
 
     public HistoryRowViewModel(UsageBucket bucket, UsageGranularity granularity)
     {
@@ -72,6 +72,18 @@ public sealed partial class HistoryRowViewModel : ObservableObject
     /// <summary>Minutes of the bucket that were actually recorded.</summary>
     public string Recorded { get; }
 
+    /// <summary>The network the bucket was on, "and N more" where it was on several, or nothing where that is not known.</summary>
+    public string Network { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The network for a screen reader: the cell's words, or that it is not
+    /// known where the cell is blank. A blank cell was read by the row's type.
+    /// </summary>
+    public string NetworkSpoken => Network.Length > 0 ? Network : "Network not known";
+
+    /// <summary>The row menu's name, with the row in it: every row has one.</summary>
+    public string ActionsName => string.Concat("Actions for ", From);
+
     public long BytesDown { get; }
 
     public long BytesUp { get; }
@@ -107,6 +119,23 @@ public sealed partial class HistoryRowViewModel : ObservableObject
 
     /// <summary>Whether anything went out, so the figure carries its colour.</summary>
     public bool HasSend => BytesUp > 0;
+
+    /// <summary>
+    /// What a screen reader says for the row: the stretch, what moved each
+    /// way, the network and where the figures came from. Without it the row
+    /// was read by its type's name.
+    /// </summary>
+    public override string ToString() => string.Join(
+        ", ",
+        new[]
+        {
+            string.Concat(From, " to ", To),
+            string.Concat(Download, " down"),
+            string.Concat(Upload, " up"),
+            string.Concat(Total, " in all"),
+            Network.Length > 0 ? string.Concat("on ", Network) : string.Empty,
+            Source,
+        }.Where(part => part.Length > 0));
 
     private static DateTimeOffset EndOf(UsageBucket bucket, UsageGranularity granularity)
     {

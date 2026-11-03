@@ -33,6 +33,12 @@
     <Content Include="Data\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The local feed's stream overlay page, served from memory: one small
+         page, and the feed works out its CSP hashes from the very bytes. -->
+    <EmbeddedResource Include="Feed\Overlay.html" LogicalName="Windsock.Core.Feed.Overlay.html" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(StoreBuild)' != 'true'">
     <!-- Signed PawnIO modules, from the official 0.2.11 release. They are the
          kernel half of the processor temperature: the driver will only run a
@@ -59,6 +65,18 @@
          than shipping unable to run. -->
     <Compile Remove="Hardware\PawnIo.cs" />
     <Compile Remove="Hardware\CpuThermalProbe.cs" />
+    <Compile Remove="Hardware\CpuEnergyMeter.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(StoreBuild)' == 'true'">
+    <!-- Insight and control that need administrator: the connection timeline,
+         each day's places, the local/internet split, the per-service record and
+         the per-app name lookups all read the kernel trace or a second trace
+         session; closing a connection and blocking an app through the firewall
+         are refused to anyone else. The Store edition never elevates, so none
+         of it is in the package. -->
+    <Compile Remove="Timeline\**" />
+    <Compile Remove="Control\**" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(StoreBuild)' != 'true'">

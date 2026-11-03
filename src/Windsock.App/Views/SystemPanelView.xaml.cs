@@ -27,6 +27,23 @@ public partial class SystemPanelView : UserControl
         // model with the windows for single processes, and it follows its own
         // visibility: shown only while the network is the part chosen.
         NetworkChart.Content = networkChart;
+
+        // The readings run whenever the window is up, for the sidebar; the
+        // busiest processes and a part's history are only for the page itself.
+        IsVisibleChanged += (_, _) => viewModel.SetOnScreen(IsVisible);
+    }
+
+    private void OnPowerSettings(object sender, System.Windows.RoutedEventArgs e)
+    {
+        try
+        {
+            using System.Diagnostics.Process? settings = System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo("ms-settings:powersleep") { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Settings is missing or refused: nothing to do but stay on the page.
+        }
     }
 
     /// <summary>The readings behind the view, for the sidebar beside it.</summary>

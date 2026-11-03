@@ -217,7 +217,7 @@ public sealed class IpLocations : IDisposable
         || (address >> 24) == 127
         || (address >> 20) == 0xAC1                  // 172.16/12
         || (address >> 16) == 0xC0A8                 // 192.168/16
-        || (address >> 22) == 0x1900                 // 100.64/10, carrier grade
+        || (address >> 22) == 0x191                  // 100.64/10, carrier grade
         || (address >> 16) == 0xA9FE                 // 169.254/16, link local
         || address == 0;
 

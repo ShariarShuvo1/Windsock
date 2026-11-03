@@ -5,11 +5,12 @@ namespace Windsock.Core.History;
 /// <summary>The machine's and the connection's minutes; see <see cref="IMachineHistoryStore"/>.</summary>
 public sealed partial class SqliteUsageHistoryStore
 {
-    private static void MigrateMachine(SqliteConnection connection) =>
+    private static void MigrateMachine(SqliteConnection connection, SqliteTransaction transaction) =>
         // Sums and peaks rather than averages, so a minute written in two goes
         // (a restart inside it) adds up, and any bucket's average is exact.
         Execute(
             connection,
+            transaction,
             """
             CREATE TABLE IF NOT EXISTS system_minute (
                 minute       INTEGER PRIMARY KEY,
@@ -56,7 +57,7 @@ public sealed partial class SqliteUsageHistoryStore
 
         lock (_gate)
         {
-            SqliteConnection connection = Connection();
+            SqliteConnection connection = WritableConnection();
             using SqliteTransaction transaction = connection.BeginTransaction();
             using SqliteCommand command = connection.CreateCommand();
             command.Transaction = transaction;
@@ -133,7 +134,7 @@ public sealed partial class SqliteUsageHistoryStore
 
         lock (_gate)
         {
-            SqliteConnection connection = Connection();
+            SqliteConnection connection = WritableConnection();
             using SqliteTransaction transaction = connection.BeginTransaction();
             using SqliteCommand command = connection.CreateCommand();
             command.Transaction = transaction;

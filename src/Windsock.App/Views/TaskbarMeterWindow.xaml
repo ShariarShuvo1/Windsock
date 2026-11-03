@@ -21,7 +21,8 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display"
-        TextOptions.TextRenderingMode="Grayscale">
+        TextOptions.TextRenderingMode="Grayscale"
+        AutomationProperties.HelpText="Point at it for the last minute, today's totals and the busiest apps. Right-click for more.">
 
     <!--
         The meter that sits in the Windows taskbar.
@@ -40,7 +41,19 @@
         They belong to the service that owns this window, because they have to
         be redone as the taskbar changes and this has no way of knowing that.
     -->
-    <Grid x:Name="Root" Background="Transparent" ToolTip="{Binding Tooltip}">
+    <!--
+        The hover card is given in code by whoever owns the window, with its
+        placement for the bar's edge; until then the readings' text stands in.
+        A screen reader meets the window, named by its title, and each reading
+        inside it; the grid has no automation peer, so its name went to the
+        window. The meter is pressed with the mouse only, on purpose: its menu
+        is also the tray icon's, and its actions have keyboard shortcuts.
+    -->
+    <Grid x:Name="Root"
+          Background="Transparent"
+          ToolTip="{Binding Tooltip}"
+          ToolTipService.InitialShowDelay="450"
+          ToolTipService.ShowDuration="2147483647">
         <!--
             A ground of the reader's own, under everything else and transparent
             unless one was asked for. Rounded to the same radius as the hover
@@ -77,10 +90,16 @@
             </Border.Style>
         </Border>
 
+        <!--
+            The soft outline, when one was asked for, is an effect on the
+            readings alone: on the whole grid it would blur the hover wash and
+            the painted ground as well.
+        -->
         <ContentControl x:Name="Readings"
                         Content="{Binding}"
                         ContentTemplate="{StaticResource MeterTemplate}"
-                        Margin="4,0,7,0"
+                        Effect="{Binding Glow}"
+                        Margin="{Binding Inset}"
                         Focusable="False" />
     </Grid>
 </Window>

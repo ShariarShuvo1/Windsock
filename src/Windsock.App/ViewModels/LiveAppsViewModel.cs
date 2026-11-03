@@ -11,7 +11,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Windsock.App.Services;
 using Windsock.Core.Apps;
+using Windsock.Core.Insight;
 using Windsock.Core.Processes;
+using Windsock.Core.Security;
 using Windsock.Core.Settings;
 #if !STORE
 using Windsock.Core.Startup;
@@ -27,8 +29,9 @@ public sealed record LiveViewOption(bool Processes, string Label)
 
 /// <summary>
 /// Backs the live half of the Apps page: which apps are on the network right
-/// now and how much they are moving, with the network map above them - or, in
-/// the full edition run as administrator, the same for each process.
+/// now and how much they are moving - or, in the full edition run as
+/// administrator, the same for each process. The map of where they connect
+/// has a page of its own; see <see cref="MapPanelViewModel"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -56,7 +59,12 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly WindsockSettings _settings;
     private readonly ISettingsStore _store;
-    private readonly HashSet<int> _showing = [];
+    private readonly SignatureBook _signatures;
+    private readonly ServiceHosts _services;
+    private readonly ListedConnections _listed;
+    private ServiceHostMap _serviceMap = ServiceHostMap.Empty;
+    private long _serviceMapAt = long.MinValue;
+    private int _readingServices;
     private readonly Dictionary<int, ProcessRowViewModel> _processRows = [];
     private readonly Dictionary<string, ProcessRowViewModel> _groupRows = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ProcessRowViewModel> _appRows = new(RunningApps.KeyComparer);
@@ -64,6 +72,8 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
     private readonly HashSet<string> _expanded = [];
     private readonly List<ProcessRowViewModel> _desired = [];
     private readonly List<ProcessRowViewModel> _members = [];
+    private readonly Dictionary<ProcessRowViewModel, int> _heldAt = new(ReferenceEqualityComparer.Instance);
+    private bool _resort;
     private IReadOnlyList<ProcessUsage> _latest = [];
     private string? _pinnedRow;
     private string? _pinnedTop;
@@ -84,10 +94,19 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
         AppIconCache appIcons,
         WindsockSettings settings,
         ISettingsStore store,
+        SignatureBook signatures,
+        ServiceHosts services,
+        ListedConnections listed,
         Dispatcher dispatcher)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(signatures);
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(listed);
 
+        _signatures = signatures;
+        _services = services;
+        _listed = listed;
         _monitor = monitor;
         _figures = figures;
         _names = names;
@@ -96,7 +115,6 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
         _settings = settings;
         _store = store;
         _dispatcher = dispatcher;
-        IsMapOpen = settings.ProcessMapOpen;
 
         NameColumn = Column.Text<ProcessRowViewModel>("App", row => row.DisplayName);
         DescriptionColumn = Column.Text<ProcessRowViewModel>("Description", row => row.Description, visible: false);
@@ -113,6 +131,7 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
         TransferredColumn = Column.Number<ProcessRowViewModel>("Transferred", ColumnKind.Volume, row => row.BytesTransferred, visible: false);
         UptimeColumn = Column.Number<ProcessRowViewModel>("Uptime", ColumnKind.Duration, row => row.UptimeSeconds, visible: false);
         PathColumn = Column.Text<ProcessRowViewModel>("Path", row => row.FilePath, visible: false);
+        PublisherColumn = Column.Text<ProcessRowViewModel>("Publisher", row => row.Publisher);
 
         // Declaration order, which is the order the grid holds them in.
         Columns =
@@ -132,6 +151,7 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
             TransferredColumn,
             UptimeColumn,
             PathColumn,
+            PublisherColumn,
         ];
 
         foreach (TableColumn column in Columns)
@@ -181,11 +201,23 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
 
     public TableColumn<ProcessRowViewModel> PathColumn { get; }
 
+    /// <summary>Who signed each program, and a mark on the unsigned ones talking to the network.</summary>
+    public TableColumn<ProcessRowViewModel> PublisherColumn { get; }
+
     /// <summary>The property the table is sorted by.</summary>
     public string SortKey => _sortKey;
 
     /// <summary>Whether the sort runs from largest to smallest.</summary>
     public bool SortDescending => _sortDescending;
+
+    /// <summary>
+    /// Whether the rows keep the order they are in rather than sorting again
+    /// each second. The view sets it while the keyboard is in the table, so
+    /// the row someone has arrowed to stays under them instead of moving away
+    /// as its figure changes. The figures still change; rows that end go, and
+    /// new ones join at the foot. Let go, the next reading sorts as usual.
+    /// </summary>
+    public bool HoldsOrder { get; set; }
 
     /// <summary>Free text matched against the name, description, path and id of every row.</summary>
     [ObservableProperty]
@@ -268,14 +300,6 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ToggleLive() => IsLive = !IsLive;
 
-    partial void OnIsLiveChanged(bool value)
-    {
-        if (Map is { } map)
-        {
-            map.IsLive = value;
-        }
-    }
-
     /// <summary>Whether per-process rates are being collected.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanShowProcesses))]
@@ -313,6 +337,10 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string EmptyText { get; set; } = string.Empty;
 
+    /// <summary>What to do about it, said under <see cref="EmptyText"/>.</summary>
+    [ObservableProperty]
+    public partial string EmptyNote { get; set; } = string.Empty;
+
     /// <summary>What the search box is called, which follows the view.</summary>
     public string SearchName => IsProcessView ? "Search processes" : "Search apps";
 
@@ -344,6 +372,9 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
         _monitor.Updated += OnUpdated;
         _monitor.RateStateChanged += OnRateStateChanged;
         _figures.Changed += OnFiguresChanged;
+        _signatures.Checked += OnSignatureChecked;
+        _listed.Changed += OnListedChanged;
+        ReadServices();
         ReadRateState();
         Apply(_monitor.Latest);
     }
@@ -362,20 +393,17 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
         _monitor.Updated -= OnUpdated;
         _monitor.RateStateChanged -= OnRateStateChanged;
         _figures.Changed -= OnFiguresChanged;
+        _signatures.Checked -= OnSignatureChecked;
+        _listed.Changed -= OnListedChanged;
 
         _watch?.Dispose();
         _watch = null;
     }
 
     /// <summary>
-    /// Lets go of the collection and of the map, when the window this page
-    /// belongs to closes.
+    /// Lets go of the collection, when the window this page belongs to closes.
     /// </summary>
-    public void Dispose()
-    {
-        Stop();
-        Map?.Dispose();
-    }
+    public void Dispose() => Stop();
 
     /// <summary>Sorts by a column, reversing the direction if it is already the one.</summary>
     public void SortBy(string key)
@@ -393,6 +421,8 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
                 or nameof(ProcessRowViewModel.FilePath));
         }
 
+        // Asked for, so it sorts even while the order is held.
+        _resort = true;
         Rebuild();
     }
 
@@ -403,42 +433,23 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
     public event EventHandler<string>? WatchAppRequested;
 
     /// <summary>
-    /// Whether the map of the whole machine is open above the table. Open to
-    /// begin with, since the map is the head of the page, and remembered once
-    /// folded: an open map traces routes.
+    /// Whether a row's menu offers the firewall: the full edition only, which
+    /// can be run as administrator. Collapsed in the Store edition.
     /// </summary>
-    [ObservableProperty]
-    public partial bool IsMapOpen { get; set; } = true;
+#if STORE
+    public static System.Windows.Visibility FirewallMenuVisibility => System.Windows.Visibility.Collapsed;
+#else
+    public static System.Windows.Visibility FirewallMenuVisibility => System.Windows.Visibility.Visible;
+#endif
 
-    partial void OnIsMapOpenChanged(bool value)
-    {
-        if (_settings is null || _settings.ProcessMapOpen == value)
-        {
-            return;
-        }
+    /// <summary>Raised when a row's menu asks for its app to be ended.</summary>
+    public event EventHandler<AppTarget>? EndRequested;
 
-        _settings.ProcessMapOpen = value;
-        _store?.Save(_settings);
-    }
+    /// <summary>Raised when a row's menu asks for its program to be looked up on VirusTotal.</summary>
+    public event EventHandler<AppTarget>? ReputationRequested;
 
-    /// <summary>
-    /// The map itself, while it is open.
-    /// </summary>
-    [ObservableProperty]
-    public partial NetworkMapViewModel? Map { get; set; }
-
-    partial void OnMapChanged(NetworkMapViewModel? value)
-    {
-        // A map opened while the table is paused opens paused, and draws what
-        // the table lists: apps, or processes.
-        if (value is not null)
-        {
-            value.IsLive = IsLive;
-            value.GroupByApp = !IsProcessView;
-        }
-
-        Steer();
-    }
+    /// <summary>Raised when a row's menu asks for its program to be blocked or unblocked (full edition).</summary>
+    public event EventHandler<AppTarget>? BlockRequested;
 
     partial void OnShowProcessesChanged(bool value)
     {
@@ -486,11 +497,6 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(SearchName));
 
-        if (Map is { } map)
-        {
-            map.GroupByApp = !processes;
-        }
-
         Rebuild();
     }
 
@@ -502,7 +508,13 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (row.IsApp)
+        // One service host's service is one process: its window is the process's.
+        if (row.IsApp && row.Key.StartsWith(ServicePrefix, StringComparison.Ordinal)
+            && _buckets.TryGetValue(row.Key, out List<ProcessUsage>? hosts) && hosts.Count > 0)
+        {
+            WatchRequested?.Invoke(this, hosts[0].ProcessId);
+        }
+        else if (row.IsApp)
         {
             WatchAppRequested?.Invoke(this, row.Key);
         }
@@ -510,6 +522,53 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
         {
             WatchRequested?.Invoke(this, row.ProcessId);
         }
+    }
+
+    [RelayCommand]
+    private void EndApp(ProcessRowViewModel? row)
+    {
+        if (TargetOf(row) is { } target)
+        {
+            EndRequested?.Invoke(this, target);
+        }
+    }
+
+    [RelayCommand]
+    private void CheckReputation(ProcessRowViewModel? row)
+    {
+        if (TargetOf(row) is { } target)
+        {
+            ReputationRequested?.Invoke(this, target);
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleBlock(ProcessRowViewModel? row)
+    {
+        if (TargetOf(row) is { } target)
+        {
+            BlockRequested?.Invoke(this, target);
+        }
+    }
+
+    /// <summary>What a row stands for, as something to act on: its name, file and processes as they are now.</summary>
+    private AppTarget? TargetOf(ProcessRowViewModel? row)
+    {
+        if (row is null)
+        {
+            return null;
+        }
+
+        List<ProcessUsage> members = row.Kind == RowKind.Group || row.IsApp
+            ? _buckets.TryGetValue(row.Key, out List<ProcessUsage>? found) ? found : []
+            : [.. _latest.Where(usage => usage.ProcessId == row.ProcessId)];
+
+        // The services come from the map whatever the row is keyed by: a
+        // service host read before the map, or seen in the process view, is
+        // still a service host, and never becomes a rule on svchost.exe.
+        return members.Count == 0
+            ? null
+            : AppTarget.For(row.DisplayName, row.FilePath, members, _serviceMap);
     }
 
     [RelayCommand]
@@ -593,6 +652,65 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
             Rebuild();
         });
 
+    private void OnSignatureChecked(object? sender, SignatureCheckedEventArgs e) =>
+        _dispatcher.BeginInvoke(() =>
+        {
+            if (_running)
+            {
+                Illustrate();
+            }
+        });
+
+    private void OnListedChanged(object? sender, EventArgs e) =>
+        _dispatcher.BeginInvoke(() =>
+        {
+            if (_running)
+            {
+                Illustrate();
+            }
+        });
+
+    /// <summary>
+    /// Reads which services each process runs, off the window's thread, when
+    /// the last reading is half a minute old. Rows are named from the last
+    /// reading meanwhile.
+    /// </summary>
+    private void ReadServices()
+    {
+        long now = Environment.TickCount64;
+
+        // Compared only once there is a reading: now minus long.MinValue
+        // overflows to a negative number, which would never be stale.
+        if ((_serviceMapAt != long.MinValue && now - _serviceMapAt < 30_000)
+            || Interlocked.CompareExchange(ref _readingServices, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _serviceMapAt = now;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                ServiceHostMap map = _services.Current;
+                _dispatcher.BeginInvoke(() =>
+                {
+                    _serviceMap = map;
+
+                    if (_running)
+                    {
+                        Rebuild();
+                    }
+                });
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _readingServices, 0);
+            }
+        });
+    }
+
     private void OnFiguresChanged(object? sender, EventArgs e) =>
         _dispatcher.BeginInvoke(() =>
         {
@@ -671,37 +789,14 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
     private void Apply(IReadOnlyList<ProcessUsage> rows)
     {
         _latest = rows;
+        ReadServices();
         Rebuild();
     }
-
-    private bool Narrowed
-    {
-        get
-        {
-            if (!string.IsNullOrWhiteSpace(SearchText) || ActiveOnly)
-            {
-                return true;
-            }
-
-            foreach (TableColumn<ProcessRowViewModel> column in Columns)
-            {
-                if (column.HasFilter && column.IsOffered)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-    }
-
-    private void Steer() => Map?.Follow(Narrowed ? _showing : null);
 
     private void Rebuild()
     {
         _desired.Clear();
         _buckets.Clear();
-        _showing.Clear();
 
         if (IsProcessView)
         {
@@ -712,7 +807,8 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
             GatherApps();
         }
 
-        _desired.Sort(Compare);
+        Comparison<ProcessRowViewModel> order = Order();
+        _desired.Sort(order);
 
         for (int index = _desired.Count - 1; index >= 0; index--)
         {
@@ -730,7 +826,7 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
                 _members.Add(RowFor(usage, RowKind.Child));
             }
 
-            _members.Sort(Compare);
+            _members.Sort(order);
 
             for (int member = 0; member < _members.Count; member++)
             {
@@ -765,18 +861,22 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
             }
 
             _matched++;
-            _showing.Add(usage.ProcessId);
 
-            if (!_buckets.TryGetValue(usage.Name, out List<ProcessUsage>? bucket))
+            // Grouped by the file, not the name: two programs both called
+            // "python" from different folders are two groups, so acting on one
+            // never reaches the other.
+            string key = GroupKeyOf(usage);
+
+            if (!_buckets.TryGetValue(key, out List<ProcessUsage>? bucket))
             {
                 bucket = [];
-                _buckets[usage.Name] = bucket;
+                _buckets[key] = bucket;
             }
 
             bucket.Add(usage);
         }
 
-        foreach ((string name, List<ProcessUsage> bucket) in _buckets)
+        foreach ((string key, List<ProcessUsage> bucket) in _buckets)
         {
             if (!IsGrouped || bucket.Count == 1)
             {
@@ -788,9 +888,9 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
                 continue;
             }
 
-            ProcessRowViewModel group = GroupFor(name);
+            ProcessRowViewModel group = GroupFor(key, bucket[0]);
             group.UpdateGroup(bucket, RatesAvailable);
-            group.IsExpanded = _expanded.Contains(name);
+            group.IsExpanded = _expanded.Contains(key);
             _desired.Add(group);
         }
     }
@@ -807,7 +907,7 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
 
         foreach (ProcessUsage usage in _latest)
         {
-            string key = keys[usage.ProcessId];
+            string key = ServiceKeyOf(usage) ?? keys[usage.ProcessId];
 
             if (!apps.TryGetValue(key, out List<ProcessUsage>? members))
             {
@@ -827,6 +927,7 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
         {
             ProcessRowViewModel row = AppFor(key, members);
             row.UpdateGroup(members, RatesAvailable);
+            NameService(row, members[0]);
 
             // Before testing and sorting, so the row is tested and sorted by
             // the figures it shows.
@@ -843,16 +944,13 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
             _matched++;
             _buckets[key] = members;
             _desired.Add(row);
-
-            foreach (ProcessUsage member in members)
-            {
-                _showing.Add(member.ProcessId);
-            }
         }
     }
 
     private void Illustrate()
     {
+        bool checking = _listed.IsChecking;
+
         foreach (ProcessRowViewModel row in Rows)
         {
             if (row.Icon is null)
@@ -862,9 +960,69 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
                     : _icons.Find(row.FilePath);
             }
 
+            Sign(row);
+            Mark(row, checking);
+
             row.IsPinned = _pinnedRow is not null
                 && string.Equals(row.Key, _pinnedRow, StringComparison.Ordinal);
         }
+    }
+
+    /// <summary>Puts who signed the program on its row, once the check is done.</summary>
+    private void Sign(ProcessRowViewModel row)
+    {
+        if (string.IsNullOrEmpty(row.FilePath))
+        {
+            row.Publisher = "—";
+            row.SignatureNote = "Windows will not say which file this is, so its signature cannot be checked.";
+            row.IsFlagged = false;
+            return;
+        }
+
+        if (_signatures.Find(row.FilePath) is not { } signature)
+        {
+            return;
+        }
+
+        row.Publisher = signature.State switch
+        {
+            SignatureState.Trusted => signature.Publisher ?? "Signed",
+            SignatureState.NoSignature => "Not signed",
+            SignatureState.NotTrusted => "Signature does not hold",
+            SignatureState.Unconfirmed => signature.Publisher is { } signer ? signer + " (not confirmed)" : "Signed, not confirmed",
+            _ => "—",
+        };
+
+        row.SignatureNote = signature.Summary;
+        row.IsFlagged = signature.IsFlagged(talksToInternet: row.Connections > 0 || row.TotalBytesPerSecond > 0);
+    }
+
+    /// <summary>Marks a row whose processes talk to an address on a blocklist the person switched on.</summary>
+    private void Mark(ProcessRowViewModel row, bool checking)
+    {
+        if (!checking)
+        {
+            row.IsListed = false;
+            row.ListedNote = string.Empty;
+            return;
+        }
+
+        IEnumerable<int> processes = row.Kind == RowKind.Group || row.IsApp
+            ? _buckets.TryGetValue(row.Key, out List<ProcessUsage>? members) ? members.Select(usage => usage.ProcessId) : []
+            : [row.ProcessId];
+
+        foreach (int processId in processes)
+        {
+            if (_listed.For(processId) is { } listed)
+            {
+                row.IsListed = true;
+                row.ListedNote = string.Concat(listed.Address, ": ", listed.Hit.Text);
+                return;
+            }
+        }
+
+        row.IsListed = false;
+        row.ListedNote = string.Empty;
     }
 
     private AppDescription PackageOf(List<ProcessUsage> members) =>
@@ -906,8 +1064,6 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
         {
             Rows.RemoveAt(Rows.Count - 1);
         }
-
-        Steer();
     }
 
     private int IndexOf(ProcessRowViewModel row, int from)
@@ -959,23 +1115,57 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
         {
             row.Kind = kind;
             row.Update(usage, RatesAvailable);
+            NameService(row, usage);
             return row;
         }
 
         row = new ProcessRowViewModel(usage, kind, RatesAvailable) { Owner = this, ToggleCommand = ToggleGroupCommand };
+        NameService(row, usage);
         _processRows[usage.ProcessId] = row;
         return row;
     }
 
-    private ProcessRowViewModel GroupFor(string name)
+    /// <summary>The prefix of a row that is one service host's services rather than a program.</summary>
+    private const string ServicePrefix = "service:";
+
+    /// <summary>
+    /// A service host's own key, so Windows Update and Delivery Optimization
+    /// are rows of their own rather than one "svchost" holding ninety
+    /// processes. Windows' data usage never counts a service host by name, so
+    /// no figure is lost by splitting it; the trace measures each process.
+    /// </summary>
+    private string? ServiceKeyOf(in ProcessUsage usage) =>
+        IsServiceHost(usage.Identity) && _serviceMap.KeyOf(usage.ProcessId) is { } services
+            ? ServicePrefix + services
+            : null;
+
+    private static bool IsServiceHost(ProcessIdentity identity) =>
+        string.Equals(identity.Name, "svchost", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Calls a service host's row by its services, "Delivery Optimization", rather than "Host Process for Windows Services".</summary>
+    private void NameService(ProcessRowViewModel row, in ProcessUsage usage)
     {
-        if (_groupRows.TryGetValue(name, out ProcessRowViewModel? row))
+        if (IsServiceHost(usage.Identity) && _serviceMap.Describe(usage.ProcessId) is { } label)
+        {
+            row.AppName = label.Text;
+        }
+    }
+
+    /// <summary>A process-view group: one program file, or one name where Windows will not say the file.</summary>
+    private static string GroupKeyOf(in ProcessUsage usage) =>
+        usage.Identity.FilePath is { Length: > 0 } path ? path : usage.Name;
+
+    private ProcessRowViewModel GroupFor(string key, in ProcessUsage first)
+    {
+        if (_groupRows.TryGetValue(key, out ProcessRowViewModel? row))
         {
             return row;
         }
 
-        row = new ProcessRowViewModel(name, RatesAvailable) { Owner = this, ToggleCommand = ToggleGroupCommand };
-        _groupRows[name] = row;
+        row = ProcessRowViewModel.ForFile(key, first.Name, first.Identity.FilePath, RatesAvailable);
+        row.Owner = this;
+        row.ToggleCommand = ToggleGroupCommand;
+        _groupRows[key] = row;
         return row;
     }
 
@@ -1002,6 +1192,43 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
         }
 
         return row;
+    }
+
+    /// <summary>
+    /// How this reading's rows are put in order: by the sort, or, while the
+    /// order is held, by where each row already stands.
+    /// </summary>
+    private Comparison<ProcessRowViewModel> Order()
+    {
+        _heldAt.Clear();
+        bool asked = _resort;
+        _resort = false;
+
+        if (!HoldsOrder || asked || Rows.Count == 0)
+        {
+            return Compare;
+        }
+
+        for (int index = 0; index < Rows.Count; index++)
+        {
+            _heldAt[Rows[index]] = index;
+        }
+
+        return Held;
+    }
+
+    private int Held(ProcessRowViewModel x, ProcessRowViewModel y)
+    {
+        bool hasX = _heldAt.TryGetValue(x, out int atX);
+        bool hasY = _heldAt.TryGetValue(y, out int atY);
+
+        return (hasX, hasY) switch
+        {
+            (true, true) => atX.CompareTo(atY),
+            (true, false) => -1,
+            (false, true) => 1,
+            _ => Compare(x, y),
+        };
     }
 
     private int Compare(ProcessRowViewModel x, ProcessRowViewModel y)
@@ -1091,6 +1318,9 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
             _expanded.Add(top);
         }
 
+        // Pinned from the row's menu, the keyboard is still in the table, and
+        // a held order would leave the pinned row where it was.
+        _resort = true;
         Apply(_latest);
     }
 
@@ -1120,8 +1350,11 @@ public sealed partial class LiveAppsViewModel : ObservableObject, IDisposable
 
         IsEmpty = Rows.Count == 0;
         EmptyText = _total == 0
-            ? IsProcessView ? "No processes are using the network" : "No apps are using the network"
-            : "Nothing matches the current filters";
+            ? IsProcessView ? "No processes are using the network right now" : "No apps are using the network right now"
+            : "Nothing matches the search or the filters";
+        EmptyNote = _total == 0
+            ? "Each one appears here as soon as it opens a connection. There is nothing to do; the table fills itself."
+            : "Clear the search, untick Active only, or press Reset view to see every one again.";
 
         OnPropertyChanged(nameof(IsCustomised));
     }

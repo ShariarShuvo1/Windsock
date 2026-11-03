@@ -18,7 +18,7 @@
     <controls:FlowRow Spacing="8" LineSpacing="8">
         <TextBlock Text="{Binding RangeText}"
                    VerticalAlignment="Center"
-                   FontSize="12"
+                   FontSize="{DynamicResource TextSize12}"
                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                    AutomationProperties.LiveSetting="Polite" />
 
@@ -27,7 +27,7 @@
                 <TextBlock Text="Rows per page"
                            VerticalAlignment="Center"
                            Margin="0,0,8,0"
-                           FontSize="12"
+                           FontSize="{DynamicResource TextSize12}"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
                 <controls:Picker Style="{StaticResource PickerStyle}"
@@ -67,7 +67,7 @@
                     <TextBox x:Name="PageBox"
                              Style="{StaticResource EmbeddedTextBoxStyle}"
                              Padding="8,0,8,0"
-                             FontSize="12"
+                             FontSize="{DynamicResource TextSize12}"
                              HorizontalContentAlignment="Center"
                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                              CaretBrush="{DynamicResource TextFillColorPrimaryBrush}"
@@ -79,7 +79,7 @@
                 <TextBlock Text="{Binding PagesText}"
                            VerticalAlignment="Center"
                            Margin="0,0,8,0"
-                           FontSize="12"
+                           FontSize="{DynamicResource TextSize12}"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
                 <Button Style="{StaticResource ToolbarButtonStyle}"

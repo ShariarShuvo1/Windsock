@@ -7,11 +7,9 @@ public sealed class GraphicsProbe : IDisposable
 {
     private const string EngineCounter = "gpu.engines";
     private const string MemoryCounter = "gpu.memory";
+    private const string SharedCounter = "gpu.shared";
     private const int TopProcesses = 6;
-    private const double Noticeable = 0.5;
-    private readonly Dictionary<string, Dictionary<string, double>> _engines = [];
-    private readonly Dictionary<string, Dictionary<int, double>> _processes = [];
-    private readonly Dictionary<string, long> _memory = [];
+    private readonly EngineTally _tally = new();
     private IReadOnlyList<DisplayAdapter> _adapters = [];
     private Nvml? _nvidia;
     private int[] _nvidiaFor = [];
@@ -74,6 +72,23 @@ public sealed class GraphicsProbe : IDisposable
         _ = query.Add(MemoryCounter, @"\GPU Adapter Memory(*)\Dedicated Usage", wildcard: true);
     }
 
+    /// <summary>
+    /// Adds the shared-memory counter, which only a neural processor needs:
+    /// it has no memory of its own and works in the system's.
+    /// </summary>
+    public static void RegisterShared(PerformanceQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        _ = query.Add(SharedCounter, @"\GPU Adapter Memory(*)\Shared Usage", wildcard: true);
+    }
+
+    /// <summary>
+    /// The engine and memory counters from the last <see cref="Read"/>, for
+    /// every adapter they name, display or not.
+    /// </summary>
+    public EngineTally Tally => _tally;
+
     /// <summary>Takes a reading from the last collection.</summary>
     public IReadOnlyList<GraphicsReading> Read(PerformanceQuery query)
     {
@@ -97,68 +112,22 @@ public sealed class GraphicsProbe : IDisposable
 
     private void Gather(PerformanceQuery query)
     {
-        foreach (Dictionary<string, double> engines in _engines.Values)
-        {
-            engines.Clear();
-        }
-
-        foreach (Dictionary<int, double> processes in _processes.Values)
-        {
-            processes.Clear();
-        }
-
-        _memory.Clear();
+        _tally.Clear();
 
         foreach (PerformanceQuery.Reading reading in query.Values(EngineCounter))
         {
-            if (reading.Value <= 0 || GpuEngineName.Parse(reading.Instance) is not { } engine)
-            {
-                continue;
-            }
-
-            Dictionary<string, double> engines = For(_engines, engine.Luid);
-            engines[engine.Engine] = engines.GetValueOrDefault(engine.Engine) + reading.Value;
-            Dictionary<int, double> processes = For(_processes, engine.Luid);
-            processes[engine.ProcessId] = Math.Max(
-                processes.GetValueOrDefault(engine.ProcessId),
-                reading.Value);
+            _tally.AddEngine(reading.Instance, reading.Value);
         }
 
         foreach (PerformanceQuery.Reading reading in query.Values(MemoryCounter))
         {
-            string adapter = GpuEngineName.Adapter(reading.Instance);
-
-            if (adapter.Length > 0)
-            {
-                _memory[adapter] = _memory.GetValueOrDefault(adapter) + (long)reading.Value;
-            }
+            _tally.AddDedicated(reading.Instance, reading.Value);
         }
-    }
 
-    private static Dictionary<string, TValue> For<TValue>(
-        Dictionary<string, Dictionary<string, TValue>> map,
-        string key)
-    {
-        if (!map.TryGetValue(key, out Dictionary<string, TValue>? found))
+        foreach (PerformanceQuery.Reading reading in query.Values(SharedCounter))
         {
-            found = [];
-            map[key] = found;
+            _tally.AddShared(reading.Instance, reading.Value);
         }
-
-        return found;
-    }
-
-    private static Dictionary<int, TValue> For<TValue>(
-        Dictionary<string, Dictionary<int, TValue>> map,
-        string key)
-    {
-        if (!map.TryGetValue(key, out Dictionary<int, TValue>? found))
-        {
-            found = [];
-            map[key] = found;
-        }
-
-        return found;
     }
 
     private GraphicsReading Reading(DisplayAdapter adapter, int nvidia, int amd, int intel)
@@ -168,10 +137,10 @@ public sealed class GraphicsProbe : IDisposable
             ?? (amd >= 0 ? _amd?.Read(amd) : null)
             ?? (intel >= 0 ? _intel?.Read(intel) : null);
 
-        (double busy, List<EngineLoad> engines) = Engines(adapter.Luid);
+        (double busy, List<EngineLoad> engines) = _tally.Load(adapter.Luid);
         double load = sensors?.BusyPercent ?? busy;
 
-        long used = _memory.GetValueOrDefault(adapter.Luid);
+        long used = _tally.Dedicated(adapter.Luid) ?? 0;
 
         if (sensors is { MemoryUsed: > 0 })
         {
@@ -191,62 +160,7 @@ public sealed class GraphicsProbe : IDisposable
             used,
             fitted,
             engines,
-            Processes(adapter.Luid));
-    }
-
-    private (double Busy, List<EngineLoad> Engines) Engines(string luid)
-    {
-        List<EngineLoad> loads = [];
-        double busiest = 0;
-
-        if (!_engines.TryGetValue(luid, out Dictionary<string, double>? engines))
-        {
-            return (0, loads);
-        }
-
-        foreach ((string kind, double value) in engines)
-        {
-            double percent = Math.Clamp(value, 0, 100);
-
-            if (percent < Noticeable)
-            {
-                continue;
-            }
-
-            busiest = Math.Max(busiest, percent);
-            loads.Add(new EngineLoad(GpuEngineName.Describe(kind), percent));
-        }
-
-        loads.Sort(static (left, right) => right.Percent.CompareTo(left.Percent));
-
-        return (busiest, loads);
-    }
-
-    private List<GraphicsProcess> Processes(string luid)
-    {
-        List<GraphicsProcess> busiest = [];
-
-        if (!_processes.TryGetValue(luid, out Dictionary<int, double>? processes))
-        {
-            return busiest;
-        }
-
-        foreach ((int process, double value) in processes)
-        {
-            if (value >= Noticeable)
-            {
-                busiest.Add(new GraphicsProcess(process, Math.Clamp(value, 0, 100)));
-            }
-        }
-
-        busiest.Sort(static (left, right) => right.Percent.CompareTo(left.Percent));
-
-        if (busiest.Count > TopProcesses)
-        {
-            busiest.RemoveRange(TopProcesses, busiest.Count - TopProcesses);
-        }
-
-        return busiest;
+            _tally.Processes(adapter.Luid, TopProcesses));
     }
 
     public void Dispose()

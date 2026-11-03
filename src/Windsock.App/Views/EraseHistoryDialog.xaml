@@ -34,7 +34,7 @@
                                Foreground="{DynamicResource HotBrush}" />
 
             <TextBlock Text="Delete the whole history?"
-                       FontSize="15"
+                       FontSize="{DynamicResource TextSize15}"
                        FontWeight="SemiBold"
                        VerticalAlignment="Center"
                        TextWrapping="Wrap"
@@ -43,18 +43,18 @@
 
         <StackPanel Grid.Row="1" Margin="0,0,0,18">
             <TextBlock x:Name="Amount"
-                       FontSize="13"
+                       FontSize="{DynamicResource TextSize13}"
                        TextWrapping="Wrap"
                        Margin="0,0,0,8"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
             <TextBlock Text="Every minute Windsock has recorded goes, along with the record of when it was watching and each app's usage copied from Windows. There is no copy kept anywhere else and this cannot be undone."
-                       FontSize="12.5"
+                       FontSize="{DynamicResource TextSize12_5}"
                        TextWrapping="Wrap"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
             <TextBlock x:Name="Keeping"
-                       FontSize="12.5"
+                       FontSize="{DynamicResource TextSize12_5}"
                        Margin="0,8,0,0"
                        TextWrapping="Wrap"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"

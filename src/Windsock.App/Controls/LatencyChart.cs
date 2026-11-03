@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using Windsock.Core.Connectivity;
+using System.Windows.Automation.Peers;
 
 namespace Windsock.App.Controls;
 
@@ -102,6 +103,9 @@ public sealed class LatencyChart : FrameworkElement
         typeof(T),
         typeof(LatencyChart),
         new FrameworkPropertyMetadata(fallback, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>A screen reader hears that this is a chart, its name, and what it shows now.</summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new ChartAutomationPeer(this, () => ChartWords.Latency(Points));
 
     protected override void OnRender(DrawingContext drawingContext)
     {

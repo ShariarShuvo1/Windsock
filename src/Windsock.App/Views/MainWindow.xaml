@@ -30,18 +30,12 @@
         A sidebar down the left chooses the page; the page beside it is that one
         thing and nothing else.
 
-        One entry per part of the machine, each carrying its live figure beside
-        its name. A part with more than one page is a group: Network holds its
-        overview, whether the internet is there, what has moved over time and
-        which apps are using it, live or over a period.
-        Pressing a group opens it at its overview; its pages are listed under it.
-        Processor, graphics, memory and storage are one page each. The taskbar meter
-        follows, and Settings sits apart at the bottom, where it is looked for.
-
-        The panels are handed in from the code behind rather than declared here:
-        they own view models with their own lifetimes, which is the container's
-        business, not the markup's. The five machine overviews share one panel,
-        which the code behind puts on the page when any of them is chosen.
+        The sidebar is grouped by the question people bring to the window -
+        what does my meter show, what is happening right now, is my internet all
+        right, how much have I used, how is my PC doing, what should interrupt
+        me - and each group's figure answers it at a glance. Its entries are
+        built from the code behind, from one list (MainWindow.Pages), so adding a
+        page is adding a line there.
 
         The window itself does not scroll. A page that needs more room than it
         has scrolls inside itself.
@@ -57,74 +51,6 @@
             -->
             <ContentPresenter x:Name="WorkspaceHost" />
         </controls:NavigationPane.Body>
-
-        <!--
-            An icon for every entry, pages inside a group included, so each says
-            what it is about rather than decorating it: the icon is all that
-            shows once the sidebar is folded, and in the list a page that had
-            none read as a row with something missing. Both overviews share the
-            chart, since that is what an overview is here.
-        -->
-        <controls:NavigationItem x:Name="NetworkItem"
-                                 Header="Network"
-                                 AutomationProperties.Name="Network"
-                                 controls:NavigationPane.Icon="ArrowsBidirectional" />
-
-        <controls:NavigationItem x:Name="NetworkOverviewTab"
-                                 Header="Overview"
-                                 ParentName="NetworkItem"
-                                 AutomationProperties.Name="Network overview"
-                                 controls:NavigationPane.Icon="DataArea" />
-
-        <controls:NavigationItem x:Name="ConnectionTab"
-                                 Header="Connection"
-                                 ParentName="NetworkItem"
-                                 AutomationProperties.Name="Connection"
-                                 controls:NavigationPane.Icon="PlugConnected" />
-
-        <controls:NavigationItem x:Name="HistoryTab"
-                                 Header="History"
-                                 ParentName="NetworkItem"
-                                 AutomationProperties.Name="History"
-                                 controls:NavigationPane.Icon="History" />
-
-        <controls:NavigationItem x:Name="AppsTab"
-                                 Header="Apps"
-                                 ParentName="NetworkItem"
-                                 AutomationProperties.Name="Apps"
-                                 controls:NavigationPane.Icon="DataUsage" />
-
-        <controls:NavigationItem x:Name="ProcessorItem"
-                                 Header="Processor"
-                                 AutomationProperties.Name="Processor"
-                                 controls:NavigationPane.Icon="DeveloperBoard" />
-
-        <controls:NavigationItem x:Name="GraphicsTab"
-                                 Header="Graphics"
-                                 AutomationProperties.Name="Graphics"
-                                 controls:NavigationPane.Icon="Games" />
-
-        <controls:NavigationItem x:Name="MemoryTab"
-                                 Header="Memory"
-                                 AutomationProperties.Name="Memory"
-                                 controls:NavigationPane.Icon="Ram" />
-
-        <controls:NavigationItem x:Name="StorageTab"
-                                 Header="Storage"
-                                 AutomationProperties.Name="Storage"
-                                 controls:NavigationPane.Icon="HardDrive" />
-
-        <controls:NavigationItem x:Name="TaskbarTab"
-                                 Header="Taskbar"
-                                 AutomationProperties.Name="Taskbar"
-                                 controls:NavigationPane.Icon="PanelBottom" />
-
-        <controls:NavigationItem x:Name="SettingsTab"
-                                 Header="Settings"
-                                 AutomationProperties.Name="Settings"
-                                 DockPanel.Dock="Bottom"
-                                 Margin="0"
-                                 controls:NavigationPane.Icon="Settings" />
     </controls:NavigationPane>
 
 </Window>

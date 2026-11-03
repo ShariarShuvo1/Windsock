@@ -12,11 +12,12 @@ public partial class ConnectionPanelView : UserControl
 {
     private readonly ConnectionPanelViewModel _viewModel;
 
-    public ConnectionPanelView(ConnectionPanelViewModel viewModel)
+    public ConnectionPanelView(ConnectionPanelViewModel viewModel, ConnectionDeeperView deeper)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
 
         InitializeComponent();
+        DeeperHost.Content = deeper;
 
         _viewModel = viewModel;
         DataContext = viewModel;

@@ -1,5 +1,18 @@
 namespace Windsock.Core.Notifications;
 
+/// <summary>What flood control made of a notice.</summary>
+public enum PaceVerdict
+{
+    /// <summary>It may go out, and was counted.</summary>
+    Admitted,
+
+    /// <summary>The same notice went out a moment ago.</summary>
+    Repeat,
+
+    /// <summary>Too many notices went out lately.</summary>
+    Burst,
+}
+
 /// <summary>
 /// Stops Windsock from burying somebody in notices.
 /// </summary>
@@ -37,7 +50,19 @@ public sealed class NoticePacer
     /// <summary>
     /// Whether a notice may go out now, counting it as sent when it may.
     /// </summary>
-    public bool Admit(Notice notice)
+    public bool Admit(Notice notice) => Pace(notice) == PaceVerdict.Admitted;
+
+    /// <summary>
+    /// Says what flood control makes of a notice, counting it when it is admitted.
+    /// </summary>
+    /// <param name="notice">The notice.</param>
+    /// <param name="holding">
+    /// Whether it is being held for later rather than shown - during quiet
+    /// hours. A held notice is remembered, so a flapping condition does not
+    /// fill the held list with copies, but it does not use up the burst: it
+    /// interrupts nobody now.
+    /// </param>
+    public PaceVerdict Pace(Notice notice, bool holding = false)
     {
         ArgumentNullException.ThrowIfNull(notice);
 
@@ -55,19 +80,23 @@ public sealed class NoticePacer
 
             if (_lastSaid.TryGetValue(said, out DateTimeOffset last) && now - last < RepeatWindow)
             {
-                return false;
+                return PaceVerdict.Repeat;
             }
 
-            if (_sent.Count >= BurstLimit)
+            if (!holding && _sent.Count >= BurstLimit)
             {
-                return false;
+                return PaceVerdict.Burst;
             }
 
-            _sent.Enqueue(now);
+            if (!holding)
+            {
+                _sent.Enqueue(now);
+            }
+
             _lastSaid[said] = now;
             Forget(now);
 
-            return true;
+            return PaceVerdict.Admitted;
         }
     }
 

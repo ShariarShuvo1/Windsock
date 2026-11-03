@@ -107,8 +107,25 @@ public interface INetworkPathProbe
     Task<TimeSpan?> PingAsync(string address, CancellationToken cancellationToken);
 }
 
+/// <summary>What one probe at one distance came back with.</summary>
+/// <param name="Distance">The hop limit it was sent with.</param>
+/// <param name="Outcome">What it means for the walk.</param>
+/// <param name="Address">The router or far end that answered, when one did.</param>
+/// <param name="RoundTrip">How long the answer took, when one came.</param>
+public readonly record struct HopReply(int Distance, HopOutcome Outcome, string? Address, TimeSpan? RoundTrip);
+
+/// <summary>
+/// Sends one probe with a set hop limit: the step a route walk repeats, offered
+/// on its own so the hop-by-hop table can repeat it without a tracer of its own.
+/// </summary>
+public interface IHopProbe
+{
+    /// <summary>One probe towards an address with a hop limit; nothing when it could not be sent.</summary>
+    Task<HopReply?> ProbeAsync(IPAddress target, int distance, CancellationToken cancellationToken);
+}
+
 /// <summary>Walks a route with ICMP echoes of increasing hop limit.</summary>
-public sealed class PingNetworkPathProbe : INetworkPathProbe
+public sealed class PingNetworkPathProbe : INetworkPathProbe, IHopProbe
 {
     private static readonly byte[] Payload = new byte[32];
 
@@ -132,26 +149,12 @@ public sealed class PingNetworkPathProbe : INetworkPathProbe
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            long started = Stopwatch.GetTimestamp();
-            PingReply reply;
-
-            try
-            {
-                reply = await ping.SendPingAsync(
-                        target,
-                        PathTrace.HopPatience,
-                        Payload,
-                        new PingOptions(distance, dontFragment: false),
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is PingException or SocketException)
+            if (await ProbeAsync(ping, target, distance, cancellationToken).ConfigureAwait(false) is not { } reply)
             {
                 break;
             }
 
-            TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
-            HopOutcome outcome = PathTrace.Read(reply.Status);
+            HopOutcome outcome = reply.Outcome;
 
             if (outcome == HopOutcome.Silent)
             {
@@ -168,8 +171,8 @@ public sealed class PingNetworkPathProbe : INetworkPathProbe
             silent = 0;
             yield return new PathHop(
                 distance,
-                reply.Address?.ToString(),
-                elapsed,
+                reply.Address,
+                reply.RoundTrip,
                 outcome == HopOutcome.Arrived);
 
             if (outcome != HopOutcome.Onward)
@@ -177,6 +180,43 @@ public sealed class PingNetworkPathProbe : INetworkPathProbe
                 break;
             }
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<HopReply?> ProbeAsync(IPAddress target, int distance, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+
+        using Ping ping = new();
+        return await ProbeAsync(ping, target, distance, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<HopReply?> ProbeAsync(Ping ping, IPAddress target, int distance, CancellationToken cancellationToken)
+    {
+        long started = Stopwatch.GetTimestamp();
+        PingReply reply;
+
+        try
+        {
+            reply = await ping.SendPingAsync(
+                    target,
+                    PathTrace.HopPatience,
+                    Payload,
+                    new PingOptions(distance, dontFragment: false),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is PingException or SocketException)
+        {
+            return null;
+        }
+
+        TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
+        HopOutcome outcome = PathTrace.Read(reply.Status);
+
+        return outcome == HopOutcome.Silent
+            ? new HopReply(distance, outcome, null, null)
+            : new HopReply(distance, outcome, reply.Address?.ToString(), elapsed);
     }
 
     /// <inheritdoc />

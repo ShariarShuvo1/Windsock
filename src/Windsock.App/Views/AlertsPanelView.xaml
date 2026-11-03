@@ -1,0 +1,823 @@
+<UserControl x:Class="Windsock.App.Views.AlertsPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             xmlns:views="clr-namespace:Windsock.App.Views"
+             xmlns:alerts="clr-namespace:Windsock.Core.Alerts;assembly=Windsock.Core"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:AlertsPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="700">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Styles/Usage.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="FigureValueStyle" TargetType="TextBlock" BasedOn="{StaticResource StatValueStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource TextSize18}" />
+            </Style>
+
+            <!-- A field in a tile's or a band's form: narrower than a plan's, since several share a line. -->
+            <Style x:Key="SmallFieldStyle" TargetType="StackPanel" BasedOn="{StaticResource FieldStyle}">
+                <Setter Property="MinWidth" Value="0" />
+            </Style>
+
+            <!-- The token's box: a password box drawn as the other fields are. -->
+            <Style x:Key="FieldPasswordStyle" TargetType="PasswordBox">
+                <Setter Property="Background" Value="{DynamicResource QuietFillBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource ToneStrokeBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="CaretBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+                <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
+                <Setter Property="MinHeight" Value="30" />
+                <Setter Property="Padding" Value="9,0,9,0" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="PasswordBox">
+                            <Border x:Name="Root"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    SnapsToDevicePixels="True">
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              Focusable="False"
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Hidden"
+                                              Background="Transparent" />
+                            </Border>
+
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Root" Property="Background" Value="{DynamicResource QuietHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- The mark beside an alert or a kind: how much it matters, in a shape as well as a colour. -->
+            <Style x:Key="LevelIconStyle" TargetType="fluent:SymbolIcon">
+                <Setter Property="Symbol" Value="Info" />
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Level}" Value="{x:Static alerts:AlertLevel.Warning}">
+                        <Setter Property="Symbol" Value="Warning" />
+                        <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Level}" Value="{x:Static alerts:AlertLevel.Problem}">
+                        <Setter Property="Symbol" Value="ErrorCircle" />
+                        <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- One kind of alert: its switch, and once on, what it may be tuned with. -->
+            <DataTemplate x:Key="KindTemplate" DataType="{x:Type vm:AlertKindViewModel}">
+                <Border Style="{StaticResource TileStyle}">
+                    <StackPanel>
+                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}"
+                                           FontSize="{DynamicResource TextSize13}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="{Binding Description}"
+                                           Margin="0,2,0,0"
+                                           FontSize="{DynamicResource TextSize12}"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{Binding Note}"
+                                           Style="{StaticResource DetailNoteStyle}"
+                                           Margin="0,3,0,0"
+                                           Visibility="{Binding Note, Converter={StaticResource TextToVisibility}}" />
+                            </StackPanel>
+
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      HorizontalAlignment="Left"
+                                      VerticalAlignment="Center"
+                                      Content="Tell me"
+                                      IsChecked="{Binding IsOn, Mode=TwoWay}"
+                                      AutomationProperties.Name="{Binding SwitchName}" />
+                        </controls:AdaptiveRow>
+
+                        <!-- What it is tuned with, once it is on. Fields flow, so a narrow window stacks them. -->
+                        <controls:FlowRow Spacing="14"
+                                          LineSpacing="8"
+                                          Margin="0,10,0,0"
+                                          Visibility="{Binding IsOn, Converter={StaticResource BooleanToVisibility}}">
+                            <ItemsControl ItemsSource="{Binding Levels}"
+                                          Focusable="False"
+                                          Visibility="{Binding HasLevels, Converter={StaticResource BooleanToVisibility}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <controls:FlowRow Spacing="14" LineSpacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:AlertLevelChoice}">
+                                        <StackPanel Style="{StaticResource SmallFieldStyle}">
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource FieldLabelStyle}" />
+                                            <controls:Picker Style="{StaticResource PickerStyle}"
+                                                             MinWidth="118"
+                                                             ItemsSource="{Binding Options}"
+                                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                             SelectedValuePath="Value"
+                                                             SelectedValue="{Binding Selected, Mode=TwoWay}"
+                                                             AutomationProperties.Name="{Binding AutomationName}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <StackPanel Style="{StaticResource SmallFieldStyle}">
+                                <TextBlock Text="Sound" Style="{StaticResource FieldLabelStyle}" />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="118"
+                                                 ItemsSource="{x:Static vm:AlertKindViewModel.Sounds}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Sound"
+                                                 SelectedValue="{Binding Sound, Mode=TwoWay}"
+                                                 AutomationProperties.Name="{Binding SoundName}"
+                                                 ToolTip="Windows' own notification sounds. Standard is Windows' usual sound, or none for an alert that only says something is over." />
+                            </StackPanel>
+
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      VerticalAlignment="Bottom"
+                                      Content="Even during quiet hours"
+                                      IsChecked="{Binding BreaksQuiet, Mode=TwoWay}"
+                                      AutomationProperties.Name="{Binding QuietName}"
+                                      ToolTip="Shown at once during quiet hours and a snooze, rather than held for the summary" />
+
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      VerticalAlignment="Bottom"
+                                      Content="Forward"
+                                      IsChecked="{Binding Forwards, Mode=TwoWay}"
+                                      Visibility="{Binding IsForwardingOn, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="{Binding ForwardName}"
+                                      ToolTip="Send this alert to where forwarding is set up, below" />
+                        </controls:FlowRow>
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+
+            <!-- One alert sent: what it said, when, and what became of it. Pressed, it opens what it was about. -->
+            <DataTemplate x:Key="AlertRowTemplate" DataType="{x:Type vm:AlertRowViewModel}">
+                <Button Style="{StaticResource ChoiceTileStyle}"
+                        Click="OnAlertClicked"
+                        AutomationProperties.Name="{Binding Spoken}"
+                        ToolTip="{Binding Kind}">
+                    <DockPanel LastChildFill="True">
+                        <Border DockPanel.Dock="Left"
+                                Width="32"
+                                Height="32"
+                                CornerRadius="8"
+                                Margin="0,0,12,0"
+                                VerticalAlignment="Top"
+                                Background="{DynamicResource QuietFillBrush}">
+                            <fluent:SymbolIcon Style="{StaticResource LevelIconStyle}" />
+                        </Border>
+
+                        <StackPanel VerticalAlignment="Center">
+                            <DockPanel LastChildFill="True">
+                                <TextBlock DockPanel.Dock="Right"
+                                           Text="{Binding When}"
+                                           Margin="12,0,0,0"
+                                           FontSize="{DynamicResource TextSize12}"
+                                           Typography.NumeralAlignment="Tabular"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                <Ellipse DockPanel.Dock="Left"
+                                         Width="7"
+                                         Height="7"
+                                         Margin="0,1,7,0"
+                                         VerticalAlignment="Center"
+                                         Fill="{DynamicResource AccentBrush}"
+                                         ToolTip="New"
+                                         Visibility="{Binding IsNew, Converter={StaticResource BooleanToVisibility}}" />
+
+                                <TextBlock Text="{Binding Title}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </DockPanel>
+
+                            <TextBlock Text="{Binding Message}"
+                                       Margin="0,2,0,0"
+                                       FontSize="{DynamicResource TextSize12}"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                            <TextBlock Text="{Binding Outcome}"
+                                       Margin="0,3,0,0"
+                                       FontSize="{DynamicResource TextSize11_5}"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding Outcome, Converter={StaticResource TextToVisibility}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMissed}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBlock Text="{Binding Forwarding}"
+                                       Margin="0,2,0,0"
+                                       FontSize="{DynamicResource TextSize11_5}"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       Visibility="{Binding Forwarding, Converter={StaticResource TextToVisibility}}" />
+                        </StackPanel>
+                    </DockPanel>
+                </Button>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!--
+        Everything that can interrupt, in one place. The lead on the page: what
+        is new, what is held, quiet hours and forwarding at a glance, with the
+        snooze in the heading. Then a band to a subject: the alerts sent, the
+        switch that governs every notification, quiet hours, each group of
+        kinds, and forwarding.
+    -->
+    <controls:SectionPage Title="Alerts" Subtitle="What Windsock may interrupt you about, and what it has said">
+        <controls:SectionPage.Actions>
+            <controls:FlowRow Spacing="8" LineSpacing="8">
+                <Button Style="{StaticResource ToolbarButtonStyle}"
+                        Command="{Binding SnoozeHourCommand}"
+                        Visibility="{Binding IsSnoozed, Converter={StaticResource InverseBooleanToVisibility}}"
+                        AutomationProperties.Name="Snooze alerts for an hour"
+                        ToolTip="Hold every alert for an hour, then show what came in as one summary">
+                    <StackPanel Orientation="Horizontal">
+                        <fluent:SymbolIcon Symbol="Snooze" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="Snooze for an hour" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Button Style="{StaticResource ToolbarButtonStyle}"
+                        Command="{Binding SnoozeMorningCommand}"
+                        Visibility="{Binding IsSnoozed, Converter={StaticResource InverseBooleanToVisibility}}"
+                        AutomationProperties.Name="Snooze alerts until the morning"
+                        ToolTip="Hold every alert until the morning: when quiet hours end, or seven o'clock">
+                    <StackPanel Orientation="Horizontal">
+                        <fluent:SymbolIcon Symbol="WeatherMoon" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="{Binding MorningLabel}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Button Style="{StaticResource ToolbarButtonStyle}"
+                        Command="{Binding EndSnoozeCommand}"
+                        Visibility="{Binding IsSnoozed, Converter={StaticResource BooleanToVisibility}}"
+                        AutomationProperties.Name="End the snooze"
+                        ToolTip="Show what was held now, and alerts as they happen from here">
+                    <StackPanel Orientation="Horizontal">
+                        <fluent:SymbolIcon Symbol="AlertOn" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="End snooze" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </controls:FlowRow>
+        </controls:SectionPage.Actions>
+
+        <ScrollViewer x:Name="Body"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="{StaticResource PagePadding}">
+            <StackPanel>
+                <!-- ============ The lead: the page's figures, on the page ============ -->
+                <controls:FlowGrid Style="{StaticResource PlateStripStyle}"
+                                   MinimumColumnWidth="136"
+                                   Margin="0,0,0,12">
+                    <Border Style="{StaticResource PlateCellStyle}"
+                            ToolTip="Alerts in the list you have not seen yet">
+                        <StackPanel>
+                            <TextBlock Text="NEW" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding UnreadValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="New alerts" />
+                            <TextBlock Text="Unread in the list below" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}"
+                            ToolTip="Alerts waiting for quiet hours or the snooze to end">
+                        <StackPanel>
+                            <TextBlock Text="HELD" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding HeldValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Held alerts" />
+                            <TextBlock Text="{Binding HeldNote}" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}"
+                            ToolTip="When alerts are held overnight">
+                        <StackPanel>
+                            <TextBlock Text="QUIET HOURS" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding QuietValue}"
+                                       Style="{StaticResource FigureValueStyle}"
+                                       TextWrapping="Wrap"
+                                       AutomationProperties.Name="Quiet hours now" />
+                            <TextBlock Text="{Binding QuietNote}" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}"
+                            DataContext="{Binding Forwarding}"
+                            ToolTip="Where alerts are sent besides this PC">
+                        <StackPanel>
+                            <TextBlock Text="FORWARDED TO" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding Destination}"
+                                       Style="{StaticResource FigureValueStyle}"
+                                       TextTrimming="CharacterEllipsis"
+                                       AutomationProperties.Name="Forwarded to" />
+                            <TextBlock Text="Set up at the foot of the page" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+                </controls:FlowGrid>
+
+                <!-- ============ Recent alerts ============ -->
+                <Border Style="{StaticResource BandStyle}" DataContext="{Binding Recent}">
+                    <StackPanel>
+                        <!-- The title, and its tools beside it until the window is too narrow for both. -->
+                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}"
+                                              LeadMinimumWidth="220"
+                                              VerticalAlignment="Top"
+                                              Margin="0,0,0,8">
+                            <StackPanel VerticalAlignment="Top">
+                                <TextBlock Text="Recent alerts" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="{Binding Summary}"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+
+                            <controls:FlowRow Spacing="8"
+                                              LineSpacing="8"
+                                              VerticalAlignment="Top">
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="150"
+                                                 ItemsSource="{Binding Filters}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding Filter, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Which alerts to list"
+                                                 ToolTip="All alerts, only the unread, or only those not shown at the time" />
+
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="110"
+                                                 ItemsSource="{Binding KeepChoices}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding KeepDays, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Keep alerts for"
+                                                 ToolTip="How long alerts are kept in this list. Older ones are let go." />
+
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding MarkAllReadCommand}"
+                                        Visibility="{Binding HasNew, Converter={StaticResource BooleanToVisibility}}"
+                                        AutomationProperties.Name="Mark every alert as read"
+                                        ToolTip="Clear the new marks, here and in the sidebar">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="CheckmarkCircle" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Mark all read" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding AskClearCommand}"
+                                        Visibility="{Binding IsConfirmingClear, Converter={StaticResource InverseBooleanToVisibility}}"
+                                        AutomationProperties.Name="Clear the list of alerts"
+                                        ToolTip="Forget every alert kept here. You will be asked first.">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="Delete" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Clear" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <StackPanel Orientation="Horizontal"
+                                            Visibility="{Binding IsConfirmingClear, Converter={StaticResource BooleanToVisibility}}">
+                                    <TextBlock Text="Forget every alert?"
+                                               VerticalAlignment="Center"
+                                               FontSize="{DynamicResource TextSize12}"
+                                               Margin="0,0,8,0"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <Button Style="{StaticResource PrimaryButtonStyle}"
+                                            Command="{Binding ClearCommand}"
+                                            Content="Clear"
+                                            Margin="0,0,6,0"
+                                            AutomationProperties.Name="Confirm clearing the list of alerts" />
+                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                            Command="{Binding CancelClearCommand}"
+                                            Content="Keep"
+                                            AutomationProperties.Name="Keep the list of alerts" />
+                                </StackPanel>
+                            </controls:FlowRow>
+                        </controls:AdaptiveRow>
+
+                        <Border Style="{StaticResource NoticeStyle}"
+                                Visibility="{Binding Notice, Converter={StaticResource TextToVisibility}}">
+                            <TextBlock Text="{Binding Notice}"
+                                       FontSize="{DynamicResource TextSize12_5}"
+                                       TextWrapping="Wrap"
+                                       controls:LiveRegion.Speaks="True"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Border>
+
+                        <ItemsControl ItemsSource="{Binding Rows}"
+                                      ItemTemplate="{StaticResource AlertRowTemplate}"
+                                      Focusable="False"
+                                      Visibility="{Binding HasRows, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="Recent alerts" />
+
+                        <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                    Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}">
+                            <fluent:SymbolIcon Symbol="AlertOff"
+                                               FontSize="22"
+                                               Margin="0,0,0,8"
+                                               HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="{Binding EmptyNote}" Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
+
+                        <views:PagerBar Margin="0,10,0,0" DataContext="{Binding Pager}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Notifications ============ -->
+                <!--
+                    One switch and a test button for most people; when something
+                    stands in the way, a sentence saying what and the button that
+                    fixes it.
+                -->
+                <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}" DataContext="{Binding Notifications}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Notifications" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Whether Windsock tells you about things while you are doing something else"
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <StackPanel VerticalAlignment="Center">
+                                    <controls:SettingHead HorizontalAlignment="Left"
+                                                          Text="Allow notifications"
+                                                          Hint="Windsock tells you about things worth knowing even while its window is closed, such as the internet dropping. Windows decides how they are shown: Do not disturb holds them back, and they wait in the notification centre. Off, alerts are still kept in the list above."
+                                                          Note="{Binding Delivery}" />
+
+                                    <TextBlock Text="{Binding Status}"
+                                               Margin="0,4,0,0"
+                                               Visibility="{Binding Status, Converter={StaticResource TextToVisibility}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource DetailNoteStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsWarning}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+
+                                <CheckBox HorizontalAlignment="Left"
+                                          Style="{StaticResource ToolbarCheckStyle}"
+                                          VerticalAlignment="Center"
+                                          Content="Show notifications"
+                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                          AutomationProperties.Name="Show notifications"
+                                          ToolTip="Let Windsock tell you when something needs your attention" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <StackPanel VerticalAlignment="Center">
+                                <controls:FlowRow Spacing="8" LineSpacing="8">
+                                    <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                              Margin="-8,0,0,0"
+                                              Content="Play a sound"
+                                              IsChecked="{Binding PlaysSound, Mode=TwoWay}"
+                                              IsEnabled="{Binding IsEnabled}"
+                                              AutomationProperties.Name="Play a sound"
+                                              ToolTip="Make a sound when a notification arrives. Each kind of alert can have its own, below. Windows' own quiet hours still win." />
+
+                                    <controls:FlowRow controls:FlowRow.Trailing="True" Spacing="8" LineSpacing="8">
+                                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                Command="{Binding SendTestCommand}"
+                                                AutomationProperties.Name="Send a test notification"
+                                                ToolTip="Send one now, to see how they look and check they arrive">
+                                            <StackPanel Orientation="Horizontal">
+                                                <fluent:SymbolIcon Symbol="AlertOn"
+                                                                   FontSize="14"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,7,0" />
+                                                <TextBlock Text="Send a test" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                Command="{Binding OpenWindowsSettingsCommand}"
+                                                AutomationProperties.Name="Open Windows notification settings"
+                                                ToolTip="Where Windows decides which apps may notify, and how">
+                                            <StackPanel Orientation="Horizontal">
+                                                <fluent:SymbolIcon Symbol="Open"
+                                                                   FontSize="14"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,7,0" />
+                                                <TextBlock Text="Windows settings" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </controls:FlowRow>
+                                </controls:FlowRow>
+
+                                <TextBlock Text="{Binding TestResult}"
+                                           Style="{StaticResource DetailNoteStyle}"
+                                           Margin="0,8,0,0"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding TestResult, Converter={StaticResource TextToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Quiet hours ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Quiet hours" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Hours in which alerts are held rather than shown. Nothing is lost: when the hours end, everything held arrives as one notification, and every alert is in the list above."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <StackPanel VerticalAlignment="Center">
+                                    <controls:SettingHead HorizontalAlignment="Left"
+                                                          Text="Hold alerts overnight"
+                                                          Hint="A stretch that ends before it begins runs past midnight: 22:00 to 07:00 is one night. The hours follow the clock on the wall, so they stay put when the clocks change." />
+                                    <TextBlock Text="{Binding QuietStatus}"
+                                               Style="{StaticResource DetailNoteStyle}"
+                                               Margin="0,4,0,0"
+                                               controls:LiveRegion.Speaks="True" />
+                                </StackPanel>
+
+                                <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Content="Quiet hours"
+                                          IsChecked="{Binding QuietEnabled, Mode=TwoWay}"
+                                          AutomationProperties.Name="Quiet hours" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <controls:FlowRow Spacing="14"
+                                          LineSpacing="10"
+                                          Margin="0,2,0,6"
+                                          Visibility="{Binding QuietEnabled, Converter={StaticResource BooleanToVisibility}}">
+                            <StackPanel Style="{StaticResource SmallFieldStyle}">
+                                <TextBlock Text="From" Style="{StaticResource FieldLabelStyle}" />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="110"
+                                                 ItemsSource="{Binding Times}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding QuietStart, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Quiet hours begin" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource SmallFieldStyle}">
+                                <TextBlock Text="To" Style="{StaticResource FieldLabelStyle}" />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="110"
+                                                 ItemsSource="{Binding Times}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding QuietEnd, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Quiet hours end" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource SmallFieldStyle}">
+                                <TextBlock Text="Beginning on" Style="{StaticResource FieldLabelStyle}" />
+                                <ItemsControl ItemsSource="{Binding Days}" Focusable="False" AutomationProperties.Name="Days quiet hours begin on">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:DayToggle}">
+                                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                      Content="{Binding Abbreviation}"
+                                                      IsChecked="{Binding IsOn, Mode=TwoWay}"
+                                                      AutomationProperties.Name="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </controls:FlowRow>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Each group of kinds ============ -->
+                <ItemsControl ItemsSource="{Binding Groups}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:AlertGroupViewModel}">
+                            <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                                <StackPanel>
+                                    <StackPanel Style="{StaticResource BandHeadStyle}">
+                                        <TextBlock Text="{Binding Title}" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="{Binding Note}"
+                                                   TextWrapping="Wrap"
+                                                   Style="{StaticResource CardNoteStyle}" />
+                                        <TextBlock Text="{Binding Warning}"
+                                                   Style="{StaticResource DetailNoteStyle}"
+                                                   Margin="0,6,0,0"
+                                                   Foreground="{DynamicResource HotBrush}"
+                                                   Visibility="{Binding Warning, Converter={StaticResource TextToVisibility}}" />
+                                    </StackPanel>
+
+                                    <ItemsControl ItemsSource="{Binding Kinds}"
+                                                  ItemTemplate="{StaticResource KindTemplate}"
+                                                  Focusable="False"
+                                                  AutomationProperties.Name="{Binding Title}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- ============ Forwarding ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}" DataContext="{Binding Forwarding}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Forwarding" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Send each alert somewhere else too: a topic on ntfy, which pushes to a phone, or a webhook. Off until you set it up. Only the alert is sent - its kind, title, message and time, and this PC's name if you give one - and it is listed under Settings › Data and privacy."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <StackPanel VerticalAlignment="Center">
+                                    <controls:SettingHead HorizontalAlignment="Left"
+                                                          Text="Forward alerts"
+                                                          Hint="Sent as each alert is raised, quiet hours or not, so a phone can apply its own. One that cannot be delivered is tried three times over a few minutes, then noted in the list above as not forwarded." />
+                                    <TextBlock Text="{Binding Status}"
+                                               Style="{StaticResource DetailNoteStyle}"
+                                               Margin="0,4,0,0" />
+                                    <TextBlock Text="{Binding LastFailure}"
+                                               Style="{StaticResource DetailNoteStyle}"
+                                               Margin="0,4,0,0"
+                                               Foreground="{DynamicResource HotBrush}"
+                                               Visibility="{Binding LastFailure, Converter={StaticResource TextToVisibility}}" />
+                                </StackPanel>
+
+                                <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Content="Forward"
+                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                          AutomationProperties.Name="Forward alerts" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <controls:FlowRow Spacing="14" LineSpacing="10" Margin="0,2,0,0">
+                            <StackPanel Style="{StaticResource SmallFieldStyle}">
+                                <TextBlock Text="Send to" Style="{StaticResource FieldLabelStyle}" />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="140"
+                                                 ItemsSource="{Binding Destinations}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding To, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Send alerts to" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource SmallFieldStyle}"
+                                        Visibility="{Binding IsNtfy, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Text="Server" Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox Style="{StaticResource FieldBoxStyle}"
+                                         Width="180"
+                                         Tag="https://ntfy.sh"
+                                         Text="{Binding NtfyServer, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="ntfy server" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource SmallFieldStyle}"
+                                        Visibility="{Binding IsNtfy, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Text="Topic" Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox Style="{StaticResource FieldBoxStyle}"
+                                         Width="170"
+                                         Tag="A name only you know"
+                                         Text="{Binding NtfyTopic, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="ntfy topic"
+                                         ToolTip="Anyone who knows a public topic's name can read it, so choose one nobody would guess. A topic's whole address can be pasted here." />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource SmallFieldStyle}"
+                                        Visibility="{Binding IsNtfy, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Text="Access token (optional)" Style="{StaticResource FieldLabelStyle}" />
+                                <PasswordBox x:Name="TokenBox"
+                                             Style="{StaticResource FieldPasswordStyle}"
+                                             Width="170"
+                                             PasswordChanged="OnTokenChanged"
+                                             AutomationProperties.Name="ntfy access token"
+                                             ToolTip="For a protected topic. Sent only to that ntfy server." />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource SmallFieldStyle}"
+                                        Visibility="{Binding IsWebhook, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Text="Webhook address" Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox Style="{StaticResource FieldBoxStyle}"
+                                         Width="320"
+                                         Tag="https://"
+                                         Text="{Binding WebhookUrl, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Webhook address"
+                                         ToolTip="Each alert is posted to it as JSON. Slack's and Discord's incoming webhooks read it as it comes." />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource SmallFieldStyle}">
+                                <TextBlock Text="Name for this PC (optional)" Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox Style="{StaticResource FieldBoxStyle}"
+                                         Width="170"
+                                         Tag="{Binding MachineName}"
+                                         Text="{Binding SenderName, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Name for this PC"
+                                         ToolTip="Sent with each alert, so several PCs can share one destination. Empty sends no name." />
+                            </StackPanel>
+                        </controls:FlowRow>
+
+                        <controls:FlowRow Spacing="8" LineSpacing="8" Margin="0,12,0,0">
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding SaveCommand}"
+                                    AutomationProperties.Name="Save where alerts are forwarded"
+                                    ToolTip="Check the destination and keep it">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Save" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Save" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding RevertCommand}"
+                                    Visibility="{Binding HasChanges, Converter={StaticResource BooleanToVisibility}}"
+                                    AutomationProperties.Name="Undo changes to forwarding"
+                                    Content="Undo changes" />
+
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding TestCommand}"
+                                    AutomationProperties.Name="Send a test alert to the destination"
+                                    ToolTip="Send one test alert to the destination as typed, saved or not">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Send" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Send a test" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </controls:FlowRow>
+
+                        <TextBlock Text="{Binding Problem}"
+                                   Style="{StaticResource DetailNoteStyle}"
+                                   Margin="0,8,0,0"
+                                   Foreground="{DynamicResource HotBrush}"
+                                   AutomationProperties.LiveSetting="Assertive"
+                                   controls:LiveRegion.Speaks="True"
+                                   Visibility="{Binding HasProblem, Converter={StaticResource BooleanToVisibility}}" />
+
+                        <TextBlock Text="{Binding Result}"
+                                   Style="{StaticResource DetailNoteStyle}"
+                                   Margin="0,8,0,0"
+                                   controls:LiveRegion.Speaks="True"
+                                   Visibility="{Binding Result, Converter={StaticResource TextToVisibility}}" />
+
+                        <TextBlock Text="Plain http:// is accepted only for an address on this PC or your own network; anywhere else must be https://. The address and the topic are never written to Windsock's logs."
+                                   Style="{StaticResource DetailNoteStyle}"
+                                   Margin="0,10,0,2" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </controls:SectionPage>
+</UserControl>

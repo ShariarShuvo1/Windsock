@@ -11,7 +11,7 @@ public sealed partial class SqliteUsageHistoryStore
     private const int Quarter = 15;
     private const long CompactionStep = 7 * 24 * 60;
 
-    private static void MigrateAppDetail(SqliteConnection connection) =>
+    private static void MigrateAppDetail(SqliteConnection connection, SqliteTransaction transaction) =>
         // app_minute is the detail and app_quarter its quarter-hour totals,
         // written in the same transaction; app_measured holds the stretches
         // measured whole, until_minute exclusive, so a minute with nothing
@@ -19,6 +19,7 @@ public sealed partial class SqliteUsageHistoryStore
         // which Windows' figures use too, so one app is one row either way.
         Execute(
             connection,
+            transaction,
             """
             CREATE TABLE IF NOT EXISTS app_minute (
                 minute INTEGER NOT NULL,
@@ -49,7 +50,7 @@ public sealed partial class SqliteUsageHistoryStore
 
         lock (_gate)
         {
-            SqliteConnection connection = Connection();
+            SqliteConnection connection = WritableConnection();
             using SqliteTransaction transaction = connection.BeginTransaction();
 
             if (ReadErased(connection, transaction).Exists(span => minute >= span.From && minute < span.Until))
@@ -285,7 +286,7 @@ public sealed partial class SqliteUsageHistoryStore
         {
             lock (_gate)
             {
-                using SqliteCommand command = Connection().CreateCommand();
+                using SqliteCommand command = WritableConnection().CreateCommand();
                 command.CommandText = "DELETE FROM app_minute WHERE minute >= @from AND minute < @to;";
                 command.Parameters.AddWithValue("@from", from);
                 command.Parameters.AddWithValue("@to", Math.Min(beforeMinute, from + CompactionStep));
@@ -295,7 +296,7 @@ public sealed partial class SqliteUsageHistoryStore
 
         lock (_gate)
         {
-            using SqliteCommand mark = Connection().CreateCommand();
+            using SqliteCommand mark = WritableConnection().CreateCommand();
             mark.CommandText =
                 """
                 INSERT INTO app_state (name, value) VALUES (@name, @before)
@@ -327,7 +328,7 @@ public sealed partial class SqliteUsageHistoryStore
     {
         lock (_gate)
         {
-            SqliteConnection connection = Connection();
+            SqliteConnection connection = WritableConnection();
             Execute(connection, "VACUUM;");
             Execute(connection, "PRAGMA wal_checkpoint(TRUNCATE);");
         }

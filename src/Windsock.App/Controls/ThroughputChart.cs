@@ -3,7 +3,9 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using Windsock.Core.Alerts;
 using Windsock.Core.Formatting;
+using System.Windows.Automation.Peers;
 
 namespace Windsock.App.Controls;
 
@@ -24,6 +26,9 @@ public sealed class ChartHoverEventArgs(
     public double UploadBytesPerSecond { get; } = uploadBytesPerSecond;
 
     public double SecondsAgo { get; } = secondsAgo;
+
+    /// <summary>The event marked under the pointer - an outage, a network change, an alert - or nothing.</summary>
+    public TimelineMarker? Marker { get; init; }
 }
 
 /// <summary>
@@ -150,6 +155,30 @@ public sealed class ThroughputChart : FrameworkElement
             typeof(Brush),
             typeof(ThroughputChart),
             new FrameworkPropertyMetadata(Brushes.Transparent, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty MarkersProperty =
+        DependencyProperty.Register(
+            nameof(Markers),
+            typeof(IReadOnlyList<TimelineMarker>),
+            typeof(ThroughputChart),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty LatestSampleTimeProperty =
+        DependencyProperty.Register(
+            nameof(LatestSampleTime),
+            typeof(DateTimeOffset),
+            typeof(ThroughputChart),
+            new FrameworkPropertyMetadata(default(DateTimeOffset), FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty MarkerBrushProperty =
+        DependencyProperty.Register(
+            nameof(MarkerBrush),
+            typeof(Brush),
+            typeof(ThroughputChart),
+            new FrameworkPropertyMetadata(Brushes.OrangeRed, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>How near the pointer must come to a marked moment, in pixels, for it to be named.</summary>
+    private const double MarkerReach = 5;
     private double[] _downloadBuckets = [];
     private double[] _uploadBuckets = [];
     private Point[] _downloadPoints = [];
@@ -283,6 +312,65 @@ public sealed class ThroughputChart : FrameworkElement
         set => SetValue(SurfaceBrushProperty, value);
     }
 
+    /// <summary>
+    /// Outages, network changes and alerts to mark over the plot, from the alert
+    /// timeline: an outage as a shaded span, anything else as a line at its moment.
+    /// </summary>
+    public IReadOnlyList<TimelineMarker>? Markers
+    {
+        get => (IReadOnlyList<TimelineMarker>?)GetValue(MarkersProperty);
+        set => SetValue(MarkersProperty, value);
+    }
+
+    /// <summary>When the newest sample was taken: where "now" is, so a marked moment finds its place.</summary>
+    public DateTimeOffset LatestSampleTime
+    {
+        get => (DateTimeOffset)GetValue(LatestSampleTimeProperty);
+        set => SetValue(LatestSampleTimeProperty, value);
+    }
+
+    /// <summary>The colour of outages and of alerts that matter; the rest take the axis colour.</summary>
+    public Brush MarkerBrush
+    {
+        get => (Brush)GetValue(MarkerBrushProperty);
+        set => SetValue(MarkerBrushProperty, value);
+    }
+
+    /// <summary>A screen reader hears that this is a chart, its name, and what it shows now.</summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new ChartAutomationPeer(this, () => string.Concat(ChartWords.Rates(ShowDownload ? DownloadSeries : null, ShowUpload ? UploadSeries : null, Family, Scale), MarksSpoken()));
+
+    /// <summary>
+    /// The marks in view, in words, for the chart's summary: " Marked: an outage
+    /// from 21:04 to 21:06; Unusual upload at 21:10." Empty when none are in view.
+    /// </summary>
+    private string MarksSpoken()
+    {
+        double span = ResolveVisible(Math.Max(SampleCount(), 2)) * SampleIntervalSeconds;
+
+        if (Markers is not { Count: > 0 } markers || LatestSampleTime == default || span <= 0)
+        {
+            return string.Empty;
+        }
+
+        DateTimeOffset from = LatestSampleTime.AddSeconds(-span);
+        TimelineMarker[] shown = [.. markers.Where(marker => (marker.Until ?? LatestSampleTime) >= from && marker.At <= LatestSampleTime)];
+
+        if (shown.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        IEnumerable<string> said = shown.Take(3).Select(marker => marker.IsSpan
+            ? string.Concat("an outage from ", ClockFormat.Time(marker.At.LocalDateTime), marker.Until is { } until ? string.Concat(" to ", ClockFormat.Time(until.LocalDateTime)) : ", still going")
+            : string.Concat(marker.Title, " at ", ClockFormat.Time(marker.At.LocalDateTime)));
+
+        string more = shown.Length > 3
+            ? string.Create(CultureInfo.CurrentCulture, $", and {shown.Length - 3} more")
+            : string.Empty;
+
+        return string.Concat(" Marked: ", string.Join("; ", said), more, ".");
+    }
+
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
@@ -314,6 +402,8 @@ public sealed class ThroughputChart : FrameworkElement
 
         Project(_uploadBuckets, _uploadPoints, plotWidth, plotHeight);
         Project(_downloadBuckets, _downloadPoints, plotWidth, plotHeight);
+        DrawMarkedSpans(drawingContext, plotWidth, plotHeight);
+
         if (ShowUpload)
         {
             DrawSeries(drawingContext, _uploadPoints, UploadBrush, plotWidth, plotHeight);
@@ -324,6 +414,7 @@ public sealed class ThroughputChart : FrameworkElement
             DrawSeries(drawingContext, _downloadPoints, DownloadBrush, plotWidth, plotHeight);
         }
 
+        DrawMarkedMoments(drawingContext, plotWidth, plotHeight);
         DrawHover(drawingContext, plotWidth, plotHeight);
     }
 
@@ -492,7 +583,140 @@ public sealed class ThroughputChart : FrameworkElement
                 position,
                 _downloadBuckets[bucket],
                 _uploadBuckets[bucket],
-                samplesAgo * SampleIntervalSeconds));
+                samplesAgo * SampleIntervalSeconds)
+            {
+                Marker = MarkerAt(position.X, plotWidth),
+            });
+    }
+
+    /// <summary>
+    /// Where a moment falls across the plot, or nothing when the chart has no
+    /// clock yet. May fall outside the plot; callers clip.
+    /// </summary>
+    private double? XOf(DateTimeOffset moment, double plotWidth)
+    {
+        double span = ResolveVisible(Math.Max(SampleCount(), 2)) * SampleIntervalSeconds;
+
+        if (span <= 0 || LatestSampleTime == default)
+        {
+            return null;
+        }
+
+        double secondsAgo = (LatestSampleTime - moment).TotalSeconds;
+        return ValueAxisWidth + plotWidth - (secondsAgo / span * plotWidth);
+    }
+
+    /// <summary>The marked event under the pointer: a moment within reach, else the outage it is inside.</summary>
+    private TimelineMarker? MarkerAt(double x, double plotWidth)
+    {
+        if (Markers is not { Count: > 0 } markers)
+        {
+            return null;
+        }
+
+        TimelineMarker? nearest = null;
+        double closest = MarkerReach;
+
+        foreach (TimelineMarker marker in markers)
+        {
+            if (marker.IsSpan || XOf(marker.At, plotWidth) is not { } at)
+            {
+                continue;
+            }
+
+            double distance = Math.Abs(at - x);
+
+            if (distance <= closest)
+            {
+                closest = distance;
+                nearest = marker;
+            }
+        }
+
+        if (nearest is not null)
+        {
+            return nearest;
+        }
+
+        foreach (TimelineMarker marker in markers)
+        {
+            if (marker.IsSpan
+                && XOf(marker.At, plotWidth) is { } from
+                && XOf(marker.Until ?? LatestSampleTime, plotWidth) is { } until
+                && x >= from - 1
+                && x <= until + 1)
+            {
+                return marker;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Outages, shaded across the plot's height, under the series.</summary>
+    private void DrawMarkedSpans(DrawingContext drawingContext, double plotWidth, double plotHeight)
+    {
+        if (Markers is not { Count: > 0 } markers)
+        {
+            return;
+        }
+
+        Brush shade = MarkerBrush.Clone();
+        shade.Opacity = 0.14;
+        shade.Freeze();
+
+        double left = ValueAxisWidth;
+        double right = ValueAxisWidth + plotWidth;
+
+        foreach (TimelineMarker marker in markers)
+        {
+            if (!marker.IsSpan
+                || XOf(marker.At, plotWidth) is not { } from
+                || XOf(marker.Until ?? LatestSampleTime, plotWidth) is not { } until
+                || until < left
+                || from > right)
+            {
+                continue;
+            }
+
+            double start = Math.Clamp(from, left, right);
+
+            // Even a short outage gets a sliver that can be seen and hovered.
+            double end = Math.Max(Math.Clamp(until, left, right), Math.Min(right, start + 2));
+
+            drawingContext.DrawRectangle(shade, null, new Rect(start, 0, end - start, plotHeight));
+        }
+    }
+
+    /// <summary>Network changes and alerts, as thin lines at their moment with a dot at the top.</summary>
+    private void DrawMarkedMoments(DrawingContext drawingContext, double plotWidth, double plotHeight)
+    {
+        if (Markers is not { Count: > 0 } markers)
+        {
+            return;
+        }
+
+        var hot = new Pen(MarkerBrush, 1) { DashStyle = new DashStyle([2, 2], 0) };
+        hot.Freeze();
+        var quiet = new Pen(AxisBrush, 1) { DashStyle = new DashStyle([2, 2], 0) };
+        quiet.Freeze();
+
+        double left = ValueAxisWidth;
+        double right = ValueAxisWidth + plotWidth;
+
+        foreach (TimelineMarker marker in markers)
+        {
+            if (marker.IsSpan || XOf(marker.At, plotWidth) is not { } at || at < left || at > right)
+            {
+                continue;
+            }
+
+            bool matters = marker.Level != AlertLevel.Info;
+            double x = Math.Round(at) + 0.5;
+
+            drawingContext.DrawLine(matters ? hot : quiet, new Point(x, 4), new Point(x, plotHeight));
+            drawingContext.DrawEllipse(matters ? MarkerBrush : AxisBrush, null, new Point(x, 4), 3, 3);
+        }
     }
 
     private void ClearHover()

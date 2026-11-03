@@ -13,7 +13,13 @@ public sealed partial class UsageRecorder : BackgroundService
 {
     private readonly ThroughputMonitor _monitor;
     private readonly IUsageHistoryStore _store;
+    private readonly INetworkTagSource? _networks;
     private readonly ILogger<UsageRecorder> _logger;
+    private readonly WriteFailureLog _failures = new();
+
+    // The networks the open minute's bytes went over. Nearly always one; two
+    // when the PC moved network inside the minute.
+    private readonly List<(NetworkTag? Network, long Bytes)> _carriers = [];
 
     private readonly Channel<UsageMinute> _completed = Channel.CreateUnbounded<UsageMinute>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
@@ -34,11 +40,23 @@ public sealed partial class UsageRecorder : BackgroundService
         IUsageHistoryStore store,
         WindsockSettings settings,
         ILogger<UsageRecorder> logger)
+        : this(monitor, store, settings, networks: null, logger)
+    {
+    }
+
+    /// <summary>A recorder that tags each minute with the network it was measured on.</summary>
+    public UsageRecorder(
+        ThroughputMonitor monitor,
+        IUsageHistoryStore store,
+        WindsockSettings settings,
+        INetworkTagSource? networks,
+        ILogger<UsageRecorder> logger)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
         _monitor = monitor;
         _store = store;
+        _networks = networks;
         _logger = logger;
         _recording = settings.RecordHistory;
     }
@@ -136,6 +154,7 @@ public sealed partial class UsageRecorder : BackgroundService
     internal void Observe(ThroughputDelta delta)
     {
         long minute = EpochMinute.From(delta.Timestamp);
+        NetworkTag? network = _networks?.Current;
         UsageMinute? finished = null;
 
         lock (_gate)
@@ -157,6 +176,7 @@ public sealed partial class UsageRecorder : BackgroundService
             }
             _bytesDown += delta.BytesReceived;
             _bytesUp += delta.BytesSent;
+            Carry(network, delta.BytesReceived + delta.BytesSent);
 
             if (delta.Seconds > 0)
             {
@@ -174,7 +194,46 @@ public sealed partial class UsageRecorder : BackgroundService
     }
 
     private UsageMinute Snapshot() =>
-        new(_minute, _bytesDown, _bytesUp, _peakDown, _peakUp);
+        new(_minute, _bytesDown, _bytesUp, _peakDown, _peakUp) { Network = Carrier() };
+
+    /// <summary>Counts bytes against the network they went over. Call with the gate held.</summary>
+    private void Carry(NetworkTag? network, long bytes)
+    {
+        for (int each = 0; each < _carriers.Count; each++)
+        {
+            if (string.Equals(_carriers[each].Network?.Key, network?.Key, StringComparison.Ordinal))
+            {
+                // The latest word on the network, its name or cost, wins.
+                _carriers[each] = (network, _carriers[each].Bytes + Math.Max(0, bytes));
+                return;
+            }
+        }
+
+        _carriers.Add((network, Math.Max(0, bytes)));
+    }
+
+    /// <summary>
+    /// The network the open minute is kept under: the one that carried most of
+    /// its bytes, the later on a tie, so a minute where nothing moved is the
+    /// network it ended on. Null when that is not known: a minute is never
+    /// put down to a network it may not have been on. Call with the gate held.
+    /// </summary>
+    private NetworkTag? Carrier()
+    {
+        NetworkTag? chosen = null;
+        long most = -1;
+
+        foreach ((NetworkTag? network, long bytes) in _carriers)
+        {
+            if (bytes >= most)
+            {
+                most = bytes;
+                chosen = network;
+            }
+        }
+
+        return chosen;
+    }
 
     /// <summary>
     /// Moves on to a minute with nothing counted in it yet, or to no minute at
@@ -192,6 +251,7 @@ public sealed partial class UsageRecorder : BackgroundService
         _bytesUp = 0;
         _peakDown = 0;
         _peakUp = 0;
+        _carriers.Clear();
     }
 
     internal void FlushOnShutdown()
@@ -243,7 +303,10 @@ public sealed partial class UsageRecorder : BackgroundService
         catch (Exception ex) when (HistoryFailure.IsStorage(ex))
         {
             // These minutes are lost; the next ones are still measured and tried.
-            LogWriteFailed(ex, batch.Count);
+            if (_failures.ShouldLog(ex))
+            {
+                LogWriteFailed(ex, batch.Count);
+            }
         }
     }
 

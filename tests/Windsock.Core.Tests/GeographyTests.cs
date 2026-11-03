@@ -228,6 +228,8 @@ public sealed class IpLocationsTests
     [InlineData("10.4.5.6")]
     [InlineData("172.16.9.9")]
     [InlineData("169.254.1.1")]
+    [InlineData("100.64.0.1")]
+    [InlineData("100.127.255.254")]
     [InlineData("0.0.0.0")]
     [InlineData("not an address")]
     [InlineData(null)]

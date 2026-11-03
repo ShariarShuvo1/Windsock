@@ -6,552 +6,1059 @@
              xmlns:controls="clr-namespace:Windsock.App.Controls"
              xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
              xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             xmlns:views="clr-namespace:Windsock.App.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:SettingsPanelViewModel}"
              d:DesignWidth="880"
              d:DesignHeight="900">
 
     <!--
-        Settings on one card, a row to a setting, in a few groups headed within it:
-        how the app looks and behaves, what it tells you, what it keeps, and what
-        it is. One surface, because they are one list; a group's heading owns the
-        rows under it by having no rule beneath it. Scrollable from the start:
-        this is a list that only ever grows.
+        Settings, split into pages: General, Appearance, Data and privacy,
+        Advanced, About. The tabs under the heading choose one; each page is a
+        few bands, one per kind of setting, a row to a setting. Every row is the
+        same shape - the name, with its reason behind the mark beside it, on the
+        left, and the control on the right, dropping under the name in a narrow
+        window - so the eye runs down one column of names and one of controls.
 
-        Every row is the same shape - the name, with its reason behind the mark
-        beside it, on the left, and the control that changes it on the right -
-        so the eye runs down one column of names and one column of controls.
+        Notifications moved to the Alerts page, beside the alerts they govern.
     -->
+    <UserControl.Resources>
+        <!-- One of the pages: shown while its tab is chosen. -->
+        <Style x:Key="SettingsPageStyle" TargetType="ScrollViewer">
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="Padding" Value="{StaticResource PagePadding}" />
+            <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
 
-    <controls:SectionPage Title="Settings"
-                          Subtitle="{Binding CurrentVersion, StringFormat=Windsock {0}}">
-        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      Padding="{StaticResource PagePadding}">
-            <controls:Card>
-                <controls:RuledPanel x:Name="Cards">
-                    <!-- ============ General ============ -->
-                    <Border Style="{StaticResource GroupHeadStyle}">
-                        <StackPanel>
-                            <TextBlock Text="General" Style="{StaticResource CardTitleStyle}" />
-                            <TextBlock Text="How Windsock looks, and what it does when its window is closed"
-                                       TextWrapping="Wrap"
-                                       Style="{StaticResource CardNoteStyle}" />
-                        </StackPanel>
-                    </Border>
+        <!-- The quiet words that stand in a control's place on a row that has nothing to change. -->
+        <Style x:Key="RowFactStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+    </UserControl.Resources>
 
-                    <Border Style="{StaticResource SettingRowStyle}" controls:RuledPanel.RuleAbove="False">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead HorizontalAlignment="Left"
-                                                  Text="Theme"
-                                                  Hint="Follow the Windows light and dark setting, or pin one." />
+    <controls:SectionPage Title="Settings" Subtitle="{Binding PageSubtitle}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-                            <controls:Picker HorizontalAlignment="Left"
-                                             Style="{StaticResource PickerStyle}"
-                                             MinWidth="140"
-                                             VerticalAlignment="Center"
-                                             ItemsSource="{Binding Themes}"
-                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                             SelectedValuePath="Preference"
-                                             SelectedValue="{Binding SelectedTheme, Mode=TwoWay}"
-                                             AutomationProperties.Name="Theme"
-                                             ToolTip="Follow Windows, or pin Windsock to light or dark" />
-                        </controls:AdaptiveRow>
-                    </Border>
+            <ListBox Grid.Row="0"
+                     Margin="24,0,24,14"
+                     Style="{StaticResource PageTabsStyle}"
+                     ItemsSource="{Binding Pages}"
+                     DisplayMemberPath="Label"
+                     SelectedValuePath="Page"
+                     SelectedValue="{Binding SelectedPage, Mode=TwoWay}"
+                     AutomationProperties.Name="Settings pages" />
 
-                    <!--
-                        What the close button does. A program that will not
-                        close when told to is a program people uninstall, so
-                        this is off by default and says plainly what it needs
-                        to work.
-                    -->
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead HorizontalAlignment="Left"
-                                                  Text="When the window is closed"
-                                                  Hint="Keeping Windsock running keeps measuring and writing history with the window put away. Click the notification area icon, or the taskbar meter, to bring it back." />
+            <Grid Grid.Row="1">
+                <!-- ===================== General ===================== -->
+                <ScrollViewer>
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer" BasedOn="{StaticResource SettingsPageStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static vm:SettingsPage.General}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
 
-                            <controls:Picker HorizontalAlignment="Left"
-                                             Style="{StaticResource PickerStyle}"
-                                             MinWidth="220"
-                                             VerticalAlignment="Center"
-                                             ItemsSource="{Binding Closings}"
-                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                             SelectedValuePath="Action"
-                                             SelectedValue="{Binding SelectedClosing, Mode=TwoWay}"
-                                             AutomationProperties.Name="When the window is closed"
-                                             ToolTip="Quit Windsock, or put the window away and leave it running" />
-                        </controls:AdaptiveRow>
-                    </Border>
+                    <StackPanel>
+                        <Border Style="{StaticResource BandStyle}">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="The window" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="What closing it does, and whether Windsock starts with Windows"
+                                               Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
 
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <StackPanel VerticalAlignment="Center">
-                                <controls:SettingHead HorizontalAlignment="Left"
-                                                      Text="Start with Windows"
-                                                      Hint="Windsock starts when you sign in and goes straight to the taskbar meter, without opening a window. This is the same list Task Manager shows under Startup apps, and turning it off there turns it off here." />
+                                <!--
+                                    What the close button does. A program that will
+                                    not close when told to is a program people
+                                    uninstall, so this is off by default and says
+                                    plainly what it needs to work.
+                                -->
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="When the window is closed"
+                                                              Hint="Keeping Windsock running keeps measuring and writing history with the window put away. Click the notification area icon, or the taskbar meter, to bring it back." />
 
-                                <TextBlock Text="{Binding StartupNote}"
-                                           Style="{StaticResource DetailNoteStyle}"
-                                           Margin="0,4,0,0"
-                                           Visibility="{Binding StartupNote, Converter={StaticResource TextToVisibility}}" />
-                            </StackPanel>
+                                        <controls:Picker HorizontalAlignment="Left"
+                                                         Style="{StaticResource PickerStyle}"
+                                                         MinWidth="220"
+                                                         VerticalAlignment="Center"
+                                                         ItemsSource="{Binding Closings}"
+                                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                         SelectedValuePath="Action"
+                                                         SelectedValue="{Binding SelectedClosing, Mode=TwoWay}"
+                                                         AutomationProperties.Name="When the window is closed"
+                                                         ToolTip="Quit Windsock, or put the window away and leave it running" />
+                                    </controls:AdaptiveRow>
+                                </Border>
 
-                            <CheckBox HorizontalAlignment="Left"
-                                      Style="{StaticResource ToolbarCheckStyle}"
-                                      VerticalAlignment="Center"
-                                      Content="Start with Windows"
-                                      IsChecked="{Binding StartWithWindows, Mode=TwoWay}"
-                                      AutomationProperties.Name="Start with Windows"
-                                      ToolTip="Start Windsock when you sign in, straight to the taskbar meter" />
-                        </controls:AdaptiveRow>
-                    </Border>
+                                <!--
+                                    Where the window opens. It always comes back
+                                    at the size and place it had on that monitor;
+                                    this is only which page it turns to.
+                                -->
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Open the window on"
+                                                              Hint="The page the window turns to when it opens: the one it was on when it was last closed, or always the same one. It comes back at the size and place it last had on that monitor either way, and never off the screen. A notification, the jump list or a link still opens the page it names." />
 
-                    <!-- ============ Notifications ============ -->
-                    <!--
-                        One switch and a test button for most people; when something
-                        stands in the way, a sentence saying what and the button that
-                        fixes it. The switches for each kind of alert live with the
-                        feature that raises it - the connection alerts are in the
-                        Connection section - and this card governs them all.
-                    -->
-                    <Border Style="{StaticResource GroupHeadStyle}">
-                        <StackPanel>
-                            <TextBlock Text="Notifications" Style="{StaticResource CardTitleStyle}" />
-                            <TextBlock Text="What Windsock tells you while you are doing something else"
-                                       TextWrapping="Wrap"
-                                       Style="{StaticResource CardNoteStyle}" />
-                        </StackPanel>
-                    </Border>
+                                        <controls:Picker HorizontalAlignment="Left"
+                                                         Style="{StaticResource PickerStyle}"
+                                                         MinWidth="220"
+                                                         VerticalAlignment="Center"
+                                                         ItemsSource="{Binding OpenOnChoices}"
+                                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                         SelectedValuePath="Link"
+                                                         SelectedValue="{Binding SelectedOpenOn, Mode=TwoWay}"
+                                                         AutomationProperties.Name="Open the window on"
+                                                         ToolTip="The page the window turns to when it opens" />
+                                    </controls:AdaptiveRow>
+                                </Border>
 
-                    <Border Style="{StaticResource SettingRowStyle}" DataContext="{Binding Notifications}" controls:RuledPanel.RuleAbove="False">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <StackPanel VerticalAlignment="Center">
-                                <controls:SettingHead HorizontalAlignment="Left"
-                                                      Text="Allow notifications"
-                                                      Hint="Windsock tells you about things worth knowing even while its window is closed, such as the internet dropping. Windows decides how they are shown: Do not disturb holds them back, and they wait in the notification centre."
-                                                      Note="{Binding Delivery}" />
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <controls:SettingHead HorizontalAlignment="Left"
+                                                                  Text="Start with Windows"
+                                                                  Hint="Windsock starts when you sign in and goes straight to the taskbar meter, without opening a window. This is the same list Task Manager shows under Startup apps, and turning it off there turns it off here." />
 
-                                <TextBlock Text="{Binding Status}"
-                                           Margin="0,4,0,0"
-                                           Visibility="{Binding Status, Converter={StaticResource TextToVisibility}}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource DetailNoteStyle}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsWarning}" Value="True">
-                                                    <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </StackPanel>
-
-                            <CheckBox HorizontalAlignment="Left"
-                                      Style="{StaticResource ToolbarCheckStyle}"
-                                      VerticalAlignment="Center"
-                                      Content="Show notifications"
-                                      IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                      AutomationProperties.Name="Show notifications"
-                                      ToolTip="Let Windsock tell you when something needs your attention" />
-                        </controls:AdaptiveRow>
-                    </Border>
-
-                    <Border Style="{StaticResource SettingRowStyle}" DataContext="{Binding Notifications}">
-                        <StackPanel VerticalAlignment="Center">
-                            <controls:FlowRow Spacing="8" LineSpacing="8">
-                                <CheckBox Style="{StaticResource ToolbarCheckStyle}"
-                                          Margin="-8,0,0,0"
-                                          Content="Play a sound"
-                                          IsChecked="{Binding PlaysSound, Mode=TwoWay}"
-                                          IsEnabled="{Binding IsEnabled}"
-                                          AutomationProperties.Name="Play a sound"
-                                          ToolTip="Make a sound when a notification arrives. Windows' own quiet hours still win." />
-
-                                <controls:FlowRow controls:FlowRow.Trailing="True" Spacing="8" LineSpacing="8">
-                                    <Button Style="{StaticResource ToolbarButtonStyle}"
-                                            Command="{Binding SendTestCommand}"
-                                            AutomationProperties.Name="Send a test notification"
-                                            ToolTip="Send one now, to see how they look and check they arrive">
-                                        <StackPanel Orientation="Horizontal">
-                                            <fluent:SymbolIcon Symbol="AlertOn"
-                                                               FontSize="14"
-                                                               VerticalAlignment="Center"
-                                                               Margin="0,0,7,0" />
-                                            <TextBlock Text="Send a test" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding StartupNote}"
+                                                       Style="{StaticResource DetailNoteStyle}"
+                                                       Margin="0,4,0,0"
+                                                       Visibility="{Binding StartupNote, Converter={StaticResource TextToVisibility}}" />
                                         </StackPanel>
-                                    </Button>
 
-                                    <Button Style="{StaticResource ToolbarButtonStyle}"
-                                            Command="{Binding OpenWindowsSettingsCommand}"
-                                            AutomationProperties.Name="Open Windows notification settings"
-                                            ToolTip="Where Windows decides which apps may notify, and how">
-                                        <StackPanel Orientation="Horizontal">
-                                            <fluent:SymbolIcon Symbol="Open"
-                                                               FontSize="14"
+                                        <CheckBox HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToolbarCheckStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Content="Start with Windows"
+                                                  IsChecked="{Binding StartWithWindows, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Start with Windows"
+                                                  ToolTip="Start Windsock when you sign in, straight to the taskbar meter" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="Measuring" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Which network connections the meter, the charts and history count"
+                                               Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Adapter"
+                                                              Hint="Measure every adapter together, or narrow the meter to one of them. This choice belongs to this PC and is not carried by Export settings." />
+
+                                        <Grid HorizontalAlignment="Left" VerticalAlignment="Center">
+                                            <ToggleButton x:Name="AdapterButton"
+                                                          Style="{StaticResource ToolbarButtonStyle}"
+                                                          MinWidth="180"
+                                                          HorizontalContentAlignment="Stretch"
+                                                          IsChecked="{Binding IsAdapterListOpen, Mode=TwoWay}"
+                                                          AutomationProperties.Name="Adapter"
+                                                          ToolTip="Choose any combination of adapters to measure">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{Binding AdapterSummary}"
                                                                VerticalAlignment="Center"
-                                                               Margin="0,0,7,0" />
-                                            <TextBlock Text="Windows settings" VerticalAlignment="Center" />
+                                                               TextTrimming="CharacterEllipsis" />
+
+                                                    <Path Grid.Column="1"
+                                                          Data="M 0 0 L 4 4 L 8 0"
+                                                          Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                                                          StrokeThickness="1.3"
+                                                          StrokeStartLineCap="Round"
+                                                          StrokeEndLineCap="Round"
+                                                          StrokeLineJoin="Round"
+                                                          Margin="10,1,0,0"
+                                                          VerticalAlignment="Center" />
+                                                </Grid>
+                                            </ToggleButton>
+
+                                            <Popup IsOpen="{Binding IsChecked, ElementName=AdapterButton, Mode=TwoWay}"
+                                                   PlacementTarget="{Binding ElementName=AdapterButton}"
+                                                   Placement="Bottom"
+                                                   VerticalOffset="6"
+                                                   HorizontalOffset="-40"
+                                                   StaysOpen="False"
+                                                   controls:Flyout.MovesFocus="True"
+                                                   AllowsTransparency="True"
+                                                   PopupAnimation="Fade">
+                                                <Border Style="{StaticResource FlyoutStyle}" MinWidth="230" Padding="6">
+                                                    <StackPanel>
+                                                        <!--
+                                                            Nothing ticked means all of them, so
+                                                            clearing the list is a way back rather
+                                                            than a meter that measures nothing.
+                                                        -->
+                                                        <ScrollViewer MaxHeight="260"
+                                                                      VerticalScrollBarVisibility="Auto"
+                                                                      HorizontalScrollBarVisibility="Disabled"
+                                                                      Focusable="False">
+                                                            <ItemsControl ItemsSource="{Binding Adapters}"
+                                                                          ItemTemplate="{StaticResource AdapterChoiceTemplate}"
+                                                                          Focusable="False" />
+                                                        </ScrollViewer>
+
+                                                        <TextBlock Text="At least one adapter stays ticked."
+                                                                   FontSize="{DynamicResource TextSize11}"
+                                                                   Margin="10,8,10,4"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Popup>
+                                        </Grid>
+                                    </controls:AdaptiveRow>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===================== Appearance ===================== -->
+                <ScrollViewer>
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer" BasedOn="{StaticResource SettingsPageStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static vm:SettingsPage.Appearance}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
+
+                    <StackPanel>
+                        <Border Style="{StaticResource BandStyle}">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="Look" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="How the window is drawn. The taskbar meter's own look is on the Taskbar page, and the network chart's units on its own controls."
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Theme"
+                                                              Hint="Follow the Windows light and dark setting, or pin one." />
+
+                                        <controls:Picker HorizontalAlignment="Left"
+                                                         Style="{StaticResource PickerStyle}"
+                                                         MinWidth="140"
+                                                         VerticalAlignment="Center"
+                                                         ItemsSource="{Binding Themes}"
+                                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                         SelectedValuePath="Preference"
+                                                         SelectedValue="{Binding SelectedTheme, Mode=TwoWay}"
+                                                         AutomationProperties.Name="Theme"
+                                                         ToolTip="Follow Windows, or pin Windsock to light or dark" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Use the Windows accent colour"
+                                                              Hint="Draw selection, links, the main buttons and the edge of a focused field in the accent colour chosen in Windows (Settings › Personalisation › Colours) instead of Windsock's cyan, in the shade of it that reads clearly on this theme. Download, upload and the colour of each part of the PC never change." />
+
+                                        <CheckBox HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToolbarCheckStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Content="Windows accent"
+                                                  IsChecked="{Binding UseWindowsAccent, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Use the Windows accent colour"
+                                                  ToolTip="Take the accent from Windows instead of Windsock's cyan" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Density"
+                                                              Hint="Compact gives rows, plates and controls less room, so more fits on screen. Text stays the same size; that follows Windows' Text size." />
+
+                                        <controls:Picker HorizontalAlignment="Left"
+                                                         Style="{StaticResource PickerStyle}"
+                                                         MinWidth="140"
+                                                         VerticalAlignment="Center"
+                                                         ItemsSource="{Binding Densities}"
+                                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                         SelectedValuePath="Density"
+                                                         SelectedValue="{Binding SelectedDensity, Mode=TwoWay}"
+                                                         AutomationProperties.Name="Density"
+                                                         ToolTip="Comfortable, or compact for more on screen" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <!-- Nothing to change here: Windows' own settings, said plainly. -->
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Text size and contrast"
+                                                              Hint="Windsock follows Windows' Text size (Settings › Accessibility › Text size) and its contrast themes (Settings › Accessibility › Contrast themes) by itself, as they change. The taskbar meter keeps the size its bar allows." />
+
+                                        <TextBlock Style="{StaticResource RowFactStyle}"
+                                                   Text="{Binding SystemLookNote, Mode=OneTime}" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Temperatures"
+                                                              Hint="The scale every temperature is written in: the processor, graphics, drives and battery, History, and the taskbar meter. What is read and recorded stays the same; only what is written changes." />
+
+                                        <controls:Picker HorizontalAlignment="Left"
+                                                         Style="{StaticResource PickerStyle}"
+                                                         MinWidth="140"
+                                                         VerticalAlignment="Center"
+                                                         ItemsSource="{Binding TemperatureUnits}"
+                                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                         SelectedValuePath="Unit"
+                                                         SelectedValue="{Binding SelectedTemperature, Mode=TwoWay}"
+                                                         AutomationProperties.Name="Temperatures"
+                                                         ToolTip="Celsius or Fahrenheit, everywhere a temperature is shown" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===================== Data and privacy ===================== -->
+                <ScrollViewer>
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer" BasedOn="{StaticResource SettingsPageStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static vm:SettingsPage.Privacy}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
+
+                    <StackPanel>
+                        <!-- What is kept on this PC: recording, keeping and erasing. -->
+                        <Border Style="{StaticResource BandStyle}">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="History on this PC" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="{Binding HistorySize}"
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Record history"
+                                                              Hint="Write every minute of usage to disk, so the History page can look further back than this run, and keep each app's usage as Windows counts it for the Apps page. Pausing keeps neither for the paused time, and leaves everything already recorded alone. The History page has the same button." />
+
+                                        <Button x:Name="RecordHistoryButton"
+                                                HorizontalAlignment="Left" Style="{StaticResource ToolbarButtonStyle}"
+                                                VerticalAlignment="Center"
+                                                Command="{Binding ToggleRecordingCommand}"
+                                                AutomationProperties.Name="{Binding RecordingLabel}"
+                                                ToolTip="Whether new minutes are written to disk. Pausing leaves everything already recorded alone.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <fluent:SymbolIcon FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                    <fluent:SymbolIcon.Style>
+                                                        <Style TargetType="fluent:SymbolIcon">
+                                                            <Setter Property="Symbol" Value="PauseCircle" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsRecording}" Value="False">
+                                                                    <Setter Property="Symbol" Value="PlayCircle" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </fluent:SymbolIcon.Style>
+                                                </fluent:SymbolIcon>
+
+                                                <TextBlock Text="{Binding RecordingLabel}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <!--
+                                    History is kept for good by default. Somebody
+                                    short of disk can fold old minutes into quarter
+                                    hours, and give the space back, without losing
+                                    any total.
+                                -->
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Keep minute detail"
+                                                              Hint="How long each app's minute-by-minute use is kept, which is by far the largest part of history. After that it is folded into quarter-hour totals: nothing is lost but the detail. Network use as a whole, the machine's readings and the connection checks are always kept a minute at a time; a year of those is some tens of megabytes."
+                                                              Note="{Binding DetailNote}" />
+
+                                        <controls:Picker HorizontalAlignment="Left"
+                                                         Style="{StaticResource PickerStyle}"
+                                                         MinWidth="140"
+                                                         VerticalAlignment="Center"
+                                                         ItemsSource="{Binding DetailOptions}"
+                                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                         SelectedValuePath="Days"
+                                                         SelectedValue="{Binding SelectedDetailDays, Mode=TwoWay}"
+                                                         AutomationProperties.Name="Keep minute detail"
+                                                         ToolTip="Forever, or fold minutes older than this into quarter hours" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Reclaim space"
+                                                              Hint="Folds away the minutes the setting above no longer keeps, then rewrites the history file so the space goes back to the disk. A large file can take a minute; recording carries on around it."
+                                                              Note="{Binding ReclaimNote}" />
+
+                                        <Button HorizontalAlignment="Left"
+                                                Style="{StaticResource ToolbarButtonStyle}"
+                                                VerticalAlignment="Center"
+                                                Command="{Binding ReclaimSpaceCommand}"
+                                                AutomationProperties.Name="Reclaim space"
+                                                ToolTip="Shrink the history file now">
+                                            <StackPanel Orientation="Horizontal">
+                                                <fluent:SymbolIcon Symbol="Broom"
+                                                                   FontSize="14"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,7,0" />
+
+                                                <TextBlock Text="Reclaim space" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <!--
+                                    Under the switch that writes it, which is where
+                                    somebody who has decided they would rather it
+                                    were not written will be looking.
+                                -->
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Delete history"
+                                                              Hint="Remove every minute Windsock has recorded - network use, each app's use, the machine's readings and the connection checks - the record of when it was watching, the app usage copied from Windows, and the list of alerts sent with the networks remembered for the change alerts and what alerts have already told, and the devices seen on your home network with the router check's reports. The outage log is kept apart and cleared on Connection › Outages. Nothing is kept anywhere else, so this cannot be undone - export from the History page first if you want a copy. You will be asked to confirm." />
+
+                                        <Button HorizontalAlignment="Left"
+                                                Style="{StaticResource ToolbarButtonStyle}"
+                                                VerticalAlignment="Center"
+                                                Command="{Binding EraseHistoryCommand}"
+                                                AutomationProperties.Name="Delete the history"
+                                                ToolTip="Delete every minute Windsock has recorded. You will be asked first.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <fluent:SymbolIcon Symbol="Delete"
+                                                                   FontSize="14"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,7,0" />
+
+                                                <TextBlock Text="Delete history" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </controls:AdaptiveRow>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Copies, scheduled exports and the weekly digest; see HistoryCareView. -->
+                        <ContentPresenter x:Name="HistoryCareHost" />
+
+                        <!--
+                            Everything that leaves this PC, each with its own
+                            switch. Each is the same setting as wherever else it
+                            appears, so turning one off here turns it off there.
+                            Nothing new goes out on by default.
+                        -->
+                        <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="What leaves this PC" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Windsock has no accounts, no telemetry and no server. These are the only things it ever sends, and each one is for something you can see."
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Router check"
+                                                              Hint="While the connection is watched, Windsock pings your router every few seconds and asks Windows what it thinks. Both stay on your own network; nothing reaches the internet. Watching is set under Connection › Status." />
+
+                                        <TextBlock Style="{StaticResource RowFactStyle}"
+                                                   Text="Stays on your network" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <controls:SettingHead HorizontalAlignment="Left"
+                                                                  Text="Internet check"
+                                                                  Hint="Each connection check also pings a public address - a tiny packet with nothing about you in it - so an outage is caught even when Windows is slow to notice. A name you type is looked up first through the DNS server you already use." />
+
+                                            <TextBlock Text="{Binding InternetCheckNote}"
+                                                       Style="{StaticResource DetailNoteStyle}"
+                                                       Margin="0,4,0,0" />
                                         </StackPanel>
-                                    </Button>
-                                </controls:FlowRow>
-                            </controls:FlowRow>
 
-                            <TextBlock Text="{Binding TestResult}"
-                                       Style="{StaticResource DetailNoteStyle}"
-                                       Margin="0,8,0,0"
-                                       TextWrapping="Wrap"
-                                       Visibility="{Binding TestResult, Converter={StaticResource TextToVisibility}}" />
-                        </StackPanel>
-                    </Border>
+                                        <CheckBox HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToolbarCheckStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Content="Ping an internet address"
+                                                  IsChecked="{Binding PingsInternet, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Ping an internet address" />
+                                    </controls:AdaptiveRow>
+                                </Border>
 
-                    <!-- ============ Data ============ -->
-                    <Border Style="{StaticResource GroupHeadStyle}">
-                        <StackPanel>
-                            <TextBlock Text="Measuring and history" Style="{StaticResource CardTitleStyle}" />
-                            <TextBlock Text="What is measured, and what is kept on this PC"
-                                       TextWrapping="Wrap"
-                                       Style="{StaticResource CardNoteStyle}" />
-                        </StackPanel>
-                    </Border>
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <controls:SettingHead HorizontalAlignment="Left"
+                                                                  Text="Update check"
+                                                                  Hint="When Windsock starts, it asks this project's releases page on GitHub whether there is a newer version. That request tells GitHub only what any web request tells a web server. Nothing is downloaded without asking. Check now, under About, asks once whatever this says." />
 
-                    <Border Style="{StaticResource SettingRowStyle}" controls:RuledPanel.RuleAbove="False">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead HorizontalAlignment="Left"
-                                                  Text="Adapter"
-                                                  Hint="Measure every adapter together, or narrow the meter to one of them." />
-
-                            <Grid HorizontalAlignment="Left" VerticalAlignment="Center">
-                                <ToggleButton x:Name="AdapterButton"
-                                              Style="{StaticResource ToolbarButtonStyle}"
-                                              MinWidth="180"
-                                              HorizontalContentAlignment="Stretch"
-                                              IsChecked="{Binding IsAdapterListOpen, Mode=TwoWay}"
-                                              AutomationProperties.Name="Adapter"
-                                              ToolTip="Choose any combination of adapters to measure">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <TextBlock Grid.Column="0"
-                                                   Text="{Binding AdapterSummary}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis" />
-
-                                        <Path Grid.Column="1"
-                                              Data="M 0 0 L 4 4 L 8 0"
-                                              Stroke="{DynamicResource TextFillColorSecondaryBrush}"
-                                              StrokeThickness="1.3"
-                                              StrokeStartLineCap="Round"
-                                              StrokeEndLineCap="Round"
-                                              StrokeLineJoin="Round"
-                                              Margin="10,1,0,0"
-                                              VerticalAlignment="Center" />
-                                    </Grid>
-                                </ToggleButton>
-
-                                <Popup IsOpen="{Binding IsChecked, ElementName=AdapterButton, Mode=TwoWay}"
-                                       PlacementTarget="{Binding ElementName=AdapterButton}"
-                                       Placement="Bottom"
-                                       VerticalOffset="6"
-                                       HorizontalOffset="-40"
-                                       StaysOpen="False"
-                                       AllowsTransparency="True"
-                                       PopupAnimation="Fade">
-                                    <Border Style="{StaticResource FlyoutStyle}" MinWidth="230" Padding="6">
-                                        <StackPanel>
-                                            <!--
-                                                Nothing ticked means all of them, so
-                                                clearing the list is a way back rather
-                                                than a meter that measures nothing.
-                                            -->
-                                            <ScrollViewer MaxHeight="260"
-                                                          VerticalScrollBarVisibility="Auto"
-                                                          HorizontalScrollBarVisibility="Disabled">
-                                                <ItemsControl ItemsSource="{Binding Adapters}"
-                                                              ItemTemplate="{StaticResource AdapterChoiceTemplate}" />
-                                            </ScrollViewer>
-
-                                            <TextBlock Text="At least one adapter stays ticked."
-                                                       FontSize="11"
-                                                       Margin="10,8,10,4"
+                                            <TextBlock Text="{Binding UpdateCheckNote}"
+                                                       Style="{StaticResource DetailNoteStyle}"
                                                        TextWrapping="Wrap"
-                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                       Margin="0,4,0,0"
+                                                       Visibility="{Binding UpdateCheckNote, Converter={StaticResource TextToVisibility}}" />
                                         </StackPanel>
+
+                                        <CheckBox HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToolbarCheckStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Content="Check automatically"
+                                                  IsChecked="{Binding CheckForUpdates, Mode=TwoWay}"
+                                                  IsEnabled="{Binding CanUpdate}"
+                                                  ToolTipService.ShowOnDisabled="True"
+                                                  ToolTip="{Binding UpdateCheckNote}"
+                                                  AutomationProperties.Name="Check for updates automatically" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <!-- Taken out in the Store edition, which never makes the lookup; see the code behind. -->
+                                <Border x:Name="ReverseRow" Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Reverse lookups"
+                                                              Hint="Where the DNS cache cannot name an address on the map or in an app's window, ask the DNS server this PC already uses what the address is called - the same lookup a browser makes. Off, an address the cache cannot name stays an address until some program looks it up." />
+
+                                        <CheckBox HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToolbarCheckStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Content="Look up names"
+                                                  IsChecked="{Binding ReverseLookups, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Reverse lookups" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <!-- Taken out in the Store edition, which traces no routes; see the code behind. -->
+                                <Border x:Name="RoutesRow" Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Route tracing"
+                                                              Hint="Find the routers between this PC and each place on the map, by sending packets along the way as tracert does, only for the places drawn and only while the map or an app's window is open. The same switch as Routes on the map and in an app's window." />
+
+                                        <CheckBox HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToolbarCheckStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Content="Trace routes"
+                                                  IsChecked="{Binding TraceRoutes, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Route tracing" />
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <!--
+                                    The blocklists and VirusTotal: the step 7 contacts, both
+                                    editions, each off until chosen. Their own view model
+                                    (InsightPrivacyViewModel), set from the code behind.
+                                -->
+                                <StackPanel x:Name="InsightContactRows">
+                                    <Border Style="{StaticResource BandRowStyle}">
+                                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                            <StackPanel VerticalAlignment="Center">
+                                                <controls:SettingHead HorizontalAlignment="Left"
+                                                                      Text="Spamhaus DROP blocklist"
+                                                                      Hint="Downloads Spamhaus's list of netblocks run by or for criminals from spamhaus.org, at most once an hour, and marks connections to them. The request says only what any web request says; your connections are checked on this PC and never sent. Switching it off deletes the copy." />
+                                                <TextBlock Text="{Binding SpamhausNote}"
+                                                           Style="{StaticResource DetailNoteStyle}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,4,0,0" />
+                                            </StackPanel>
+
+                                            <CheckBox HorizontalAlignment="Left"
+                                                      Style="{StaticResource ToolbarCheckStyle}"
+                                                      VerticalAlignment="Center"
+                                                      Content="Fetch and mark"
+                                                      IsChecked="{Binding SpamhausDrop, Mode=TwoWay}"
+                                                      AutomationProperties.Name="Spamhaus DROP blocklist" />
+                                        </controls:AdaptiveRow>
                                     </Border>
-                                </Popup>
-                            </Grid>
-                        </controls:AdaptiveRow>
-                    </Border>
 
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead HorizontalAlignment="Left"
-                                                  Text="Record history"
-                                                  Hint="Write every minute of usage to disk, so the History section can look further back than this run, and keep each app's usage as Windows counts it for the Apps section. Pausing keeps neither for the paused time, and leaves everything already recorded alone." />
+                                    <Border Style="{StaticResource BandRowStyle}">
+                                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                            <StackPanel VerticalAlignment="Center">
+                                                <controls:SettingHead HorizontalAlignment="Left"
+                                                                      Text="Feodo Tracker blocklist"
+                                                                      Hint="Downloads abuse.ch's list of botnet control servers from feodotracker.abuse.ch, at most once an hour, and marks connections to them. Your connections are checked on this PC and never sent. Switching it off deletes the copy." />
+                                                <TextBlock Text="{Binding FeodoNote}"
+                                                           Style="{StaticResource DetailNoteStyle}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,4,0,0" />
+                                            </StackPanel>
 
-                            <Button HorizontalAlignment="Left" Style="{StaticResource ToolbarButtonStyle}"
-                                    VerticalAlignment="Center"
-                                    Command="{Binding ToggleRecordingCommand}"
-                                    AutomationProperties.Name="{Binding RecordingLabel}"
-                                    ToolTip="Whether new minutes are written to disk. Pausing leaves everything already recorded alone.">
-                                <StackPanel Orientation="Horizontal">
-                                    <!-- The glyph says the same thing as the words. -->
-                                    <fluent:SymbolIcon FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0">
-                                        <fluent:SymbolIcon.Style>
-                                            <Style TargetType="fluent:SymbolIcon">
-                                                <Setter Property="Symbol" Value="PauseCircle" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsRecording}" Value="False">
-                                                        <Setter Property="Symbol" Value="PlayCircle" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </fluent:SymbolIcon.Style>
-                                    </fluent:SymbolIcon>
+                                            <CheckBox HorizontalAlignment="Left"
+                                                      Style="{StaticResource ToolbarCheckStyle}"
+                                                      VerticalAlignment="Center"
+                                                      Content="Fetch and mark"
+                                                      IsChecked="{Binding FeodoTracker, Mode=TwoWay}"
+                                                      AutomationProperties.Name="Feodo Tracker blocklist" />
+                                        </controls:AdaptiveRow>
+                                    </Border>
 
-                                    <TextBlock Text="{Binding RecordingLabel}" VerticalAlignment="Center" />
+                                    <Border Style="{StaticResource BandRowStyle}">
+                                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                            <StackPanel VerticalAlignment="Center">
+                                                <controls:SettingHead HorizontalAlignment="Left"
+                                                                      Text="VirusTotal lookups"
+                                                                      Hint="With your own VirusTotal key, a program can be looked up from its row on the Apps page or its own window. Only its SHA-256 hash is sent to virustotal.com, with your key, and only when you ask; never the file, its name or its path. VirusTotal's terms apply to your key." />
+                                                <TextBlock Text="{Binding KeyNote}"
+                                                           Style="{StaticResource DetailNoteStyle}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,4,0,0" />
+                                            </StackPanel>
+
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                        Command="{Binding AddKeyCommand}"
+                                                        Content="Add key…"
+                                                        Visibility="{Binding HasKey, Converter={StaticResource InverseBooleanToVisibility}}"
+                                                        AutomationProperties.Name="Add a VirusTotal key"
+                                                        ToolTip="Paste your own VirusTotal API key" />
+                                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                        Margin="6,0,0,0"
+                                                        Command="{Binding GetKeyCommand}"
+                                                        Content="Get a key"
+                                                        Visibility="{Binding HasKey, Converter={StaticResource InverseBooleanToVisibility}}"
+                                                        AutomationProperties.Name="Get a VirusTotal key"
+                                                        ToolTip="Opens your VirusTotal account's API key page in the browser" />
+                                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                        Command="{Binding RemoveKeyCommand}"
+                                                        Content="Remove key"
+                                                        Visibility="{Binding HasKey, Converter={StaticResource BooleanToVisibility}}"
+                                                        AutomationProperties.Name="Remove the VirusTotal key"
+                                                        ToolTip="Forget the key and every answer kept" />
+                                            </StackPanel>
+                                        </controls:AdaptiveRow>
+                                    </Border>
                                 </StackPanel>
-                            </Button>
-                        </controls:AdaptiveRow>
-                    </Border>
 
-                    <!--
-                        Under the switch that writes it, which is where somebody
-                        who has decided they would rather it were not written
-                        will be looking.
-                    -->
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead HorizontalAlignment="Left"
-                                                  Text="Delete history"
-                                                  Hint="Remove every minute Windsock has recorded - network use, each app's use, the machine's readings and the connection checks - the record of when it was watching, and the app usage copied from Windows. The outage log is kept apart and cleared from the Connection section. Nothing is kept anywhere else, so this cannot be undone - export from the History section first if you want a copy. You will be asked to confirm."
-                                                  Note="{Binding HistorySize}" />
+                                <!-- Alerts forwarded to a webhook or ntfy topic: the same switch as on the Alerts page, where it is set up. -->
+                                <Border x:Name="ForwardingRow" Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <controls:SettingHead HorizontalAlignment="Left"
+                                                                  Text="Forwarding alerts"
+                                                                  Hint="Each alert can also go to a webhook or an ntfy topic you choose, as it is raised: its kind, title, message and time, and this PC's name if you give one. Off until you set it up on the Alerts page. Plain http:// is accepted only on this PC or your own network." />
 
-                            <Button HorizontalAlignment="Left"
-                                    Style="{StaticResource ToolbarButtonStyle}"
-                                    VerticalAlignment="Center"
-                                    Command="{Binding EraseHistoryCommand}"
-                                    AutomationProperties.Name="Delete the history"
-                                    ToolTip="Delete every minute Windsock has recorded. You will be asked first.">
-                                <StackPanel Orientation="Horizontal">
-                                    <fluent:SymbolIcon Symbol="Delete"
-                                                       FontSize="14"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,7,0" />
+                                            <TextBlock Text="{Binding ForwardingNote}"
+                                                       Style="{StaticResource DetailNoteStyle}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,4,0,0" />
+                                        </StackPanel>
 
-                                    <TextBlock Text="Delete history" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                        </controls:AdaptiveRow>
-                    </Border>
+                                        <controls:FlowRow Spacing="8" LineSpacing="8" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                      VerticalAlignment="Center"
+                                                      Content="Forward alerts"
+                                                      IsChecked="{Binding ForwardsAlerts, Mode=TwoWay}"
+                                                      IsEnabled="{Binding CanForwardAlerts}"
+                                                      ToolTipService.ShowOnDisabled="True"
+                                                      ToolTip="{Binding ForwardingNote}"
+                                                      AutomationProperties.Name="Forward alerts" />
 
-                    <!--
-                        History is kept for good by default. Somebody short of
-                        disk can fold old minutes into quarter hours, and give the
-                        space back, without losing any total.
-                    -->
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead HorizontalAlignment="Left"
-                                                  Text="Keep minute detail"
-                                                  Hint="How long each app's minute-by-minute use is kept, which is by far the largest part of history. After that it is folded into quarter-hour totals: nothing is lost but the detail. Network use as a whole, the machine's readings and the connection checks are always kept a minute at a time; a year of those is some tens of megabytes."
-                                                  Note="{Binding DetailNote}" />
+                                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                    Command="{Binding OpenAlertsPageCommand}"
+                                                    Content="Set up"
+                                                    AutomationProperties.Name="Set up forwarding on the Alerts page"
+                                                    ToolTip="Choose where alerts are forwarded, on the Alerts page" />
+                                        </controls:FlowRow>
+                                    </controls:AdaptiveRow>
+                                </Border>
 
-                            <controls:Picker HorizontalAlignment="Left"
-                                             Style="{StaticResource PickerStyle}"
-                                             MinWidth="140"
-                                             VerticalAlignment="Center"
-                                             ItemsSource="{Binding DetailOptions}"
-                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                             SelectedValuePath="Days"
-                                             SelectedValue="{Binding SelectedDetailDays, Mode=TwoWay}"
-                                             AutomationProperties.Name="Keep minute detail"
-                                             ToolTip="Forever, or fold minutes older than this into quarter hours" />
-                        </controls:AdaptiveRow>
-                    </Border>
+                                <!-- The home network: devices, the router's details and its counters. All stay on your network. -->
+                                <views:HomePrivacyRows DataContext="{Binding HomeFeed}" />
 
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead HorizontalAlignment="Left"
-                                                  Text="Reclaim space"
-                                                  Hint="Folds away the minutes the setting above no longer keeps, then rewrites the history file so the space goes back to the disk. A large file can take a minute; recording carries on around it."
-                                                  Note="{Binding ReclaimNote}" />
+                                <!-- The Connection pages' public address, speed tests, NAT and DNS timing; set from the code behind. -->
+                                <ContentPresenter x:Name="ConnectionToolsHost" />
 
-                            <Button HorizontalAlignment="Left"
-                                    Style="{StaticResource ToolbarButtonStyle}"
-                                    VerticalAlignment="Center"
-                                    Command="{Binding ReclaimSpaceCommand}"
-                                    AutomationProperties.Name="Reclaim space"
-                                    ToolTip="Shrink the history file now">
-                                <StackPanel Orientation="Horizontal">
-                                    <fluent:SymbolIcon Symbol="Broom"
-                                                       FontSize="14"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,7,0" />
+                                <!-- The taskbar meter's feeds and its public address; set from the code behind. -->
+                                <ContentPresenter x:Name="MeterContactsHost" />
 
-                                    <TextBlock Text="Reclaim space" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                        </controls:AdaptiveRow>
-                    </Border>
-
-                    <!--
-                        Route tracing belongs to the map on the Apps page,
-                        so this row goes with it: the Store edition takes it
-                        out of the panel rather than leaving a switch that
-                        governs nothing.
-                    -->
-                    <Border x:Name="RoutesCard" Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead HorizontalAlignment="Left"
-                                                  Text="Routes"
-                                                  Hint="Draw the routers a process's traffic passes through on its way out. This is the one part of Windsock that sends packets of its own beyond the connection checks; everything else reads counters the machine already keeps. Turned off, every far end is still drawn - just against the process itself." />
-
-                            <CheckBox HorizontalAlignment="Left"
-                                      Style="{StaticResource ToolbarCheckStyle}"
-                                      VerticalAlignment="Center"
-                                      Content="Follow routes"
-                                      IsChecked="{Binding FollowRoutes, Mode=TwoWay}"
-                                      AutomationProperties.Name="Follow routes"
-                                      ToolTip="Find the way out to each place a process is talking to" />
-                        </controls:AdaptiveRow>
-                    </Border>
-
-                    <!-- ============ About ============ -->
-                    <!--
-                        Updates, and who wrote the thing being updated. Last on the
-                        page because neither is a setting anyone came here to change:
-                        the check runs on its own, and the links are for the once
-                        somebody wants to know where this came from.
-                    -->
-                    <Border Style="{StaticResource GroupHeadStyle}">
-                        <StackPanel>
-                            <TextBlock Text="About" Style="{StaticResource CardTitleStyle}" />
-                            <TextBlock Text="Updates, and where Windsock comes from"
-                                       TextWrapping="Wrap"
-                                       Style="{StaticResource CardNoteStyle}" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource SettingRowStyle}" controls:RuledPanel.RuleAbove="False">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead HorizontalAlignment="Left"
-                                                  Text="Updates"
-                                                  Hint="Windsock looks for a newer version on its own releases page and tells you if there is one. It never downloads or installs anything without being asked: an update that restarted the app by itself would be closing a window somebody was reading."
-                                                  Note="{Binding NoUpdateReason}" />
-
-                            <CheckBox HorizontalAlignment="Left"
-                                      Style="{StaticResource ToolbarCheckStyle}"
-                                      VerticalAlignment="Center"
-                                      Content="Check automatically"
-                                      IsChecked="{Binding CheckForUpdates, Mode=TwoWay}"
-                                      IsEnabled="{Binding CanUpdate}"
-                                      AutomationProperties.Name="Check for updates automatically"
-                                      ToolTip="Look for a newer Windsock when the app starts. Nothing is downloaded without asking." />
-                        </controls:AdaptiveRow>
-                    </Border>
-
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="{Binding CurrentVersion, StringFormat=Version {0}}"
-                                           Style="{StaticResource SettingNameStyle}" />
-
-                                <TextBlock Text="{Binding UpdateStatus}"
-                                           Style="{StaticResource SettingNoteStyle}"
-                                           TextWrapping="Wrap"
-                                           Visibility="{Binding UpdateStatus, Converter={StaticResource TextToVisibility}}" />
-                            </StackPanel>
-
-                            <controls:FlowRow HorizontalAlignment="Left"
-                                              Spacing="8"
-                                              LineSpacing="8"
-                                              VerticalAlignment="Center">
                                 <Button Style="{StaticResource ToolbarButtonStyle}"
-                                        Command="{Binding CheckNowCommand}"
-                                        IsEnabled="{Binding CanUpdate}"
-                                        AutomationProperties.Name="Check for updates now"
-                                        ToolTip="Look now, rather than waiting for the next start">
+                                        HorizontalAlignment="Left"
+                                        Margin="0,10,0,2"
+                                        Command="{Binding OpenPrivacyPolicyCommand}"
+                                        AutomationProperties.Name="Read the privacy policy"
+                                        ToolTip="Opens PRIVACY.md on GitHub in your browser">
                                     <StackPanel Orientation="Horizontal">
-                                        <fluent:SymbolIcon Symbol="ArrowSync"
+                                        <fluent:SymbolIcon Symbol="ShieldLock"
                                                            FontSize="14"
                                                            VerticalAlignment="Center"
                                                            Margin="0,0,7,0" />
-                                        <TextBlock Text="Check now" VerticalAlignment="Center" />
+                                        <TextBlock Text="Privacy policy" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-
-                                <!-- Only once there is something to fetch. -->
-                                <Button Style="{StaticResource ToolbarButtonStyle}"
-                                        Command="{Binding DownloadUpdateCommand}"
-                                        Visibility="{Binding CanDownload, Converter={StaticResource BooleanToVisibility}}"
-                                        AutomationProperties.Name="Download the update"
-                                        ToolTip="Fetch it now. Nothing changes until Windsock restarts.">
-                                    <StackPanel Orientation="Horizontal">
-                                        <fluent:SymbolIcon Symbol="ArrowDownload"
-                                                           FontSize="14"
-                                                           VerticalAlignment="Center"
-                                                           Margin="0,0,7,0" />
-                                        <TextBlock Text="Download" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-
-                                <!-- And only once it is fetched and waiting. -->
-                                <Button Style="{StaticResource PrimaryButtonStyle}"
-                                        Command="{Binding RestartForUpdateCommand}"
-                                        Visibility="{Binding CanRestart, Converter={StaticResource BooleanToVisibility}}"
-                                        AutomationProperties.Name="Restart and update"
-                                        ToolTip="Close Windsock, put the new version in place, and start it again">
-                                    <StackPanel Orientation="Horizontal">
-                                        <fluent:SymbolIcon Symbol="ArrowClockwise"
-                                                           FontSize="14"
-                                                           VerticalAlignment="Center"
-                                                           Margin="0,0,7,0" />
-                                        <TextBlock Text="Restart and update" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                            </controls:FlowRow>
-                        </controls:AdaptiveRow>
-                    </Border>
-
-                    <!--
-                        Who wrote it. Not a setting, and deliberately not shaped
-                        like one: no mark to open, nothing to change. A line of
-                        text and one way through to the source, which is the
-                        only thing anybody reading it actually wants.
-                    -->
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="Developer"
-                                           Style="{StaticResource SettingNameStyle}" />
-
-                                <TextBlock Text="{Binding Developer}"
-                                           Style="{StaticResource SettingNoteStyle}" />
                             </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
 
-                            <Button HorizontalAlignment="Left"
-                                    Style="{StaticResource ToolbarButtonStyle}"
-                                    VerticalAlignment="Center"
-                                    Command="{Binding OpenLinkCommand}"
-                                    CommandParameter="{Binding SourceUrl}"
-                                    AutomationProperties.Name="Open the source code on GitHub"
-                                    ToolTip="{Binding SourceUrl}">
-                                <StackPanel Orientation="Horizontal">
-                                    <fluent:SymbolIcon Symbol="Code"
-                                                       FontSize="14"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,7,0" />
-                                    <TextBlock Text="Source code" VerticalAlignment="Center" />
+                <!-- ===================== Advanced ===================== -->
+                <ScrollViewer>
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer" BasedOn="{StaticResource SettingsPageStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static vm:SettingsPage.Advanced}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
+
+                    <StackPanel x:Name="AdvancedBands">
+                        <!-- Administrator mode. Not in the Store edition, which never asks for it. -->
+                        <Border x:Name="AdministratorBand" Style="{StaticResource BandStyle}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="Administrator mode" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="{Binding AdministratorNote}"
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CardNoteStyle}" />
                                 </StackPanel>
-                            </Button>
-                        </controls:AdaptiveRow>
-                    </Border>
-                </controls:RuledPanel>
-            </controls:Card>
-        </ScrollViewer>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Run as administrator"
+                                                              Hint="Closes Windsock and starts it again with administrator rights, after Windows asks for consent. It lasts until Windsock closes; the next start is ordinary again. Windsock never needs it to run or to install." />
+
+                                        <Grid HorizontalAlignment="Left" VerticalAlignment="Center">
+                                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                    Command="{Binding RestartElevatedCommand}"
+                                                    Visibility="{Binding IsElevated, Converter={StaticResource InverseBooleanToVisibility}}"
+                                                    AutomationProperties.Name="Restart as administrator"
+                                                    ToolTip="Restart with administrator rights. Windows asks first.">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <fluent:SymbolIcon Symbol="Shield"
+                                                                       FontSize="14"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,7,0" />
+                                                    <TextBlock Text="Restart as administrator" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+
+                                            <TextBlock Style="{StaticResource RowFactStyle}"
+                                                       Text="Running as administrator"
+                                                       Visibility="{Binding IsElevated, Converter={StaticResource BooleanToVisibility}}" />
+                                        </Grid>
+                                    </controls:AdaptiveRow>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- PawnIO. Not in the Store edition, which is built without it. -->
+                        <Border x:Name="TemperatureBand" Style="{StaticResource BandStyle}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="Processor temperature" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Read through PawnIO, a signed driver installed separately, and only while Windsock runs as administrator"
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding TemperatureState}"
+                                                       FontSize="{DynamicResource TextSize13}"
+                                                       FontWeight="SemiBold"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            <TextBlock Text="{Binding TemperatureNote}"
+                                                       Style="{StaticResource DetailNoteStyle}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,4,0,0"
+                                                       Visibility="{Binding TemperatureNote, Converter={StaticResource TextToVisibility}}" />
+                                        </StackPanel>
+
+                                        <Button HorizontalAlignment="Left"
+                                                VerticalAlignment="Center"
+                                                Style="{StaticResource ToolbarButtonStyle}"
+                                                Command="{Binding OpenPawnIoCommand}"
+                                                AutomationProperties.Name="Open the PawnIO website"
+                                                ToolTip="pawnio.eu, where PawnIO is downloaded. Windsock installs nothing itself.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <fluent:SymbolIcon Symbol="Open"
+                                                                   FontSize="14"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,7,0" />
+                                                <TextBlock Text="PawnIO website" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </controls:AdaptiveRow>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- The local feed, and the overlay, command line and AI assistants that read it. -->
+                        <views:FeedSettingsBand DataContext="{Binding HomeFeed}" />
+
+                        <!-- Moving the settings to another PC. -->
+                        <Border Style="{StaticResource BandStyle}">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="Settings file" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Move your settings to another PC as one file. History never goes with them, and the adapters chosen here stay here."
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <controls:SettingHead HorizontalAlignment="Left"
+                                                                  Text="Export and import"
+                                                                  Hint="Export writes every setting to a file you choose. Import reads one back, checks it, and lists what it would change before anything does; Windsock then restarts so every part of it starts from the file. A file that is not Windsock's, or holds something Windsock cannot use, changes nothing." />
+
+                                            <TextBlock Text="{Binding TransferNote}"
+                                                       Style="{StaticResource DetailNoteStyle}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,4,0,0"
+                                                       AutomationProperties.LiveSetting="Polite"
+                                                       Visibility="{Binding TransferNote, Converter={StaticResource TextToVisibility}}" />
+                                        </StackPanel>
+
+                                        <controls:FlowRow HorizontalAlignment="Left"
+                                                          VerticalAlignment="Center"
+                                                          Spacing="8"
+                                                          LineSpacing="8">
+                                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                    Command="{Binding ExportSettingsCommand}"
+                                                    AutomationProperties.Name="Export settings"
+                                                    ToolTip="Write your settings to a file">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <fluent:SymbolIcon Symbol="ArrowExport"
+                                                                       FontSize="14"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,7,0" />
+                                                    <TextBlock Text="Export" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+
+                                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                    Command="{Binding ImportSettingsCommand}"
+                                                    AutomationProperties.Name="Import settings"
+                                                    ToolTip="Read settings from a file. You see what would change first.">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <fluent:SymbolIcon Symbol="ArrowImport"
+                                                                       FontSize="14"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,7,0" />
+                                                    <TextBlock Text="Import" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                        </controls:FlowRow>
+                                    </controls:AdaptiveRow>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===================== About ===================== -->
+                <!--
+                    Updates, and who wrote the thing being updated. Neither is a
+                    setting anyone came here to change: the check runs on its
+                    own, and the links are for the once somebody wants to know
+                    where this came from.
+                -->
+                <ScrollViewer>
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer" BasedOn="{StaticResource SettingsPageStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static vm:SettingsPage.About}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
+
+                    <StackPanel>
+                        <Border Style="{StaticResource BandStyle}">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="{Binding CurrentVersion, StringFormat=Windsock {0}}" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="A network speed meter for the Windows 11 taskbar. MIT licensed."
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <controls:SettingHead HorizontalAlignment="Left"
+                                                                  Text="Updates"
+                                                                  Hint="Check now asks this project's releases page on GitHub once. Whether Windsock also asks by itself at every start is under Data and privacy. Nothing is downloaded or installed without being asked: an update that restarted the app by itself would be closing a window somebody was reading." />
+
+                                            <TextBlock Text="{Binding UpdateCheckNote}"
+                                                       Style="{StaticResource DetailNoteStyle}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,4,0,0"
+                                                       Visibility="{Binding UpdateCheckNote, Converter={StaticResource TextToVisibility}}" />
+
+                                            <TextBlock Text="{Binding UpdateStatus}"
+                                                       Style="{StaticResource DetailNoteStyle}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,4,0,0"
+                                                       Visibility="{Binding UpdateStatus, Converter={StaticResource TextToVisibility}}" />
+                                        </StackPanel>
+
+                                        <controls:FlowRow HorizontalAlignment="Left"
+                                                          Spacing="8"
+                                                          LineSpacing="8"
+                                                          VerticalAlignment="Center">
+                                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                    Command="{Binding CheckNowCommand}"
+                                                    IsEnabled="{Binding CanUpdate}"
+                                                    ToolTipService.ShowOnDisabled="True"
+                                                    AutomationProperties.Name="Check for updates now"
+                                                    ToolTip="Look now, rather than waiting for the next start">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <fluent:SymbolIcon Symbol="ArrowSync"
+                                                                       FontSize="14"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,7,0" />
+                                                    <TextBlock Text="Check now" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+
+                                            <!-- Only once there is something to fetch. -->
+                                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                    Command="{Binding DownloadUpdateCommand}"
+                                                    Visibility="{Binding CanDownload, Converter={StaticResource BooleanToVisibility}}"
+                                                    AutomationProperties.Name="Download the update"
+                                                    ToolTip="Fetch it now. Nothing changes until Windsock restarts.">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <fluent:SymbolIcon Symbol="ArrowDownload"
+                                                                       FontSize="14"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,7,0" />
+                                                    <TextBlock Text="Download" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+
+                                            <!-- And only once it is fetched and waiting. -->
+                                            <Button Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding RestartForUpdateCommand}"
+                                                    Visibility="{Binding CanRestart, Converter={StaticResource BooleanToVisibility}}"
+                                                    AutomationProperties.Name="Restart and update"
+                                                    ToolTip="Close Windsock, put the new version in place, and start it again">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <fluent:SymbolIcon Symbol="ArrowClockwise"
+                                                                       FontSize="14"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,7,0" />
+                                                    <TextBlock Text="Restart and update" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                        </controls:FlowRow>
+                                    </controls:AdaptiveRow>
+                                </Border>
+
+                                <!--
+                                    Who wrote it. Not a setting, and deliberately
+                                    not shaped like one: no mark to open, nothing to
+                                    change. A line of text and the ways through to
+                                    the source and the privacy policy.
+                                -->
+                                <Border Style="{StaticResource BandRowStyle}">
+                                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Developer"
+                                                       FontSize="{DynamicResource TextSize13}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                                            <TextBlock Text="{Binding Developer}"
+                                                       Style="{StaticResource DetailNoteStyle}"
+                                                       Margin="0,2,0,0" />
+                                        </StackPanel>
+
+                                        <controls:FlowRow HorizontalAlignment="Left"
+                                                          Spacing="8"
+                                                          LineSpacing="8"
+                                                          VerticalAlignment="Center">
+                                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                    Command="{Binding OpenLinkCommand}"
+                                                    CommandParameter="{Binding SourceUrl}"
+                                                    AutomationProperties.Name="Open the source code on GitHub"
+                                                    ToolTip="{Binding SourceUrl}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <fluent:SymbolIcon Symbol="Code"
+                                                                       FontSize="14"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,7,0" />
+                                                    <TextBlock Text="Source code" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+
+                                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                    Command="{Binding OpenPrivacyPolicyCommand}"
+                                                    AutomationProperties.Name="Read the privacy policy"
+                                                    ToolTip="Opens PRIVACY.md on GitHub in your browser">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <fluent:SymbolIcon Symbol="ShieldLock"
+                                                                       FontSize="14"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,7,0" />
+                                                    <TextBlock Text="Privacy policy" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                        </controls:FlowRow>
+                                    </controls:AdaptiveRow>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
     </controls:SectionPage>
 </UserControl>

@@ -21,6 +21,14 @@ public partial class NetworkMapView : UserControl
     {
         InitializeComponent();
 
+#if STORE
+        // The Store edition traces no routes; a Routes box would do nothing.
+        if (RoutesRow.Parent is Panel drawer)
+        {
+            drawer.Children.Remove(RoutesRow);
+        }
+#endif
+
         Graph.HoverChanged += (_, hovered) => _viewModel?.Highlight(hovered.Item);
         Graph.Activated += (_, chosen) => _viewModel?.Choose(chosen.Item);
 
@@ -29,7 +37,13 @@ public partial class NetworkMapView : UserControl
         FitButton.Click += (_, _) =>
         {
             Viewport.FitOrReturn();
-            Keyboard.ClearFocus();
+
+            // A click leaves no ring behind on the button; a key press keeps the
+            // focus where the reader is, or Tab would start again from the top.
+            if (InputManager.Current.MostRecentInputDevice is not KeyboardDevice)
+            {
+                Keyboard.ClearFocus();
+            }
         };
         Viewport.ViewChanged += (_, _) => Graph.Scale = Viewport.Zoom;
 

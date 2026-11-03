@@ -87,6 +87,19 @@ branch of the network carries the traffic.
 in the sidebar with their live figure beside it, and a page of their own: a chart
 of the last few minutes, then per-core bars, adapters, drives and memory modules. Graphics temperatures for NVIDIA, AMD and Intel adapters.
 
+**Home network.** On a network Windows calls private, and only once switched
+on: the devices on it with their names, makers and when they were first and last
+seen, a notice when a new one joins, Wake-on-LAN for any of them, a check of the
+router's maker, model and the ports it has opened to the internet through UPnP,
+and the whole household's traffic from the router's own counters. Nothing of it
+reaches past the router.
+
+**Local feed, command line and AI tools.** A read-only JSON feed on
+`127.0.0.1` for Rainmeter, Stream Deck, Home Assistant and a transparent OBS
+overlay; a `windsock` command for scripts (`windsock status`,
+`windsock export --month 2026-09`); and a small read-only tools server for AI
+assistants. All off until switched on; see [below](#local-feed-command-line-and-ai-tools).
+
 <table>
 <tr>
 <td width="50%"><img src="assets/screenshots/system.png" alt="System tab"><br><sub><b>System</b>: processor, graphics, memory and storage, with per-core bars and temperatures.</sub></td>
@@ -212,6 +225,98 @@ blocklist as CVE-2020-14979 and will not load on Windows 11 with memory
 integrity enabled. PawnIO loads signed sandboxed modules instead, and Windsock's
 module can read about thirty named registers and nothing else.
 
+## Local feed, command line and AI tools
+
+### The local feed
+
+Switch it on under Settings › Advanced, where its address and token are shown
+with Copy buttons, beside an OBS address builder, the settings block for AI
+assistants and, in the full edition, a button that puts `windsock` on your
+PATH (and takes it off again). Windsock then answers read-only JSON on
+`http://127.0.0.1:40406/` (the port can be changed), on this PC alone. Every
+request carries the feed's **token**, shown in Settings and kept in
+`%LOCALAPPDATA%\Shariar Shuvo\Windsock\feed.json`:
+
+```
+curl -H "Authorization: Bearer <token>" http://127.0.0.1:40406/v1/status
+```
+
+| Address | What it answers |
+| --- | --- |
+| `/v1/status` | Everything below at once |
+| `/v1/rates` | Download and upload, bytes per second |
+| `/v1/connection` | Online, offline or checking, since when, router and internet response times |
+| `/v1/usage` | Today's and this month's bytes; or a period: `?month=2026-09`, `?day=2026-09-14`, `?period=last-week`, `?from=2026-09-01&until=2026-09-30`, with `&by=minute\|hour\|day` |
+| `/v1/plan` | The data plan's allowance, use and what is left |
+| `/v1/system` | Processor, memory, graphics and disk load, temperatures where known |
+| `/v1/household` | The whole household's traffic from the router, when that is switched on |
+| `/v1/events` | Server-Sent Events: the status once a second |
+| `/overlay` | A transparent page for an OBS browser source |
+
+A value Windsock does not know is `null`, never `0`. A client that cannot send a
+header - a browser's `EventSource`, OBS, Rainmeter's WebParser - may put the
+token in the address instead (`?token=<token>`), which can then show up in that
+program's logs; Settings can turn that off. The feed refuses requests from
+other computers, from web pages and without the token.
+
+- **OBS:** add a Browser source with the URL
+  `http://127.0.0.1:40406/overlay?token=<token>`. Options:
+  `&show=down,up,ping,today,cpu`, `&units=bits`, `&size=36`,
+  `&layout=column`, `&align=right`.
+- **Home Assistant:** a REST sensor with the header
+  `Authorization: Bearer <token>`, from a Home Assistant running on this PC or
+  through something on this PC that relays it. The feed itself answers this PC
+  only and is never opened to the network.
+- **Rainmeter:** a WebParser measure on
+  `http://127.0.0.1:40406/v1/rates?token=<token>`.
+
+### The command line
+
+The full edition installs `Windsock.com` and `Windsock.Cli.exe` beside
+`Windsock.exe`; typing `windsock` in a console runs the command line, since
+Windows tries `.com` before `.exe`. To use it anywhere, press **Add to PATH**
+under Settings › Advanced (it asks first, changes only your own account's PATH,
+and **Remove from PATH** or uninstalling undoes it), or add the install folder
+(`%LOCALAPPDATA%\Windsock\current`) yourself. The Store edition adds `windsock`
+to the PATH by itself.
+
+```
+windsock status                      what Windsock shows now (needs the feed on)
+windsock watch --count 10            the rates and ping, a line a second
+windsock usage --month 2026-09       how much a period used
+windsock export --month 2026-09 -o september.csv
+windsock export --period last-week --by hour --format json
+windsock devices                     the devices on your home networks
+windsock wake "Office PC"            Wake-on-LAN, on a private network
+windsock feed                        where the feed listens
+```
+
+`usage`, `export` and `devices` read Windsock's files directly, read-only, so
+they work whether Windsock is running or not. Exit codes: 0 done, 1 bad
+arguments, 2 Windsock or its feed not running, 3 refused, 4 nothing to read,
+5 anything else, 6 a history or device file that is there but cannot be read
+(busy, locked or damaged). Add `--json` for machine-readable output.
+
+### AI assistants
+
+`Windsock.Mcp.exe` is a read-only [Model Context Protocol](https://modelcontextprotocol.io)
+server over stdio, offering two tools: `get_status` and `get_usage` (for
+example "how much did I use last week?"). It reads the local feed, so switch
+the feed on first. Add it to an assistant's MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "windsock": {
+      "command": "C:\\Users\\<you>\\AppData\\Local\\Windsock\\current\\Windsock.Mcp.exe"
+    }
+  }
+}
+```
+
+In the Store edition the command is `windsock-mcp`. What an assistant reads it
+may send to its provider; Windsock itself sends nothing.
+
 ## Privacy
 
 Windsock has no accounts, no telemetry and no analytics. Nothing is sent to the
@@ -229,14 +334,13 @@ logs\              rolling logs, seven days
 Per-app usage is read from Windows, which already counts it, and addresses are
 named from the DNS client's cache; neither sends anything. Both editions ping
 your own router every few seconds to watch the connection, which never leaves
-your local network, and ping a public address only if you choose one in the
-Connection section. Background watching can be turned off. The full edition also
-performs reverse DNS lookups for addresses the cache cannot name, ICMP route
-traces when a graph requires one, and update checks. Route traces and update
-checks can be turned off in Settings. Reverse DNS happens only while the network
-map or an app's own window is naming addresses, and each has a names switch
-that stops it there. Geolocation is resolved offline
-from a database shipped with the application.
+your local network, and ping a public address only if you choose one on the
+Connection › Status page. Background watching can be turned off. The full edition
+can also look up names for addresses the cache cannot name and trace the route
+to each place on the map, each only once switched on, and checks for updates,
+which can be switched off. Settings › Data and privacy lists every one of these
+with its own switch. Geolocation is resolved offline from a database shipped
+with the application.
 
 See [PRIVACY.md](PRIVACY.md).
 

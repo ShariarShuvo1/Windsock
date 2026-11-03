@@ -61,9 +61,31 @@
     <!-- The shapes a page shows in place of what it is still waiting for. -->
     <SolidColorBrush x:Key="BoneBrush" Color="#FF20242A" />
     <!-- A figure set on its own ground, a shade off the page, where a rule would otherwise part it from its neighbours. -->
-    <SolidColorBrush x:Key="PlateBrush" Color="#FF1B1E23" />
+    <SolidColorBrush x:Key="PlateBrush" Color="#FF1B1F24" />
     <SolidColorBrush x:Key="CardStrokeBrush" Color="#14FFFFFF" />
     <SolidColorBrush x:Key="CanvasGroundBrush" Color="#FF14171B" />
+
+    <!--
+        The tone ladder (2026-10-05). Parts of a page are told apart by tone,
+        never by an outline: a band is one step off the page around a part with
+        a subject of its own, plates and open rows inside a band are one step off
+        the band, and hover goes one step further. Bands lift: lighter than the
+        page here, white on the grey page in the light palette. A band darker
+        than the page reads as a hole and splits the page apart.
+    -->
+    <SolidColorBrush x:Key="SectionBrush" Color="#FF1B1F24" />
+    <SolidColorBrush x:Key="InsetBrush" Color="#FF23282E" />
+    <SolidColorBrush x:Key="HoverBrush" Color="#FF2A3037" />
+
+    <!--
+        Quiet controls - buttons, pickers, search fields - are filled one step
+        off whatever they sit on, with no outline. Translucent rather than a
+        tone, so the same control is one step up on the page, in a band and in
+        a flyout alike.
+    -->
+    <SolidColorBrush x:Key="QuietFillBrush" Color="#0DFFFFFF" />
+    <SolidColorBrush x:Key="QuietHoverBrush" Color="#1AFFFFFF" />
+    <SolidColorBrush x:Key="QuietPressedBrush" Color="#24FFFFFF" />
 
     <!-- Anything that floats: flyouts, drop-downs, the chart's hover readout. -->
     <SolidColorBrush x:Key="PopupBrush" Color="#FF242931" />
@@ -94,12 +116,15 @@
     <Color x:Key="GraphicsColor">#FF6FD49A</Color>
     <Color x:Key="MemoryColor">#FFC09BF6</Color>
     <Color x:Key="StorageColor">#FFF48FB8</Color>
+    <!-- The battery, a part only some machines have: lime, away from upload's amber. -->
+    <Color x:Key="BatteryColor">#FFD7E36B</Color>
 
     <SolidColorBrush x:Key="NetworkBrush" Color="{StaticResource NetworkColor}" />
     <SolidColorBrush x:Key="ProcessorBrush" Color="{StaticResource ProcessorColor}" />
     <SolidColorBrush x:Key="GraphicsBrush" Color="{StaticResource GraphicsColor}" />
     <SolidColorBrush x:Key="MemoryBrush" Color="{StaticResource MemoryColor}" />
     <SolidColorBrush x:Key="StorageBrush" Color="{StaticResource StorageColor}" />
+    <SolidColorBrush x:Key="BatteryBrush" Color="{StaticResource BatteryColor}" />
 
     <!--
         The unfilled part of a meter. Dim enough to read as a groove rather
@@ -112,5 +137,25 @@
 
     <!-- A state that is fine: the connection is up. Semantic, not a series. -->
     <SolidColorBrush x:Key="GoodBrush" Color="#FF6FD49A" />
+
+    <!--
+        The router's line on the response-time chart, drawn beside the internet's
+        (download cyan). It was memory's violet, which a deuteranope sees as the
+        same light blue as the cyan (CIEDE2000 1.3 under Machado's matrix): two
+        lines, one colour. A quiet blue-grey stays at least 23 apart from both the
+        cyan and the outage shading for every kind of colour vision, and reads as
+        the near end it is. Checked by PaletteColourTests.
+    -->
+    <Color x:Key="RouterColor">#FF707C88</Color>
+    <SolidColorBrush x:Key="RouterBrush" Color="{StaticResource RouterColor}" />
+
+    <!--
+        An edge for bands, tiles and quiet controls that only a Windows contrast
+        theme draws. Here, and in the light palette, it is clear: parts of a page
+        are told apart by tone. Under a contrast theme every surface is the one
+        Window colour, so the contrast palette makes this the text colour and
+        the parts keep their shape.
+    -->
+    <SolidColorBrush x:Key="ToneStrokeBrush" Color="#00000000" />
 
 </ResourceDictionary>

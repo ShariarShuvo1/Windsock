@@ -1,0 +1,88 @@
+<Window x:Class="Windsock.App.Views.InsightDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+        Width="470"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!--
+        Asks before something that cannot be taken back - ending a program,
+        closing a connection, changing the firewall - and then says what
+        happened. The button that acts names what it does; the safe answer is
+        the one under the finger and the one Escape gives.
+    -->
+    <Grid Margin="22,20,22,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="True">
+            <fluent:SymbolIcon x:Name="Mark"
+                               DockPanel.Dock="Left"
+                               Symbol="Info"
+                               FontSize="18"
+                               VerticalAlignment="Top"
+                               Margin="0,1,10,0"
+                               Foreground="{DynamicResource AccentBrush}" />
+
+            <TextBlock x:Name="Heading"
+                       FontSize="{DynamicResource TextSize15}"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       AutomationProperties.HeadingLevel="Level1"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+        </DockPanel>
+
+        <TextBlock x:Name="Body"
+                   Grid.Row="1"
+                   Margin="0,0,0,10"
+                   FontSize="{DynamicResource TextSize13}"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+        <!-- What exactly is about to happen, or what did, a line each: one process, one rule. -->
+        <Border x:Name="DetailsBox"
+                Grid.Row="2"
+                Margin="0,0,0,18"
+                Padding="12,9"
+                CornerRadius="8"
+                Background="{DynamicResource InsetBrush}">
+            <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                <ItemsControl x:Name="Details" Focusable="False" AutomationProperties.Name="Details">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       Margin="0,2"
+                                       FontSize="{DynamicResource TextSize12_5}"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="Safe"
+                    IsCancel="True"
+                    IsDefault="True"
+                    MinWidth="96"
+                    MinHeight="32"
+                    Click="OnSafe" />
+
+            <Button x:Name="Act"
+                    MinWidth="120"
+                    MinHeight="32"
+                    Margin="8,0,0,0"
+                    Click="OnAct" />
+        </StackPanel>
+    </Grid>
+</Window>

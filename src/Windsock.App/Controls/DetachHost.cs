@@ -35,6 +35,13 @@ public sealed class DetachHost : ContentControl
             typeof(DetachHost),
             new FrameworkPropertyMetadata(typeof(DetachHost)));
 
+        // A frame, not a control: Tab went to it on every liftable chart and
+        // map and found nothing to say. Its lift and bring-back buttons are
+        // controls of their own and keep their stops.
+        FocusableProperty.OverrideMetadata(
+            typeof(DetachHost),
+            new FrameworkPropertyMetadata(false));
+
         CommandManager.RegisterClassCommandBinding(
             typeof(DetachHost),
             new CommandBinding(TakeOut, (sender, _) => ((DetachHost)sender).IsDetached = true));

@@ -1,3 +1,5 @@
+using Windsock.Core.Navigation;
+
 namespace Windsock.Core.Notifications;
 
 /// <summary>
@@ -14,7 +16,6 @@ public static class NoticeLaunch
 {
     private const string OpenAction = "action=open";
     private const string SectionKey = "section=";
-    private const int LongestSection = 32;
 
     /// <summary>The launch text for a notice that opens a section, or the window.</summary>
     public static string Format(string? section) =>
@@ -49,21 +50,6 @@ public static class NoticeLaunch
         return opens && IsSectionName(section) ? section : null;
     }
 
-    private static bool IsSectionName(string? section)
-    {
-        if (section is null || section.Length is 0 or > LongestSection)
-        {
-            return false;
-        }
-
-        foreach (char each in section)
-        {
-            if (each is not (>= 'a' and <= 'z') and not '-')
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+    /// <summary>A page's link name, held to what <see cref="PageLink"/> allows, as every other way in is.</summary>
+    private static bool IsSectionName(string? section) => PageLink.IsName(section);
 }

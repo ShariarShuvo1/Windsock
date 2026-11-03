@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Windsock.Core.History;
+using Windsock.Core.Formatting;
 
 namespace Windsock.Core.Apps;
 
@@ -293,7 +294,7 @@ public sealed partial class AppUsageCollector : BackgroundService
             System.Globalization.CultureInfo.CurrentCulture,
             "Windows is not answering for {0} since {1}, so what went over it is missing for now. It is filled in when Windows answers again.",
             string.Join(", ", leftOut.Select(network => network.Name)),
-            EpochMinute.ToLocal(leftOut.Min(network => network.SinceMinute)).ToString("h:mm tt", System.Globalization.CultureInfo.CurrentCulture));
+            ClockFormat.Time(EpochMinute.ToLocal(leftOut.Min(network => network.SinceMinute))));
     }
 
     private async Task<(bool More, AppUsageState State, string? Detail, DateTimeOffset? Until, UsageWindow? KeptFrom, UsageWindow? KeptUntil)> KeepAsync(long now, CancellationToken token)

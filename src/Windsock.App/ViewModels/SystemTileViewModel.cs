@@ -17,6 +17,9 @@ public enum SystemPart
     Memory,
 
     Storage,
+
+    /// <summary>The battery: a part only a laptop (or a PC on a UPS) has.</summary>
+    Battery,
 }
 
 /// <summary>One label and its figure, beside a tile's chart.</summary>
@@ -28,6 +31,9 @@ public sealed partial class TileFact(string label) : ObservableObject
     /// <summary>The figure.</summary>
     [ObservableProperty]
     public partial string Value { get; set; } = string.Empty;
+
+    /// <summary>What a screen reader names the fact by: "Clock, 4.10 GHz".</summary>
+    public override string ToString() => Value.Length > 0 ? string.Concat(Label, ", ", Value) : Label;
 }
 
 /// <summary>
@@ -98,7 +104,10 @@ public sealed partial class SystemTileViewModel : ObservableObject
     /// part's name: 17%, 6.33 MB/s. Empty until there is a figure, rather than a
     /// zero nobody measured.
     /// </summary>
-    public string Readout => Value.Length == 0 ? string.Empty : Unit == "%" ? Value + Unit : Value + " " + Unit;
+    public string Readout => Value.Length == 0 ? string.Empty
+        : Unit.Length == 0 ? Value
+        : Unit == "%" ? Value + Unit
+        : Value + " " + Unit;
 
     /// <summary>How large to set the figure so that it fits.</summary>
     [ObservableProperty]
@@ -185,12 +194,24 @@ public sealed partial class SystemTileViewModel : ObservableObject
         IsHot = degrees >= hotAt;
     }
 
-    /// <summary>A temperature in the form the tiles show it.</summary>
-    public static string Temperature(double celsius) =>
-        string.Create(CultureInfo.InvariantCulture, $"{celsius:F0}°C");
+    /// <summary>
+    /// A temperature in the form the tiles show it, in the scale Settings ›
+    /// Appearance has chosen.
+    /// </summary>
+    public static string Temperature(double celsius) => TemperatureScale.Format(celsius);
 
     /// <summary>Puts the same reading into different words, remembering nothing.</summary>
     public void Restate(string value, string unit) => Figure(value, unit);
+
+    /// <summary>
+    /// A reading that could not be taken: a dash for the figure, and a gap in
+    /// the line rather than a fall to zero.
+    /// </summary>
+    public void ShowNothing()
+    {
+        Figure(MeterReadout.Unknown, string.Empty);
+        Remember(double.NaN);
+    }
 
     private void Figure(string value, string unit)
     {

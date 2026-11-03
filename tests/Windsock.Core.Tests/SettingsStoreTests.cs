@@ -1,4 +1,6 @@
-﻿using Windsock.Core.Formatting;
+﻿using System.Text;
+using Microsoft.Extensions.Logging;
+using Windsock.Core.Formatting;
 using Windsock.Core.Settings;
 using Xunit;
 
@@ -51,15 +53,59 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void TheProcessMap_OpensUntilItIsFolded()
+    public void EveryOutsideContact_IsOffUntilAskedFor()
+    {
+        var settings = new WindsockSettings();
+
+        Assert.False(settings.TraceRoutes);
+        Assert.False(settings.ReverseLookups);
+        Assert.Equal(InternetCheck.WindowsOnly, settings.Connection.InternetCheck);
+    }
+
+    [Fact]
+    public void RouteTracing_SurvivesBeingSaved()
     {
         var store = new SettingsStore(_file);
 
-        Assert.True(new WindsockSettings().ProcessMapOpen);
+        store.Save(new WindsockSettings { TraceRoutes = true, ReverseLookups = true });
 
-        store.Save(new WindsockSettings { ProcessMapOpen = false });
+        WindsockSettings read = store.Load();
 
-        Assert.False(store.Load().ProcessMapOpen);
+        Assert.True(read.TraceRoutes);
+        Assert.True(read.ReverseLookups);
+    }
+
+    /// <summary>
+    /// The old route switch was on by default and sat under a second one on the
+    /// map. Every file written before the two became one says true, so reading
+    /// it as the new switch would start tracing for people who never asked.
+    /// </summary>
+    [Fact]
+    public void AFileWithTheOldRouteSwitch_LeavesTracingOff()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(_file, """{ "FollowRoutes": true, "ProcessMapOpen": true, "Theme": "Dark" }""");
+
+        WindsockSettings loaded = new SettingsStore(_file).Load();
+
+        Assert.False(loaded.TraceRoutes);
+        Assert.Equal(ThemePreference.Dark, loaded.Theme);
+    }
+
+    [Fact]
+    public void ChartUnits_SurviveBeingSaved()
+    {
+        var store = new SettingsStore(_file);
+
+        Assert.Equal(RateFamily.Bytes, new WindsockSettings().ChartFamily);
+        Assert.Equal(RateScale.Auto, new WindsockSettings().ChartScale);
+
+        store.Save(new WindsockSettings { ChartFamily = RateFamily.Bits, ChartScale = RateScale.Mega });
+
+        WindsockSettings read = store.Load();
+
+        Assert.Equal(RateFamily.Bits, read.ChartFamily);
+        Assert.Equal(RateScale.Mega, read.ChartScale);
     }
 
     [Fact]
@@ -327,6 +373,91 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Null(new SettingsStore(_file).Load().Taskbar.Background);
     }
 
+    /// <summary>
+    /// Something holding the file open for writing - an editor, a backup - used
+    /// to make the settings read as the defaults, since a read wanted it shared
+    /// for reading only. The store's read lets others write while it copies.
+    /// </summary>
+    [Fact]
+    public void AFileHeldOpenForWriting_StillReads()
+    {
+        var store = new SettingsStore(_file);
+        store.Save(new WindsockSettings { Theme = ThemePreference.Dark });
+
+        using FileStream writer = new(_file, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+
+        Assert.Equal(ThemePreference.Dark, store.Load().Theme);
+    }
+
+    /// <summary>
+    /// A second Windsock reads the file while the running one may save it. The
+    /// read holds the file only while it copies it; a save that meets that hold,
+    /// or anyone else's, waits and tries again rather than losing what it was
+    /// saving. Two holders: the store's own read, and a reader sharing it for
+    /// reading only, as an older Windsock does.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ASaveFindingTheFileHeld_TriesAgain(bool heldByTheStoresRead)
+    {
+        var store = new SettingsStore(_file);
+        store.Save(new WindsockSettings { Theme = ThemePreference.Dark });
+
+        FileStream held = heldByTheStoresRead
+            ? SettingsStore.OpenShared(_file)
+            : new FileStream(_file, FileMode.Open, FileAccess.Read, FileShare.Read);
+        List<int> retries = [];
+        store.BeforeRetry = retry =>
+        {
+            retries.Add(retry);
+            held.Dispose();
+        };
+
+        try
+        {
+            store.Save(new WindsockSettings { Theme = ThemePreference.Light });
+        }
+        finally
+        {
+            held.Dispose();
+        }
+
+        Assert.Equal([1], retries);
+        Assert.Equal(ThemePreference.Light, store.Load().Theme);
+    }
+
+    /// <summary>Held for good, the save gives up after its tries, says so once, and leaves the file as it was.</summary>
+    [Fact]
+    public void ASaveThatNeverGetsTheFile_GivesUpAndSaysSo()
+    {
+        var log = new WarningCounter();
+        var store = new SettingsStore(_file, log);
+        store.Save(new WindsockSettings { Theme = ThemePreference.Dark });
+        int retries = 0;
+        store.BeforeRetry = _ => retries++;
+
+        using (new FileStream(_file, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            store.Save(new WindsockSettings { Theme = ThemePreference.Light });
+        }
+
+        Assert.Equal(SettingsStore.Retries, retries);
+        Assert.Equal(1, log.Warnings);
+        Assert.Equal(ThemePreference.Dark, store.Load().Theme);
+    }
+
+    /// <summary>A file saved by Notepad starts with a byte order mark, and has always opened.</summary>
+    [Fact]
+    public void AFileWithAByteOrderMark_StillOpens()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(_file, """{ "Theme": "Dark" }""", new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+        Assert.Equal(0xEF, File.ReadAllBytes(_file)[0]);
+        Assert.Equal(ThemePreference.Dark, new SettingsStore(_file).Load().Theme);
+    }
+
     public void Dispose()
     {
         try
@@ -339,6 +470,29 @@ public sealed class SettingsStoreTests : IDisposable
         catch (IOException)
         {
             // A leftover temp directory is not worth failing a test run over.
+        }
+    }
+
+    private sealed class WarningCounter : ILogger<SettingsStore>
+    {
+        public int Warnings { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning && exception is not null)
+            {
+                Warnings++;
+            }
         }
     }
 }

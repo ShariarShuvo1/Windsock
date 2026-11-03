@@ -1,0 +1,77 @@
+<UserControl x:Class="Windsock.App.Views.UpdateShareBand"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:UpdateShareViewModel}"
+             d:DesignWidth="760">
+
+    <!--
+        Windows Update and Delivery Optimization this month, on the Apps page's
+        period view: a band of its own, its figures on inset plates.
+    -->
+    <Border Style="{StaticResource BandStyle}">
+        <StackPanel>
+            <StackPanel Style="{StaticResource BandHeadStyle}">
+                <TextBlock Text="Windows Update and Delivery Optimization this month"
+                           Style="{StaticResource CardTitleStyle}"
+                           TextWrapping="Wrap"
+                           AutomationProperties.HeadingLevel="Level2" />
+                <TextBlock Text="{Binding Note}" TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+            </StackPanel>
+
+            <controls:FlowGrid Style="{StaticResource PlateStripStyle}" MinimumColumnWidth="140">
+                <Border Style="{StaticResource InsetPlateCellStyle}">
+                    <StackPanel>
+                        <TextBlock Text="FROM MICROSOFT" Style="{StaticResource StatLabelStyle}" />
+                        <TextBlock Text="{Binding FromMicrosoft}" Style="{StaticResource StatValueStyle}" AutomationProperties.Name="Downloaded from Microsoft this month" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource InsetPlateCellStyle}">
+                    <StackPanel>
+                        <TextBlock Text="FROM PCS NEARBY" Style="{StaticResource StatLabelStyle}" />
+                        <TextBlock Text="{Binding FromNearby}" Style="{StaticResource StatValueStyle}" AutomationProperties.Name="Downloaded from other PCs and cache servers on this network" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource InsetPlateCellStyle}">
+                    <StackPanel>
+                        <TextBlock Text="FROM INTERNET PCS" Style="{StaticResource StatLabelStyle}" />
+                        <TextBlock Text="{Binding FromInternetPeers}" Style="{StaticResource StatValueStyle}" AutomationProperties.Name="Downloaded from other PCs over the internet" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource InsetPlateCellStyle}">
+                    <StackPanel>
+                        <TextBlock Text="SENT TO OTHER PCS" Style="{StaticResource StatLabelStyle}" />
+                        <TextBlock Text="{Binding Uploaded}" Style="{StaticResource StatValueStyle}" AutomationProperties.Name="Uploaded to other PCs this month" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource InsetPlateCellStyle}">
+                    <StackPanel>
+                        <TextBlock Text="OVER THE INTERNET" Style="{StaticResource StatLabelStyle}" />
+                        <TextBlock Text="{Binding OverInternet}" Style="{StaticResource StatValueStyle}" AutomationProperties.Name="Crossed the internet connection this month" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource InsetPlateCellStyle}">
+                    <StackPanel>
+                        <TextBlock Text="UPDATE PROGRAMS" Style="{StaticResource StatLabelStyle}" />
+                        <TextBlock Text="{Binding Programs}" Style="{StaticResource StatValueStyle}" AutomationProperties.Name="Used by the update programs Windows names this month" />
+                    </StackPanel>
+                </Border>
+            </controls:FlowGrid>
+
+            <TextBlock Text="{Binding Measured}"
+                       Margin="2,10,0,0"
+                       TextWrapping="Wrap"
+                       Style="{StaticResource CardNoteStyle}"
+                       Visibility="{Binding Measured, Converter={StaticResource TextToVisibility}}" />
+        </StackPanel>
+    </Border>
+</UserControl>

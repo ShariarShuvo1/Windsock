@@ -1,0 +1,117 @@
+<Window x:Class="Windsock.App.Views.ReputationDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+        Title="VirusTotal"
+        Width="500"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!--
+        A program's hash looked up on VirusTotal, only when the person presses
+        the button here: opening this window sends nothing. What will be sent
+        is said before it is, and it is the hash alone.
+    -->
+    <Grid Margin="22,20,22,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,6" LastChildFill="True">
+            <fluent:SymbolIcon DockPanel.Dock="Left"
+                               Symbol="ShieldQuestion"
+                               FontSize="18"
+                               VerticalAlignment="Top"
+                               Margin="0,1,10,0"
+                               Foreground="{DynamicResource AccentBrush}" />
+            <TextBlock x:Name="Heading"
+                       FontSize="{DynamicResource TextSize15}"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       AutomationProperties.HeadingLevel="Level1"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+        </DockPanel>
+
+        <TextBlock x:Name="PathText"
+                   Grid.Row="1"
+                   Margin="28,0,0,12"
+                   FontSize="{DynamicResource TextSize12}"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+
+        <TextBlock x:Name="Status"
+                   Grid.Row="2"
+                   Margin="0,0,0,10"
+                   FontSize="{DynamicResource TextSize13}"
+                   TextWrapping="Wrap"
+                   AutomationProperties.LiveSetting="Polite"
+                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+        <!-- The hash, selectable, so it can be checked or searched for by hand. -->
+        <Border x:Name="HashBox"
+                Grid.Row="3"
+                Margin="0,0,0,18"
+                Padding="12,8"
+                CornerRadius="8"
+                Visibility="Collapsed"
+                Background="{DynamicResource InsetBrush}">
+            <StackPanel>
+                <TextBlock Text="SHA-256" Style="{StaticResource CaptionTextStyle}" />
+                <TextBox x:Name="Hash"
+                         Margin="0,3,0,0"
+                         IsReadOnly="True"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         Padding="0"
+                         TextWrapping="Wrap"
+                         FontFamily="Consolas"
+                         FontSize="{DynamicResource TextSize12}"
+                         Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                         AutomationProperties.Name="SHA-256 of the program" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="Page"
+                    MinWidth="140"
+                    MinHeight="32"
+                    Margin="0,0,8,0"
+                    Visibility="Collapsed"
+                    Content="Open on VirusTotal"
+                    AutomationProperties.Name="Open this file's page on VirusTotal"
+                    Click="OnPage" />
+
+            <Button x:Name="Settings"
+                    MinWidth="140"
+                    MinHeight="32"
+                    Margin="0,0,8,0"
+                    Visibility="Collapsed"
+                    Content="Add a key"
+                    AutomationProperties.Name="Open Settings, Data and privacy, to add a VirusTotal key"
+                    Click="OnSettings" />
+
+            <Button x:Name="Send"
+                    MinWidth="130"
+                    MinHeight="32"
+                    Margin="0,0,8,0"
+                    Content="Send the hash"
+                    AutomationProperties.Name="Send this program's hash to VirusTotal"
+                    Click="OnSend" />
+
+            <Button x:Name="CloseButton"
+                    IsCancel="True"
+                    MinWidth="90"
+                    MinHeight="32"
+                    Content="Close"
+                    AutomationProperties.Name="Close"
+                    Click="OnClose" />
+        </StackPanel>
+    </Grid>
+</Window>

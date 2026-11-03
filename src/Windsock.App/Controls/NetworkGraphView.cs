@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -25,6 +26,14 @@ public sealed record GraphNote(string Title, string Body, string Detail = "", Im
     /// <summary>Never, for the same reason as <see cref="IsSelected"/>.</summary>
     public bool IsHighlighted => false;
 #pragma warning restore CA1822
+
+    /// <summary>
+    /// What the node says, which a screen reader reads as its help text (the
+    /// node's popover holds the note): the record's own ToString listed its
+    /// members, icon and flags included.
+    /// </summary>
+    public override string ToString() =>
+        string.Join(", ", new[] { Title, Body, Detail }.Where(part => !string.IsNullOrEmpty(part)));
 }
 
 /// <summary>What the pointer is over.</summary>
@@ -572,6 +581,20 @@ public sealed class NetworkGraphView : Panel, IViewAnchor
     /// The earth is framed whole.
     /// </summary>
     public bool IsFramedOnAnchor => !IsWorld;
+
+    /// <summary>How many far ends the picture holds, for its name to a screen reader.</summary>
+    public int PlaceCount => _nodes.Keys.Count(item => item is PeerNodeViewModel);
+
+    /// <summary>How many programs the picture holds, on the map of the whole machine.</summary>
+    public int AppCount => _nodes.Keys.Count(item => item is ProcessNodeViewModel);
+
+    /// <summary>
+    /// A list to a screen reader, named by the page and counted ("Network map,
+    /// 23 places, from 31 apps"), whose items are the nodes. Without it the
+    /// name the page gave the graph was set on something with no peer and
+    /// never read, and the nodes stood loose in the window.
+    /// </summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new GraphPeer(this);
 
     private static DependencyProperty Register<T>(string name, T fallback) =>
         DependencyProperty.Register(
@@ -2242,6 +2265,27 @@ public sealed class NetworkGraphView : Panel, IViewAnchor
 
     private static Point On(Point start, Point end, double along) =>
         new(start.X + ((end.X - start.X) * along), start.Y + ((end.Y - start.Y) * along));
+
+    private sealed class GraphPeer(NetworkGraphView owner) : FrameworkElementAutomationPeer(owner)
+    {
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.List;
+
+        protected override string GetClassNameCore() => nameof(NetworkGraphView);
+
+        protected override string GetNameCore()
+        {
+            NetworkGraphView graph = (NetworkGraphView)Owner;
+            string given = base.GetNameCore();
+            int places = graph.PlaceCount;
+            int apps = graph.AppCount;
+
+            string counted = string.Create(
+                CultureInfo.CurrentCulture,
+                $"{places} {(places == 1 ? "place" : "places")}{(apps > 0 ? string.Create(CultureInfo.CurrentCulture, $", from {apps} {(apps == 1 ? "app" : "apps")}") : string.Empty)}");
+
+            return string.IsNullOrEmpty(given) ? counted : string.Concat(given, ", ", counted);
+        }
+    }
 
     private sealed class Spot(GraphBranch branch, Spot? parent, int depth)
     {

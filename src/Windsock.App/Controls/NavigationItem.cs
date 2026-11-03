@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace Windsock.App.Controls;
 
@@ -16,10 +17,22 @@ namespace Windsock.App.Controls;
 /// listed under it while it is open and the sidebar is showing names.
 /// </para>
 /// <para>
-/// Still a tab item underneath, so selection, focus and UI Automation keep
-/// working the way the tab control expects. What a group changes is that it
-/// takes focus without taking selection, and that pressing it is an action
-/// rather than a choice.
+/// Still a tab item underneath, so selection and UI Automation keep working the
+/// way the tab control expects. What changes is focus: a tab item chooses
+/// itself as it takes focus, and here nothing does. The arrow keys move the
+/// keyboard through the list and Enter or Space chooses, as in Windows' own
+/// navigation, so walking the list never turns the page; a press with the
+/// pointer focuses and chooses at once. A group is never chosen at all:
+/// pressing it is an action.
+/// </para>
+/// <para>
+/// A section's page is its content, so the page's routed events - keys,
+/// presses, focus - pass through the section on their way up, though the page
+/// is drawn beside the list rather than inside the entry. Every handler here
+/// first asks whether the event is the entry's own (<see cref="IsOwn"/>):
+/// without that, Up on a button in the page moved the keyboard into the list,
+/// and a press on the page's background chose the entry. The tab item's own
+/// mouse handler asks the same in its own way.
 /// </para>
 /// </remarks>
 public sealed class NavigationItem : TabItem
@@ -132,34 +145,51 @@ public sealed class NavigationItem : TabItem
     {
         ArgumentNullException.ThrowIfNull(e);
 
-        if (HasChildren && Pane is { } pane)
+        if (Pane is not { } pane || !IsEnabled || !IsOwn(e))
         {
-            Focus();
-            pane.Invoke(this);
-            e.Handled = true;
+            base.OnMouseLeftButtonDown(e);
             return;
         }
 
-        base.OnMouseLeftButtonDown(e);
+        Focus();
+
+        if (HasChildren)
+        {
+            pane.Invoke(this);
+        }
+        else
+        {
+            // What the tab item did by taking focus, now that focus alone chooses nothing.
+            SetCurrentValue(IsSelectedProperty, true);
+        }
+
+        e.Handled = true;
     }
 
     protected override void OnPreviewGotKeyboardFocus(KeyboardFocusChangedEventArgs e)
     {
-        // A tab item selects itself as it takes focus. A group only takes focus:
-        // arrowing past it should not turn the page.
-        if (HasChildren)
-        {
-            return;
-        }
+        // A tab item selects itself as it takes focus. Here focus only moves:
+        // arrowing or tabbing through the list must not turn the page.
+    }
 
-        base.OnPreviewGotKeyboardFocus(e);
+    protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        base.OnGotKeyboardFocus(e);
+
+        // The entry with the keyboard is the list's one Tab stop while it has it,
+        // so Tab goes on to the page from here rather than to the next stop.
+        if (IsOwn(e))
+        {
+            Pane?.KeepTabStop();
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
 
-        if (Pane is not { } pane)
+        if (Pane is not { } pane || !IsOwn(e))
         {
             base.OnKeyDown(e);
             return;
@@ -169,6 +199,21 @@ public sealed class NavigationItem : TabItem
         {
             case Key.Enter or Key.Space when HasChildren:
                 pane.Invoke(this);
+                e.Handled = true;
+                return;
+
+            case Key.Enter or Key.Space:
+                SetCurrentValue(IsSelectedProperty, true);
+                e.Handled = true;
+                return;
+
+            case Key.Home or Key.End:
+                pane.FocusEnd(e.Key == Key.End);
+                e.Handled = true;
+                return;
+
+            case Key.Up or Key.Down:
+                pane.FocusNext(this, e.Key == Key.Down ? 1 : -1);
                 e.Handled = true;
                 return;
 
@@ -189,6 +234,23 @@ public sealed class NavigationItem : TabItem
         }
 
         base.OnKeyDown(e);
+    }
+
+    /// <summary>
+    /// Whether an event began on the entry itself, as drawn, rather than on
+    /// the page it shows, whose events pass through it by the logical tree.
+    /// </summary>
+    private bool IsOwn(RoutedEventArgs e)
+    {
+        // A press can land on text inside a text block, which is no visual.
+        DependencyObject? source = e.OriginalSource as DependencyObject;
+
+        while (source is not null and not Visual)
+        {
+            source = LogicalTreeHelper.GetParent(source);
+        }
+
+        return source is Visual visual && (ReferenceEquals(visual, this) || IsAncestorOf(visual));
     }
 
     private static void OnIsExpandedChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

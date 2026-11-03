@@ -1,0 +1,467 @@
+<UserControl x:Class="Windsock.App.Views.ReportsPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             x:Name="Root"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ReportsPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="900">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Styles/Usage.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- One app in a report: its icon, name, who counted it, and how much. -->
+            <DataTemplate x:Key="AppRowTemplate" DataType="{x:Type vm:AppReportRow}">
+                <Border Style="{StaticResource TileStyle}">
+                    <DockPanel LastChildFill="True">
+                        <Image DockPanel.Dock="Left" Source="{Binding Icon}" Width="18" Height="18" Margin="0,0,10,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"
+                               AutomationProperties.Name="{Binding Name, StringFormat=Icon of {0}}" />
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Amount}" Style="{StaticResource ListValueStyle}" />
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}" Style="{StaticResource ListNameStyle}" />
+                            <TextBlock Text="{Binding Note}" FontSize="{DynamicResource TextSize11_5}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </DataTemplate>
+
+            <!-- One network's or other part's share. -->
+            <DataTemplate x:Key="ShareRowTemplate" DataType="{x:Type vm:ShareRow}">
+                <Border Style="{StaticResource TileStyle}">
+                    <DockPanel LastChildFill="True">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding ShareText}" Style="{StaticResource ListValueStyle}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Amount}" Style="{StaticResource ListValueStyle}" />
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource ListNameStyle}" />
+                    </DockPanel>
+                </Border>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!--
+        Usage › Reports. One question a tab: a period's report, two periods
+        compared, a year by the day, the week by the hour, and everything since
+        recording began. The period and how to step through it are the page's
+        own, so they sit in the heading; each tab's lead - its figures and its
+        chart - sits on the page, and its lists are bands.
+    -->
+    <controls:SectionPage Title="Reports" Subtitle="{Binding PeriodText}">
+        <controls:SectionPage.Actions>
+            <controls:FlowRow Spacing="8" LineSpacing="8">
+                <controls:FlowRow Spacing="8" LineSpacing="8">
+                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                     MinWidth="96"
+                                     ItemsSource="{Binding Kinds}"
+                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                     SelectedValuePath="Value"
+                                     SelectedValue="{Binding Kind, Mode=TwoWay}"
+                                     Visibility="{Binding UsesPeriod, Converter={StaticResource BooleanToVisibility}}"
+                                     AutomationProperties.Name="Report on a"
+                                     ToolTip="A day, a week, a month or a year" />
+
+                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                     MinWidth="160"
+                                     ItemsSource="{Binding CompareOptions}"
+                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                     SelectedValuePath="Value"
+                                     SelectedValue="{Binding CompareWith, Mode=TwoWay}"
+                                     Visibility="{Binding IsCompare, Converter={StaticResource BooleanToVisibility}}"
+                                     AutomationProperties.Name="Compare with" />
+
+                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                     MinWidth="132"
+                                     ItemsSource="{Binding HeatSpans}"
+                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                     SelectedValuePath="Value"
+                                     SelectedValue="{Binding HeatSpan, Mode=TwoWay}"
+                                     Visibility="{Binding IsWeek, Converter={StaticResource BooleanToVisibility}}"
+                                     AutomationProperties.Name="How far back the week is averaged" />
+
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsLifetime, Converter={StaticResource InverseBooleanToVisibility}}">
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Padding="8,0"
+                                Command="{Binding EarlierCommand}"
+                                Visibility="{Binding IsWeek, Converter={StaticResource InverseBooleanToVisibility}}"
+                                AutomationProperties.Name="Earlier"
+                                ToolTip="The period before">
+                            <fluent:SymbolIcon Symbol="ChevronLeft" FontSize="14" />
+                        </Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Padding="8,0"
+                                Margin="4,0,0,0"
+                                Command="{Binding LaterCommand}"
+                                IsEnabled="{Binding CanGoNext}"
+                                Visibility="{Binding IsWeek, Converter={StaticResource InverseBooleanToVisibility}}"
+                                AutomationProperties.Name="Later"
+                                ToolTip="The period after">
+                            <fluent:SymbolIcon Symbol="ChevronRight" FontSize="14" />
+                        </Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="4,0,0,0"
+                                Command="{Binding LatestCommand}"
+                                Visibility="{Binding IsWeek, Converter={StaticResource InverseBooleanToVisibility}}"
+                                Content="Latest"
+                                AutomationProperties.Name="Go to the latest period" />
+                    </StackPanel>
+                </controls:FlowRow>
+
+                <controls:FlowRow Spacing="8" LineSpacing="8">
+                    <!-- Offered only once something is known to have stayed on the local network. -->
+                    <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                              VerticalAlignment="Center"
+                              Content="Internet only"
+                              IsChecked="{Binding InternetOnly, Mode=TwoWay}"
+                              Visibility="{Binding HasLocalData, Converter={StaticResource BooleanToVisibility}}"
+                              AutomationProperties.Name="Leave out what stayed on the local network"
+                              ToolTip="Rank and compare by internet traffic alone, leaving out copies to a NAS or a TV" />
+
+                    <Button x:Name="SaveCardButton"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            Visibility="{Binding CanSaveCard, Converter={StaticResource BooleanToVisibility}}"
+                            AutomationProperties.Name="Save the month as a picture"
+                            ToolTip="Save a picture of this month's summary, to share">
+                        <StackPanel Orientation="Horizontal">
+                            <fluent:SymbolIcon Symbol="Image" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Save as picture" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </controls:FlowRow>
+            </controls:FlowRow>
+        </controls:SectionPage.Actions>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <ListBox Grid.Row="0"
+                     Margin="24,0,24,14"
+                     Style="{StaticResource PageTabsStyle}"
+                     ItemsSource="{Binding Views}"
+                     DisplayMemberPath="Label"
+                     SelectedValuePath="View"
+                     SelectedValue="{Binding SelectedView, Mode=TwoWay}"
+                     AutomationProperties.Name="Report views" />
+
+            <ScrollViewer x:Name="Body"
+                          Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="{StaticResource PagePadding}">
+                <StackPanel>
+                    <Border Style="{StaticResource NoticeStyle}"
+                            Visibility="{Binding Notice, Converter={StaticResource TextToVisibility}}">
+                        <DockPanel LastChildFill="True">
+                            <fluent:SymbolIcon DockPanel.Dock="Left" Symbol="Info" FontSize="15" Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                            <TextBlock Text="{Binding Notice}" FontSize="{DynamicResource TextSize12_5}" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </DockPanel>
+                    </Border>
+
+                    <!-- ===================== Report ===================== -->
+                    <StackPanel Visibility="{Binding IsReport, Converter={StaticResource BooleanToVisibility}}">
+                        <controls:FlowGrid Style="{StaticResource PlateStripStyle}">
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="TOGETHER" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding TotalText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="Used together" />
+                                    <TextBlock Text="{Binding TotalNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ArrowDownload" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="{DynamicResource DownloadBrush}" />
+                                        <TextBlock Text="DOWNLOADED" Style="{StaticResource StatLabelStyle}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding DownText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="Downloaded" />
+                                    <TextBlock Text="{Binding PeakDownText}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ArrowUpload" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" Foreground="{DynamicResource UploadBrush}" />
+                                        <TextBlock Text="UPLOADED" Style="{StaticResource StatLabelStyle}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding UpText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="Uploaded" />
+                                    <TextBlock Text="{Binding PeakUpText}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="EACH DAY" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding AverageText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="Each day on average" />
+                                    <TextBlock Text="{Binding AverageNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="CHANGE" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding ChangeText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="Change from the period before" />
+                                    <TextBlock Text="{Binding ChangeNote}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </controls:FlowGrid>
+
+                        <TextBlock Text="{Binding BusiestText}" Style="{StaticResource LeadNoteStyle}" Visibility="{Binding BusiestText, Converter={StaticResource TextToVisibility}}" />
+                        <TextBlock Text="{Binding OutagesText}" Style="{StaticResource QuietNoteStyle}" />
+                        <TextBlock Text="{Binding EstimateNote}" Style="{StaticResource QuietNoteStyle}" Visibility="{Binding EstimateNote, Converter={StaticResource TextToVisibility}}" />
+
+                        <controls:AdaptiveRow Breakpoint="420" Spacing="10" LeadFills="True" LeadMinimumWidth="200" Margin="4,22,4,0">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Over the period" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Point at a bar, or reach the chart with Tab and move with the arrow keys." TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+                            <controls:FlowRow Spacing="14" LineSpacing="4" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource DownloadBrush}" />
+                                    <TextBlock Text="Download" Style="{StaticResource KeyTextStyle}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource UploadBrush}" />
+                                    <TextBlock Text="Upload" Style="{StaticResource KeyTextStyle}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource DownloadBrush}" Opacity="0.4" />
+                                    <TextBlock Text="Counted by Windows" Style="{StaticResource KeyTextStyle}" />
+                                </StackPanel>
+                            </controls:FlowRow>
+                        </controls:AdaptiveRow>
+
+                        <Grid Margin="0,10,0,0">
+                            <controls:BarSeriesChart x:Name="SeriesChart"
+                                                     Height="220"
+                                                     Items="{Binding SeriesBars}"
+                                                     PrimaryBrush="{DynamicResource DownloadBrush}"
+                                                     SecondaryBrush="{DynamicResource UploadBrush}"
+                                                     TrackBrush="{DynamicResource MeterTrackBrush}"
+                                                     GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                     AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                     HighlightBrush="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                     FocusVisualStyle="{StaticResource FocusRingStyle}"
+                                                     AutomationProperties.Name="Usage over the period" />
+                            <StackPanel Style="{StaticResource EmptyStateStyle}" Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Text="Nothing was recorded or counted in this period" Style="{StaticResource EmptyTitleStyle}" />
+                                <TextBlock Text="A report fills in from what Windsock records and what Windows counted while it was closed. Step back to an earlier period, or check that recording is not paused." Style="{StaticResource EmptyNoteStyle}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding SelectedDetail, ElementName=SeriesChart}" Style="{StaticResource ChartDetailStyle}" controls:LiveRegion.Speaks="True" />
+
+                        <!-- When in the day, and which days. -->
+                        <Border Style="{StaticResource BandStyle}" Margin="0,20,0,0">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="When in the day" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Everything each hour of the day moved, across the period." TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+                                <controls:BarSeriesChart x:Name="HourChart"
+                                                         Height="150"
+                                                         Items="{Binding HourBars}"
+                                                         PrimaryBrush="{DynamicResource NetworkBrush}"
+                                                         GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                         AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                         HighlightBrush="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                         FocusVisualStyle="{StaticResource FocusRingStyle}"
+                                                         AutomationProperties.Name="Usage by hour of the day" />
+                                <TextBlock Text="{Binding SelectedDetail, ElementName=HourChart}" Style="{StaticResource ChartDetailStyle}" controls:LiveRegion.Speaks="True" />
+
+                                <StackPanel Visibility="{Binding HasWeekdays, Converter={StaticResource BooleanToVisibility}}">
+                                    <TextBlock Text="Days of the week" Style="{StaticResource CardTitleStyle}" Margin="0,16,0,0" />
+                                    <controls:BarSeriesChart x:Name="WeekdayChart"
+                                                             Height="140"
+                                                             Margin="0,8,0,0"
+                                                             Items="{Binding WeekdayBars}"
+                                                             PrimaryBrush="{DynamicResource NetworkBrush}"
+                                                             GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                             AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                             HighlightBrush="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                             FocusVisualStyle="{StaticResource FocusRingStyle}"
+                                                             AutomationProperties.Name="Usage by day of the week" />
+                                    <TextBlock Text="{Binding SelectedDetail, ElementName=WeekdayChart}" Style="{StaticResource ChartDetailStyle}" controls:LiveRegion.Speaks="True" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}"
+                                Visibility="{Binding HasApps, Converter={StaticResource BooleanToVisibility}}">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="Busiest apps" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="What Windsock measured of each, and what Windows counted where it did not." TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding Apps}" ItemTemplate="{StaticResource AppRowTemplate}" Focusable="False" AutomationProperties.Name="Busiest apps" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}"
+                                Visibility="{Binding HasNetworks, Converter={StaticResource BooleanToVisibility}}">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="By network" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="What Windsock recorded on each network. Windows' figures for time Windsock was closed do not say which network they were on, so they are not here." TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding Networks}" ItemTemplate="{StaticResource ShareRowTemplate}" Focusable="False" AutomationProperties.Name="By network" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ===================== Compare ===================== -->
+                    <StackPanel Visibility="{Binding IsCompare, Converter={StaticResource BooleanToVisibility}}">
+                        <controls:FlowGrid Style="{StaticResource PlateStripStyle}">
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ComparedName}" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding ComparedText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="{Binding ComparedName}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding BaselineName}" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding BaselineText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="{Binding BaselineName}" />
+                                    <TextBlock Text="{Binding BaselineNote}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="DIFFERENCE" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding DifferenceText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="Difference" />
+                                    <TextBlock Text="{Binding DifferenceNote}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </controls:FlowGrid>
+
+                        <controls:AdaptiveRow Breakpoint="420" Spacing="10" LeadFills="True" LeadMinimumWidth="200" Margin="4,22,4,0">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Step by step" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Each step of the period beside the same step of the one it is compared with: day 1 beside day 1." TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+                            <controls:FlowRow Spacing="14" LineSpacing="4" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource DownloadBrush}" />
+                                    <TextBlock Text="{Binding ComparedName}" Style="{StaticResource KeyTextStyle}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    <TextBlock Text="{Binding BaselineName}" Style="{StaticResource KeyTextStyle}" />
+                                </StackPanel>
+                            </controls:FlowRow>
+                        </controls:AdaptiveRow>
+
+                        <controls:BarSeriesChart x:Name="CompareChart"
+                                                 Height="220"
+                                                 Margin="0,10,0,0"
+                                                 Items="{Binding CompareBars}"
+                                                 PrimaryBrush="{DynamicResource DownloadBrush}"
+                                                 PairedBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                 TrackBrush="{DynamicResource MeterTrackBrush}"
+                                                 GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                 AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                 HighlightBrush="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                 FocusVisualStyle="{StaticResource FocusRingStyle}"
+                                                 AutomationProperties.Name="The two periods step by step" />
+                        <TextBlock Text="{Binding SelectedDetail, ElementName=CompareChart}" Style="{StaticResource ChartDetailStyle}" controls:LiveRegion.Speaks="True" />
+
+                        <Border Style="{StaticResource BandStyle}" Margin="0,20,0,0"
+                                Visibility="{Binding HasAppChanges, Converter={StaticResource BooleanToVisibility}}">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="Apps that changed most" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="The largest changes either way." TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding AppChanges}" ItemTemplate="{StaticResource AppRowTemplate}" Focusable="False" AutomationProperties.Name="Apps that changed most" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ===================== Year ===================== -->
+                    <StackPanel Visibility="{Binding IsCalendar, Converter={StaticResource BooleanToVisibility}}">
+                        <TextBlock Text="{Binding CalendarText}" Style="{StaticResource LeadNoteStyle}" Margin="4,0,4,14" />
+                        <controls:YearCalendarChart x:Name="Calendar"
+                                                    HorizontalAlignment="Left"
+                                                    Days="{Binding CalendarCells}"
+                                                    FirstDayOfWeek="{Binding FirstDay}"
+                                                    ShadeBrush="{DynamicResource NetworkBrush}"
+                                                    EmptyBrush="{DynamicResource MeterTrackBrush}"
+                                                    AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                    SelectedBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                                                    FocusVisualStyle="{StaticResource FocusRingStyle}"
+                                                    AutomationProperties.Name="Every day of the year" />
+                        <TextBlock Text="{Binding SelectedDetail, ElementName=Calendar}" Style="{StaticResource ChartDetailStyle}" Margin="30,8,0,0" controls:LiveRegion.Speaks="True" />
+                        <StackPanel Orientation="Horizontal" Margin="30,8,0,0">
+                            <TextBlock Text="Less" Style="{StaticResource KeyTextStyle}" Margin="0,0,6,0" />
+                            <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource MeterTrackBrush}" Margin="0,0,3,0" />
+                            <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource NetworkBrush}" Opacity="0.22" Margin="0,0,3,0" />
+                            <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource NetworkBrush}" Opacity="0.45" Margin="0,0,3,0" />
+                            <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource NetworkBrush}" Opacity="0.7" Margin="0,0,3,0" />
+                            <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource NetworkBrush}" Margin="0,0,6,0" />
+                            <TextBlock Text="More" Style="{StaticResource KeyTextStyle}" />
+                        </StackPanel>
+                        <TextBlock Text="Point at a day, or reach the calendar with Tab: Left and Right step a week, Up and Down a day. Each shade is a quarter of the days that used anything."
+                                   Style="{StaticResource QuietNoteStyle}" Margin="30,10,4,0" />
+                    </StackPanel>
+
+                    <!-- ===================== Week by hour ===================== -->
+                    <StackPanel Visibility="{Binding IsWeek, Converter={StaticResource BooleanToVisibility}}">
+                        <TextBlock Text="{Binding HeatText}" Style="{StaticResource LeadNoteStyle}" Margin="4,0,4,14" />
+                        <controls:WeekHeatChart x:Name="Heat"
+                                                Cells="{Binding HeatCells}"
+                                                RowLabels="{Binding HeatRows}"
+                                                ShadeBrush="{DynamicResource NetworkBrush}"
+                                                EmptyBrush="{DynamicResource MeterTrackBrush}"
+                                                AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                SelectedBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                                                FocusVisualStyle="{StaticResource FocusRingStyle}"
+                                                AutomationProperties.Name="Usage by hour of the week" />
+                        <TextBlock Text="{Binding SelectedDetail, ElementName=Heat}" Style="{StaticResource ChartDetailStyle}" Margin="38,8,0,0" controls:LiveRegion.Speaks="True" />
+                        <TextBlock Text="Each hour is its average over the weeks chosen, against the busiest hour. Point at one, or reach the grid with Tab and move with the arrow keys."
+                                   Style="{StaticResource QuietNoteStyle}" Margin="38,10,4,0" />
+                    </StackPanel>
+
+                    <!-- ===================== All time ===================== -->
+                    <StackPanel Visibility="{Binding IsLifetime, Converter={StaticResource BooleanToVisibility}}">
+                        <controls:FlowGrid Style="{StaticResource PlateStripStyle}">
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="EVERYTHING" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding LifetimeText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="Everything since recording began" />
+                                    <TextBlock Text="{Binding LifetimeNote}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </controls:FlowGrid>
+                        <TextBlock Text="{Binding LifetimeBusiest}" Style="{StaticResource LeadNoteStyle}" Visibility="{Binding LifetimeBusiest, Converter={StaticResource TextToVisibility}}" />
+                        <TextBlock Text="{Binding LifetimePeak}" Style="{StaticResource QuietNoteStyle}" Visibility="{Binding LifetimePeak, Converter={StaticResource TextToVisibility}}" />
+
+                        <TextBlock Text="Year by year" Style="{StaticResource CardTitleStyle}" Margin="4,22,4,0" />
+                        <controls:BarSeriesChart x:Name="YearChart"
+                                                 Height="200"
+                                                 Margin="0,10,0,0"
+                                                 Items="{Binding YearBars}"
+                                                 PrimaryBrush="{DynamicResource DownloadBrush}"
+                                                 SecondaryBrush="{DynamicResource UploadBrush}"
+                                                 GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                 AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                 HighlightBrush="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                 FocusVisualStyle="{StaticResource FocusRingStyle}"
+                                                 AutomationProperties.Name="Usage year by year" />
+                        <TextBlock Text="{Binding SelectedDetail, ElementName=YearChart}" Style="{StaticResource ChartDetailStyle}" controls:LiveRegion.Speaks="True" />
+                    </StackPanel>
+
+                    <TextBlock Text="Reading&#8230;"
+                               Margin="4,12,0,0"
+                               FontSize="{DynamicResource TextSize12}"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibility}}" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </controls:SectionPage>
+</UserControl>

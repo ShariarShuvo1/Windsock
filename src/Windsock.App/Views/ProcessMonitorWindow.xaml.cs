@@ -15,6 +15,15 @@ public partial class ProcessMonitorWindow : Window
 {
     private const double GraphRoom = 330;
     private const double TableRoom = 150;
+
+    /// <summary>
+    /// What the app's facts and actions add to the card: two lines and a row
+    /// of buttons, taken from the card's least height so the graph keeps its
+    /// own room under them rather than shrinking to a sliver.
+    /// </summary>
+    private const double FactsRoom = 80;
+
+    private readonly double _graphRoom = GraphRoom;
     private readonly ProcessMonitorViewModel _viewModel;
     private readonly ListCollectionView _view;
     private Spotlight? _filling;
@@ -24,11 +33,46 @@ public partial class ProcessMonitorWindow : Window
 
     private bool _drawn;
 
-    public ProcessMonitorWindow(ProcessMonitorViewModel viewModel)
+    public ProcessMonitorWindow(ProcessMonitorViewModel viewModel, AppFactsViewModel? facts = null)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
 
         InitializeComponent();
+
+#if STORE
+        // Closing a connection needs administrator rights, which this edition
+        // never asks for, and it is built without the call. Out before the
+        // data context is set.
+        Table.Columns.Remove(CloseColumn);
+#endif
+
+#if STORE
+        // The Store edition traces no routes, so a Routes box here would be a
+        // switch that does nothing. Taken out before the data context is set.
+        if (RoutesRow.Parent is Panel drawer)
+        {
+            drawer.Children.Remove(RoutesRow);
+        }
+#endif
+
+#if STORE
+        // Blocking is a firewall rule, which this edition is built without.
+        FactActions.Children.Remove(BlockButton);
+#endif
+
+        // The facts' actions bind to the facts, given before the window's own
+        // context so they never try the wrong one.
+        if (facts is null)
+        {
+            ((Panel)FactActions.Parent).Children.Remove(FactActions);
+        }
+        else
+        {
+            FactActions.DataContext = facts;
+            _graphRoom = GraphRoom + FactsRoom;
+            GraphRow.MinHeight = _graphRoom;
+            MinHeight += FactsRoom;
+        }
 
         _viewModel = viewModel;
         DataContext = viewModel;
@@ -41,9 +85,33 @@ public partial class ProcessMonitorWindow : Window
         LocalPortColumn.Header = viewModel.LocalPortColumn;
         OpenedColumn.Header = viewModel.OpenedColumn;
         AgeColumn.Header = viewModel.AgeColumn;
+
+        if (facts is null)
+        {
+            Table.Columns.Remove(NetworkColumn);
+            Table.Columns.Remove(ServiceColumn);
+            Table.Columns.Remove(CloseColumn);
+        }
+        else
+        {
+            FactsHost.Content = facts;
+            NetworkColumn.Header = facts.NetworkColumn;
+            ServiceColumn.Header = facts.ServiceColumn;
+            ServiceColumn.Visibility = facts.ServiceColumn.IsShown ? Visibility.Visible : Visibility.Collapsed;
+            facts.ServiceColumn.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(TableColumn.IsShown))
+                {
+                    ServiceColumn.Visibility = facts.ServiceColumn.IsShown ? Visibility.Visible : Visibility.Collapsed;
+                }
+            };
+        }
+
         _view = new ListCollectionView(viewModel.Connections)
         {
-            Filter = row => row is ConnectionRowViewModel connection && viewModel.Matches(connection),
+            Filter = row => row is ConnectionRowViewModel connection
+                && viewModel.Matches(connection)
+                && (facts is null || facts.Matches(connection)),
         };
 
         Table.ItemsSource = _view;
@@ -54,7 +122,13 @@ public partial class ProcessMonitorWindow : Window
         FitButton.Click += (_, _) =>
         {
             Viewport.FitOrReturn();
-            Keyboard.ClearFocus();
+
+            // A click leaves no ring behind on the button; a key press keeps the
+            // focus where the reader is, or Tab would start again from the top.
+            if (InputManager.Current.MostRecentInputDevice is not KeyboardDevice)
+            {
+                Keyboard.ClearFocus();
+            }
         };
         Viewport.ViewChanged += (_, _) => Graph.Scale = Viewport.Zoom;
         GraphHost.DetachedChanged += (_, _) =>
@@ -73,11 +147,17 @@ public partial class ProcessMonitorWindow : Window
         Table.MouseLeave += (_, _) => viewModel.HighlightPeer(null);
 
         viewModel.FilterChanged += (_, _) => _view.Refresh();
+
+        if (facts is not null)
+        {
+            facts.FilterChanged += (_, _) => _view.Refresh();
+        }
         viewModel.ViewReset += (_, _) => ClearSort();
 
         Closed += (_, _) =>
         {
             GraphHost.Recall();
+            facts?.Dispose();
             viewModel.Dispose();
         };
     }
@@ -134,7 +214,7 @@ public partial class ProcessMonitorWindow : Window
 
         if (_viewModel.IsExpanded)
         {
-            Share(GraphRow, _graphShare, GraphRoom);
+            Share(GraphRow, _graphShare, _graphRoom);
             Share(TableRow, _tableShare, TableRoom);
             return;
         }

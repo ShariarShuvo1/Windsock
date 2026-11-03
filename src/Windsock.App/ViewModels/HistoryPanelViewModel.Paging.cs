@@ -183,7 +183,7 @@ public sealed partial class HistoryPanelViewModel
 
         UsageGranularity granularity = _shown;
         Func<UsageBucket, bool>? keep = Columns.Any(column => column.HasFilter)
-            ? bucket => Columns.All(column => column.Matches(new HistoryRowViewModel(bucket, granularity)))
+            ? bucket => Columns.All(column => column.Matches(new HistoryRowViewModel(bucket, granularity) { Network = Marks.NetworkOf(bucket.Start) }))
             : null;
 
         _pages.Reset(newestFirst, keep, Order(), fresh);
@@ -191,6 +191,12 @@ public sealed partial class HistoryPanelViewModel
 
     private Comparison<UsageBucket>? Order()
     {
+        if (_sortPath == nameof(HistoryRowViewModel.Network))
+        {
+            int way = _sortDirection == ListSortDirection.Descending ? -1 : 1;
+            return (left, right) => way * string.Compare(Marks.NetworkOf(left.Start), Marks.NetworkOf(right.Start), StringComparison.OrdinalIgnoreCase);
+        }
+
         Func<UsageBucket, long>? key = _sortPath switch
         {
             nameof(HistoryRowViewModel.Start) or nameof(HistoryRowViewModel.End) => bucket => bucket.Start.UtcTicks,
@@ -224,7 +230,7 @@ public sealed partial class HistoryPanelViewModel
         Pager.Show(window, Columns.Any(column => column.HasFilter) ? _pages.SourceCount : null);
         OnPropertyChanged(nameof(IsFollowing));
 
-        List<HistoryRowViewModel> made = [.. _pages.Current.Select(bucket => new HistoryRowViewModel(bucket, _shown))];
+        List<HistoryRowViewModel> made = [.. _pages.Current.Select(bucket => new HistoryRowViewModel(bucket, _shown) { Network = Marks.NetworkOf(bucket.Start) })];
 
         // A new fill supersedes whatever the last one had left to do.
         int token = ++_fills;

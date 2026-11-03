@@ -2,6 +2,7 @@ using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using Windows.UI.Notifications;
 using Windsock.Core;
+using Windsock.Core.Alerts;
 using Windsock.Core.Notifications;
 using Windsock.Core.Settings;
 using Windsock.Core.Startup;
@@ -69,14 +70,20 @@ public sealed class NoticeOpenedEventArgs(string? section) : EventArgs
 /// notifications turned off for Windsock, Windsock sends nothing and says where
 /// to turn them back on.
 /// </para>
+/// <para>
+/// Every notice passes through the <see cref="AlertDesk"/> on its way out: flood
+/// control, quiet hours and the snooze, the sound chosen for its kind, the
+/// record of alerts, and forwarding. So a feature still just calls
+/// <see cref="Send"/>, and everything sent is recorded the same way.
+/// </para>
 /// </remarks>
-public sealed partial class NotificationService : IDisposable
+public sealed partial class NotificationService : IDisposable, INoticeDisplay
 {
     private readonly WindsockSettings _settings;
     private readonly TrayIcon _tray;
     private readonly Dispatcher _dispatcher;
     private readonly ILogger<NotificationService> _logger;
-    private readonly NoticePacer _pacer;
+    private readonly AlertDesk _desk;
 
     private ToastChannel? _toasts;
     private bool _prepared;
@@ -90,16 +97,22 @@ public sealed partial class NotificationService : IDisposable
         WindsockSettings settings,
         TrayIcon tray,
         Dispatcher dispatcher,
+        AlertDesk desk,
         ILogger<NotificationService> logger)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(tray);
+        ArgumentNullException.ThrowIfNull(desk);
 
         _settings = settings;
         _tray = tray;
         _dispatcher = dispatcher;
+        _desk = desk;
         _logger = logger;
-        _pacer = new NoticePacer();
+
+        // Attached at once rather than at Start: a notice can be sent before
+        // the app gets round to starting this, and it must still be recorded.
+        _desk.Attach(this);
     }
 
     /// <summary>Raised on the UI thread when <see cref="Health"/> or <see cref="Route"/> changes.</summary>
@@ -167,11 +180,21 @@ public sealed partial class NotificationService : IDisposable
         Assess();
     }
 
+    /// <inheritdoc />
+    string INoticeDisplay.WhyNotShown => Health == NotificationHealth.Ready || Health == NotificationHealth.Fallback ? string.Empty : Detail;
+
     /// <summary>
-    /// Sends a notification, unless notifications are off or too many have gone
-    /// out lately.
+    /// Sends a notification through the alert desk: kept in the record, then
+    /// shown, held for the end of quiet hours, or held back when the same one
+    /// just went out or too many have lately.
     /// </summary>
-    /// <returns>Whether it was handed to Windows.</returns>
+    /// <returns>
+    /// Whether it was shown, or will be when quiet hours end. Called from
+    /// another thread, it is sent on the UI thread and the answer is true -
+    /// only that it was queued - so nothing may be decided on it there. The
+    /// one pairing that needs to know, "Back online" after a told "lost", the
+    /// desk makes itself.
+    /// </returns>
     public bool Send(Notice notice)
     {
         ArgumentNullException.ThrowIfNull(notice);
@@ -182,22 +205,40 @@ public sealed partial class NotificationService : IDisposable
             return true;
         }
 
-        if (_disposed || !_settings.Notifications.Enabled)
+        if (_disposed)
         {
             return false;
         }
 
-        if (!_pacer.Admit(notice))
+        AlertRoute route = _desk.Route(notice);
+
+        if (route == AlertRoute.Repeat)
         {
             LogHeldBack(notice.Topic);
-            return false;
         }
 
-        return Deliver(notice);
+        return route is AlertRoute.Shown or AlertRoute.Held;
     }
 
+    /// <inheritdoc />
+    /// <remarks>For the desk only: everything else sends through <see cref="Send"/>.</remarks>
+    bool INoticeDisplay.Show(Notice notice)
+    {
+        ArgumentNullException.ThrowIfNull(notice);
+
+        if (!_dispatcher.CheckAccess())
+        {
+            return _dispatcher.Invoke(() => ((INoticeDisplay)this).Show(notice));
+        }
+
+        return !_disposed && _settings.Notifications.Enabled && Deliver(notice);
+    }
+
+    /// <inheritdoc />
+    void INoticeDisplay.Post(Action action) => _dispatcher.BeginInvoke(action);
+
     /// <summary>
-    /// Sends the test notification from Settings, which skips flood control:
+    /// Sends the test notification from the Alerts page, which skips flood control:
     /// somebody pressing the button twice wants to see it twice.
     /// </summary>
     public bool SendTest()
@@ -213,7 +254,7 @@ public sealed partial class NotificationService : IDisposable
             "This is how Windsock will let you know when something needs your attention.")
         {
             Tag = NoticeTopics.Test,
-            Opens = "settings",
+            Opens = "alerts",
         };
 
         return Deliver(test);
@@ -270,7 +311,7 @@ public sealed partial class NotificationService : IDisposable
     {
         Prepare();
 
-        bool sound = _settings.Notifications.Sound && !notice.Quiet;
+        bool sound = _settings.Notifications.Sound;
 
         if (Route == NotificationRoute.Windows && _toasts is not null)
         {
@@ -294,7 +335,7 @@ public sealed partial class NotificationService : IDisposable
         }
 
         _balloonOpens = notice.Opens;
-        return _tray.Announce(notice.Title, notice.Message, sound);
+        return _tray.Announce(notice.Title, notice.Message, ToastXml.Audible(notice, sound));
     }
 
     private void Assess()
@@ -320,6 +361,12 @@ public sealed partial class NotificationService : IDisposable
 
         if (Route == NotificationRoute.Balloon)
         {
+            if (_toastsRefused && WindsockPaths.IsOverridden && !PackageIdentity.Exists)
+            {
+                return (NotificationHealth.Fallback,
+                    "This copy keeps its data in a separate folder, so it does not register with Windows for notifications. They appear as a balloon from its notification-area icon instead.");
+            }
+
             return _elevated && !_toastsRefused
                 ? (NotificationHealth.Fallback,
                     "Windsock is running as administrator, and Windows does not show notifications from apps running that way. Until Windsock is started normally, they appear as a balloon from its notification-area icon.")

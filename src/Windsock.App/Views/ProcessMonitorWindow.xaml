@@ -26,7 +26,7 @@
         <DataTemplate DataType="{x:Type vm:PeerNodeViewModel}">
             <StackPanel MaxWidth="330">
                 <TextBlock Text="{Binding Label}"
-                           FontSize="13"
+                           FontSize="{DynamicResource TextSize13}"
                            FontWeight="SemiBold"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -37,7 +37,7 @@
                     already says.
                 -->
                 <TextBlock Text="{Binding RateText}"
-                           FontSize="12"
+                           FontSize="{DynamicResource TextSize12}"
                            Margin="0,6,0,0"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}">
                     <TextBlock.Style>
@@ -69,7 +69,7 @@
                 <TextBlock Text="{Binding Title}" Style="{StaticResource CaptionTextStyle}" />
 
                 <TextBlock Text="{Binding Label}"
-                           FontSize="13"
+                           FontSize="{DynamicResource TextSize13}"
                            FontWeight="SemiBold"
                            Margin="0,5,0,0"
                            TextWrapping="Wrap"
@@ -86,13 +86,62 @@
         <DataTemplate DataType="{x:Type controls:GraphNote}">
             <StackPanel MaxWidth="330">
                 <TextBlock Text="{Binding Title}"
-                           FontSize="13"
+                           FontSize="{DynamicResource TextSize13}"
                            FontWeight="SemiBold"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
                 <TextBlock Style="{StaticResource PopoverLineStyle}" Text="{Binding Body}" />
                 <TextBlock Style="{StaticResource PopoverNoteStyle}" Text="{Binding Detail}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!--
+            Who the app is and what can be done about it: who signed it, which
+            program started it, the services it runs, whether the firewall
+            blocks it. Its actions are a row of the window's own, below.
+        -->
+        <DataTemplate DataType="{x:Type vm:AppFactsViewModel}">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <fluent:SymbolIcon Symbol="Warning"
+                                       FontSize="12"
+                                       Margin="0,0,5,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource HotBrush}"
+                                       AutomationProperties.Name="Not signed, or the signature does not hold"
+                                       Visibility="{Binding IsFlagged, Converter={StaticResource BooleanToVisibility}}" />
+                    <TextBlock Text="{Binding Publisher}"
+                               FontSize="{DynamicResource TextSize11_5}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Right"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding StartedBy}"
+                           Margin="0,2,0,0"
+                           FontSize="{DynamicResource TextSize11_5}"
+                           TextAlignment="Right"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Visibility="{Binding StartedBy, Converter={StaticResource TextToVisibility}}" />
+
+                <TextBlock Text="{Binding Services}"
+                           Margin="0,2,0,0"
+                           FontSize="{DynamicResource TextSize11_5}"
+                           TextAlignment="Right"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Visibility="{Binding Services, Converter={StaticResource TextToVisibility}}" />
+
+                <TextBlock Text="{Binding Firewall}"
+                           Margin="0,2,0,0"
+                           FontSize="{DynamicResource TextSize11_5}"
+                           TextAlignment="Right"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource HotBrush}"
+                           Visibility="{Binding Firewall, Converter={StaticResource TextToVisibility}}" />
+
             </StackPanel>
         </DataTemplate>
     </Window.Resources>
@@ -182,10 +231,11 @@
                                              VerticalAlignment="Bottom" />
                                     <TextBox Text="{Binding ReceiveUnit, Mode=OneWay}"
                                              Style="{StaticResource ReadoutUnitTextStyle}"
+                                             AutomationProperties.Name="Receive rate unit"
                                              VerticalAlignment="Bottom" />
                                 </StackPanel>
 
-                                <TextBlock Margin="0,2,0,0" FontSize="11">
+                                <TextBlock Margin="0,2,0,0" FontSize="{DynamicResource TextSize11}">
                                     <Run Text="total " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                     <Run Text="{Binding ReceivedTotal, Mode=OneWay}"
                                          Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -212,10 +262,11 @@
                                              VerticalAlignment="Bottom" />
                                     <TextBox Text="{Binding SendUnit, Mode=OneWay}"
                                              Style="{StaticResource ReadoutUnitTextStyle}"
+                                             AutomationProperties.Name="Send rate unit"
                                              VerticalAlignment="Bottom" />
                                 </StackPanel>
 
-                                <TextBlock Margin="0,2,0,0" FontSize="11">
+                                <TextBlock Margin="0,2,0,0" FontSize="{DynamicResource TextSize11}">
                                     <Run Text="total " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                     <Run Text="{Binding SentTotal, Mode=OneWay}"
                                          Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -242,21 +293,21 @@
                             </StackPanel.Style>
 
                             <TextBlock Text="{Binding Name}"
-                                       FontSize="17"
+                                       FontSize="{DynamicResource TextSize17}"
                                        HorizontalAlignment="Right"
                                        FontWeight="SemiBold"
                                        TextTrimming="CharacterEllipsis"
                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
                             <TextBlock Text="{Binding Description}"
-                                       FontSize="12"
+                                       FontSize="{DynamicResource TextSize12}"
                                        HorizontalAlignment="Right"
                                        Margin="0,2,0,0"
                                        TextTrimming="CharacterEllipsis"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
                             <TextBlock Margin="0,8,0,0"
-                                       FontSize="11.5"
+                                       FontSize="{DynamicResource TextSize11_5}"
                                        HorizontalAlignment="Right"
                                        TextWrapping="Wrap">
                                 <Run Text="{Binding IdentityLabel, Mode=OneWay}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -269,13 +320,58 @@
 
                             <Button Style="{StaticResource PathLinkStyle}"
                                     Content="{Binding FilePath}"
-                                    FontSize="11"
+                                    FontSize="{DynamicResource TextSize11}"
                                     Margin="0,4,0,0"
                                     HorizontalAlignment="Right"
                                     Command="{Binding RevealCommand}"
                                     IsEnabled="{Binding CanReveal}"
                                     ToolTip="Show this program in Explorer"
                                     AutomationProperties.Name="Show this program in Explorer" />
+
+                            <ContentControl x:Name="FactsHost"
+                                            Margin="0,8,0,0"
+                                            HorizontalAlignment="Right"
+                                            Focusable="False"
+                                            IsTabStop="False" />
+
+                            <!--
+                                The facts' actions, each asking first. Out of the
+                                facts' template so the Store edition can take Block
+                                away before anything binds (it is built without the
+                                firewall); the code-behind gives them the facts.
+                            -->
+                            <controls:FlowRow x:Name="FactActions" Margin="0,8,0,0" HorizontalAlignment="Right" Spacing="6" LineSpacing="6">
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding CheckReputationCommand}"
+                                        AutomationProperties.Name="Look up on VirusTotal"
+                                        ToolTip="Send this program's hash, and nothing else, to VirusTotal with your own key. You are asked first.">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ShieldQuestion" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="VirusTotal" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Button x:Name="BlockButton"
+                                        Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding ToggleBlockCommand}"
+                                        AutomationProperties.Name="Block or unblock in Windows Firewall"
+                                        ToolTip="Block this program from the network with a Windows Firewall rule, or remove Windsock's block. Needs administrator rights; you are asked first.">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ShieldProhibited" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Block…" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding EndCommand}"
+                                        AutomationProperties.Name="End this app"
+                                        ToolTip="Stop every process of this app at once. You are asked first; anything unsaved in it is lost.">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="DismissCircle" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="End…" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </controls:FlowRow>
                         </StackPanel>
                     </controls:AdaptiveRow>
                 </DockPanel>
@@ -322,7 +418,11 @@
                                 CornerRadius="8"
                                 SnapsToDevicePixels="True" />
 
-                        <controls:PanZoomHost x:Name="Viewport" Radius="8" Inset="0,0,0,36">
+                        <!-- A Tab stop of its own: the arrow keys move the graph, plus and minus zoom, 0 fits it. -->
+                        <controls:PanZoomHost x:Name="Viewport"
+                                              Radius="8"
+                                              Inset="0,0,0,36"
+                                              AutomationProperties.Name="Graph view">
                         <controls:NetworkGraphView x:Name="Graph"
                                                    Tree="{Binding Graph}"
                                                    Caption="{Binding Name}"
@@ -389,7 +489,7 @@
                                        AutomationProperties.Name="Graph subject">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="FontSize" Value="12" />
+                                        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
                                         <Setter Property="Text" Value="{Binding PeerSummary}" />
                                         <Setter Property="Foreground"
                                                 Value="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -405,7 +505,7 @@
 
                             <!-- Whose map this is, while the map is on screen. -->
                             <TextBlock Text="{Binding MapCredit}"
-                                       FontSize="12"
+                                       FontSize="{DynamicResource TextSize12}"
                                        Margin="12,0,0,0"
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis"
@@ -452,7 +552,7 @@
                                         Style="{StaticResource ToolbarButtonStyle}"
                                         Margin="0,0,6,0"
                                         AutomationProperties.Name="Fit the graph"
-                                        ToolTip="Frame the whole thing. Press again to go back to the view you had. Drag to move it, scroll to zoom, double-click to fit." >
+                                        ToolTip="Frame the whole thing. Press again to go back to the view you had. Drag to move it, scroll to zoom, double-click to fit; from the keyboard, Ctrl and the arrow keys move it, plus and minus zoom, Ctrl+0 fits." >
                                         <Button.Content>
                                             <StackPanel Orientation="Horizontal">
                                                 <fluent:SymbolIcon Symbol="ZoomFit"
@@ -565,15 +665,11 @@
                                           Padding="0,0,2,0">
                                 <StackPanel>
 
-                                        <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
-                                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
-                                                      Content="Live"
-                                                      IsChecked="{Binding IsLive, Mode=TwoWay}"
-                                                      AutomationProperties.Name="Live" />
-
-                                            <controls:SettingHead Hint="Keep the picture up to date as the machine talks. Pause above does the same thing for the whole window." Margin="6,0,0,0" />
-                                        </StackPanel>
-
+                                        <!--
+                                            No Live switch here: the window's one
+                                            Pause, beside the table, holds the
+                                            picture still too.
+                                        -->
                                         <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
                                             <CheckBox Style="{StaticResource ToolbarCheckStyle}"
                                                       Content="Names"
@@ -592,13 +688,14 @@
                                             <controls:SettingHead Hint="Draw the traffic travelling each road. Off holds the picture still." Margin="6,0,0,0" />
                                         </StackPanel>
 
-                                        <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                        <!-- Taken out in the Store edition, which traces no routes; see the code behind. -->
+                                        <StackPanel x:Name="RoutesRow" Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
                                             <CheckBox Style="{StaticResource ToolbarCheckStyle}"
                                                       Content="Routes"
                                                       IsChecked="{Binding ShowRoutes, Mode=TwoWay}"
                                                       AutomationProperties.Name="Routes" />
 
-                                            <controls:SettingHead Hint="Draw the way to each far end, hop by hop. Off shows only where the traffic ends up." Margin="6,0,0,0" />
+                                            <controls:SettingHead Hint="Draw the way to each far end, hop by hop, found by sending packets towards it as tracert does. Off shows only where the traffic ends up. The same switch as the map's, and as Route tracing under Settings, Data and privacy." Margin="6,0,0,0" />
                                         </StackPanel>
 
                                         <Border Height="1"
@@ -754,7 +851,7 @@
                 <TextBlock Text="{Binding RateNotice}"
                            VerticalAlignment="Center"
                            TextWrapping="Wrap"
-                           FontSize="12.5"
+                           FontSize="{DynamicResource TextSize12_5}"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
             </StackPanel>
         </Border>
@@ -848,7 +945,7 @@
             <TextBlock controls:FlowRow.Trailing="True"
                        Text="{Binding SocketSummary}"
                        VerticalAlignment="Center"
-                       FontSize="12"
+                       FontSize="{DynamicResource TextSize12}"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         </controls:FlowRow>
 
@@ -867,7 +964,14 @@
                                         SortMemberPath="Host"
                                         Width="215"
                                         MinWidth="130"
-                                        ElementStyle="{StaticResource ConnectionTextStyle}" />
+                                        ElementStyle="{StaticResource ConnectionTextStyle}">
+                        <!-- A listening socket's "::" is no far end, said so rather than as a symbol. -->
+                        <DataGridTextColumn.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource TableCellStyle}">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding HostSpoken}" />
+                            </Style>
+                        </DataGridTextColumn.CellStyle>
+                    </DataGridTextColumn>
 
                     <DataGridTextColumn x:Name="RemotePortColumn"
                                         Binding="{Binding RemotePortText}"
@@ -875,6 +979,39 @@
                                         Width="105"
                                         MinWidth="80"
                                         ElementStyle="{StaticResource ConnectionQuietTextStyle}" />
+
+                    <!-- Who runs the far end's network, and a mark when a blocklist the person switched on names it. -->
+                    <!-- Named by what the cell shows, not "Item: ..., Column Display Index: 2". -->
+                    <DataGridTemplateColumn x:Name="NetworkColumn"
+                                            SortMemberPath="Network"
+                                            Width="190"
+                                            MinWidth="120">
+                        <DataGridTemplateColumn.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource TableCellStyle}">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding Network, Converter={StaticResource SpokenDash}}" />
+                            </Style>
+                        </DataGridTemplateColumn.CellStyle>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,6,0">
+                                    <fluent:SymbolIcon Symbol="ShieldError"
+                                                       FontSize="14"
+                                                       Margin="0,0,6,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource HotBrush}"
+                                                       ToolTip="{Binding Listed}"
+                                                       AutomationProperties.Name="{Binding Listed}"
+                                                       Visibility="{Binding IsListed, Converter={StaticResource BooleanToVisibility}}" />
+                                    <TextBlock Text="{Binding Network}"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               FontSize="{DynamicResource TextSize12}"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               ToolTip="{Binding Network}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
 
                     <DataGridTextColumn x:Name="StateColumn"
                                         Binding="{Binding State}"
@@ -902,7 +1039,14 @@
                                         SortMemberPath="LocalAddress"
                                         Width="140"
                                         MinWidth="100"
-                                        ElementStyle="{StaticResource ConnectionQuietTextStyle}" />
+                                        ElementStyle="{StaticResource ConnectionQuietTextStyle}">
+                        <!-- "::" is a symbol to a screen reader; it is every IPv6 address. -->
+                        <DataGridTextColumn.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource TableCellStyle}">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding LocalAddressSpoken}" />
+                            </Style>
+                        </DataGridTextColumn.CellStyle>
+                    </DataGridTextColumn>
 
                     <DataGridTextColumn x:Name="LocalPortColumn"
                                         Binding="{Binding LocalPortText}"
@@ -924,6 +1068,43 @@
                                         Width="78"
                                         MinWidth="64"
                                         ElementStyle="{StaticResource ConnectionQuietTextStyle}" />
+
+                    <!-- The service that opened each socket, for a service host. -->
+                    <DataGridTextColumn x:Name="ServiceColumn"
+                                        Binding="{Binding Service}"
+                                        SortMemberPath="Service"
+                                        Width="140"
+                                        MinWidth="90"
+                                        ElementStyle="{StaticResource ConnectionQuietTextStyle}" />
+
+                    <!-- Close one TCP connection: the full edition, as administrator. -->
+                    <DataGridTemplateColumn x:Name="CloseColumn"
+                                            Width="84"
+                                            MinWidth="84"
+                                            CanUserSort="False"
+                                            CanUserResize="False"
+                                            CanUserReorder="False"
+                                            HeaderStyle="{StaticResource ActionsHeaderStyle}">
+                        <DataGridTemplateColumn.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource TableCellStyle}">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding CloseName}" />
+                            </Style>
+                        </DataGridTemplateColumn.CellStyle>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <!-- Named for its row, so each Close says which connection it closes. -->
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Margin="4,2"
+                                        Padding="8,2"
+                                        Content="Close"
+                                        Command="{Binding CloseCommand}"
+                                        CommandParameter="{Binding}"
+                                        Visibility="{Binding CanClose, Converter={StaticResource BooleanToVisibility}}"
+                                        AutomationProperties.Name="{Binding CloseName}"
+                                        ToolTip="Reset this TCP connection. Needs administrator rights; you are asked first." />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>

@@ -26,6 +26,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
     private readonly IProcessConnectionDetailSource _details;
     private readonly IProcessEndpointSource _endpoints;
     private readonly NetworkRouteCache _routes;
+    private readonly OutsideContacts _contacts;
     private readonly HostNameCache _hosts;
     private readonly ProcessIconCache _icons;
     private readonly AppIconCache _appIcons;
@@ -60,6 +61,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         IProcessConnectionDetailSource details,
         IProcessEndpointSource endpoints,
         NetworkRouteCache routes,
+        OutsideContacts contacts,
         HostNameCache hosts,
         ProcessIconCache icons,
         AppIconCache appIcons,
@@ -70,6 +72,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         Dispatcher dispatcher)
     {
         ArgumentNullException.ThrowIfNull(monitor);
+        ArgumentNullException.ThrowIfNull(contacts);
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(routes);
@@ -83,6 +86,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         _details = details;
         _endpoints = endpoints;
         _routes = routes;
+        _contacts = contacts;
         _hosts = hosts;
         _icons = icons;
         _appIcons = appIcons;
@@ -100,6 +104,11 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         _figures.Changed += OnFiguresChanged;
         _hosts.Resolved += OnNamesResolved;
         _routes.RouteChanged += OnRouteFound;
+
+        // Route tracing is one setting wherever it is shown, so the map starts
+        // with it as it stands and follows it when it is changed elsewhere.
+        ShowRoutes = contacts.TraceRoutes;
+        _contacts.Changed += OnContactsChanged;
 
         // The earth first, where there is an earth to draw and a way to place
         // addresses on it; the free layout otherwise.
@@ -206,10 +215,13 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Whether the way to each far end is drawn, or only the far end. Off
     /// until asked for: a route is found by sending to every place, and the
-    /// hops can double what the map has to lay out.
+    /// hops can double what the map has to lay out. The same setting as the
+    /// privacy page's and every app window's, through <see cref="OutsideContacts"/>.
     /// </summary>
     [ObservableProperty]
     public partial bool ShowRoutes { get; set; }
+
+    private void OnContactsChanged(object? sender, EventArgs e) => ShowRoutes = _contacts.TraceRoutes;
 
     /// <summary>Whether the countries with something on them are named.</summary>
     [ObservableProperty]
@@ -1260,7 +1272,11 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
 
     partial void OnIsWorldChanged(bool value) => Redraw();
 
-    partial void OnShowRoutesChanged(bool value) => Regraph();
+    partial void OnShowRoutesChanged(bool value)
+    {
+        _contacts.TraceRoutes = value;
+        Regraph();
+    }
 
     private RouteNode Grow(Program program)
     {
@@ -1577,6 +1593,7 @@ public sealed partial class NetworkMapViewModel : ObservableObject, IDisposable
         _figures.Changed -= OnFiguresChanged;
         _hosts.Resolved -= OnNamesResolved;
         _routes.RouteChanged -= OnRouteFound;
+        _contacts.Changed -= OnContactsChanged;
 
         _watch?.Dispose();
         _watch = null;

@@ -1,0 +1,55 @@
+<UserControl x:Class="Windsock.App.Views.ConnectionToolsPrivacyRows"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ConnectionToolsPrivacyViewModel}"
+             d:DesignWidth="800">
+
+    <!--
+        The Connection pages' outside contacts - public address, speed tests,
+        NAT and DNS timing - as rows of Settings › Data and privacy's "What
+        leaves this PC" band. Each names where it would go, and all start off.
+    -->
+    <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="Connection tools">
+        <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:ContactRowViewModel}">
+                <Border Style="{StaticResource BandRowStyle}">
+                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                        <StackPanel VerticalAlignment="Center">
+                            <controls:SettingHead HorizontalAlignment="Left"
+                                                  Text="{Binding Title}"
+                                                  Hint="{Binding Description}" />
+                            <TextBlock Text="{Binding Note}"
+                                       Style="{StaticResource DetailNoteStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0" />
+                        </StackPanel>
+
+                        <controls:FlowRow Spacing="8" LineSpacing="8" HorizontalAlignment="Left" VerticalAlignment="Center">
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      VerticalAlignment="Center"
+                                      Content="{Binding SwitchText}"
+                                      IsChecked="{Binding IsOn, Mode=TwoWay}"
+                                      IsEnabled="{Binding CanSwitch}"
+                                      ToolTipService.ShowOnDisabled="True"
+                                      ToolTip="{Binding Note}"
+                                      AutomationProperties.Name="{Binding Title}" />
+
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    controls:PageLink.To="{Binding Page}"
+                                    AutomationProperties.Name="{Binding OpenFor}"
+                                    ToolTip="{Binding OpenName}">
+                                <fluent:SymbolIcon Symbol="Open" FontSize="14" />
+                            </Button>
+                        </controls:FlowRow>
+                    </controls:AdaptiveRow>
+                </Border>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>

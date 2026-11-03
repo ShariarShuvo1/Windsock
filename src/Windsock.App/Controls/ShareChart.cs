@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using Windsock.Core.Formatting;
+using System.Windows.Automation.Peers;
 
 namespace Windsock.App.Controls;
 
@@ -113,6 +114,9 @@ public sealed class ShareChart : FrameworkElement
         get => (Brush?)GetValue(LabelBrushProperty);
         set => SetValue(LabelBrushProperty, value);
     }
+
+    /// <summary>A screen reader hears that this is a chart, its name, and what it shows now.</summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new ChartAutomationPeer(this, () => ChartWords.Shares(Values));
 
     protected override void OnRender(DrawingContext drawingContext)
     {

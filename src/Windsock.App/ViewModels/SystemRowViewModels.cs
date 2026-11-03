@@ -31,6 +31,14 @@ public sealed partial class MeterRowViewModel(string key, string label) : Observ
         Fraction = Math.Clamp(percent / 100, 0, 1);
         Value = string.Create(CultureInfo.InvariantCulture, $"{percent:F0}%");
     }
+
+    /// <summary>
+    /// What a screen reader names the row by: "3D, 12%", or "Logical processor
+    /// 4, 28%" for a processor's row, whose label on screen is only its number.
+    /// </summary>
+    public override string ToString() => int.TryParse(Label, NumberStyles.None, CultureInfo.InvariantCulture, out _)
+        ? string.Concat("Logical processor ", Label, ", ", Value)
+        : string.Concat(Label, ", ", Value);
 }
 
 /// <summary>One memory module, as the firmware describes it.</summary>
@@ -47,6 +55,10 @@ public sealed class MemoryModuleViewModel(MemoryModule module)
 
     /// <summary>Who made it, and what it is.</summary>
     public string Part { get; } = Smbios.Join(module.Maker, module.Part);
+
+    /// <summary>What a screen reader names the module by: its slot, size, speed and make.</summary>
+    public override string ToString() =>
+        string.Join(", ", new[] { Slot, Size, Speed, Part }.Where(part => part.Length > 0));
 
     private static string Describe(MemoryModule module)
     {
@@ -101,6 +113,10 @@ public sealed partial class VolumeViewModel(string letter) : ObservableObject
             CultureInfo.InvariantCulture,
             $"{SizeFormatter.Format(volume.Free)} free of {SizeFormatter.Format(volume.Size)}");
     }
+
+    /// <summary>What a screen reader names the volume by: "C: Windows, NTFS, 120 GB free of 476 GB".</summary>
+    public override string ToString() =>
+        string.Join(", ", new[] { Label, Format, Free }.Where(part => part.Length > 0));
 }
 
 /// <summary>One drive: what it is, how full, how hot, how busy.</summary>
@@ -159,6 +175,10 @@ public sealed partial class DriveViewModel(int index) : ObservableObject
 
     /// <summary>The volumes it carries.</summary>
     public System.Collections.ObjectModel.ObservableCollection<VolumeViewModel> Volumes { get; } = [];
+
+    /// <summary>What a screen reader names the drive by: its model, what it is, how full, and how hot.</summary>
+    public override string ToString() =>
+        string.Join(", ", new[] { Model, Description, Capacity, Temperature, Life }.Where(part => part.Length > 0));
 }
 
 /// <summary>One display adapter, and everything it will say about itself.</summary>
@@ -220,4 +240,9 @@ public sealed partial class GraphicsCardViewModel(string name) : ObservableObjec
 
     /// <summary>Which processes are using it.</summary>
     public System.Collections.ObjectModel.ObservableCollection<MeterRowViewModel> Processes { get; } = [];
+
+    /// <summary>What a screen reader names the adapter by: "NVIDIA GeForce RTX 3070 Ti, load 12%, memory 1.2 GB of 8 GB".</summary>
+    public override string ToString() => Memory.Length > 0
+        ? string.Concat(Name, ", load ", Busy, ", memory ", Memory)
+        : string.Concat(Name, ", load ", Busy);
 }

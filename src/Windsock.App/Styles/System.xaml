@@ -179,18 +179,26 @@
         <Setter Property="Tag" Value="ArrowDownload" />
         <Setter Property="Template">
             <Setter.Value>
+                <!--
+                    The arrow docked and the words filling what is left, so a
+                    label too long for a narrow plate - or for a larger Windows
+                    text size - wraps rather than ending "DOWNLOADED TODA".
+                -->
                 <ControlTemplate TargetType="ContentControl">
-                    <StackPanel Orientation="Horizontal">
-                        <fluent:SymbolIcon Symbol="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
-                                           FontSize="12"
+                    <DockPanel LastChildFill="True">
+                        <fluent:SymbolIcon DockPanel.Dock="Left"
+                                           Symbol="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                           FontSize="{DynamicResource TextSize12}"
                                            Margin="0,0,5,0"
-                                           VerticalAlignment="Center"
+                                           VerticalAlignment="Top"
                                            Foreground="{TemplateBinding Foreground}" />
                         <TextBlock Text="{TemplateBinding Content}"
                                    Style="{StaticResource StatLabelStyle}"
+                                   TextTrimming="None"
+                                   TextWrapping="Wrap"
                                    VerticalAlignment="Center"
                                    Foreground="{TemplateBinding Foreground}" />
-                    </StackPanel>
+                    </DockPanel>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -227,6 +235,9 @@
             <DataTrigger Binding="{Binding Part}" Value="Storage">
                 <Setter Property="Stroke" Value="{DynamicResource StorageBrush}" />
             </DataTrigger>
+            <DataTrigger Binding="{Binding Part}" Value="Battery">
+                <Setter Property="Stroke" Value="{DynamicResource BatteryBrush}" />
+            </DataTrigger>
         </Style.Triggers>
     </Style>
 
@@ -238,11 +249,11 @@
     <DataTemplate x:Key="TileFactTemplate">
         <StackPanel Margin="0,0,0,12">
             <TextBlock Text="{Binding Label}"
-                       FontSize="11.5"
+                       FontSize="{DynamicResource TextSize11_5}"
                        TextTrimming="CharacterEllipsis"
                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
             <TextBlock Text="{Binding Value}"
-                       FontSize="14"
+                       FontSize="{DynamicResource TextSize14}"
                        FontWeight="SemiBold"
                        Margin="0,1,0,0"
                        TextTrimming="CharacterEllipsis"
@@ -251,85 +262,20 @@
         </StackPanel>
     </DataTemplate>
 
-    <!--
-        One adapter carrying traffic, as a row under the network chart: its name
-        on the left and what it is, how fast and where on the right while both
-        fit, the three figures under the name once they would squeeze it.
-    -->
-    <DataTemplate x:Key="AdapterRowTemplate">
-        <controls:AdaptiveRow Margin="0,10,0,10"
-                              Breakpoint="0"
-                              Spacing="8"
-                              LeadFills="True"
-                              LeadMinimumWidth="200">
-            <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="{Binding Name}"
-                           FontSize="13"
-                           FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                <TextBlock Text="{Binding Description}"
-                           FontSize="11.5"
-                           Margin="0,1,0,0"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-            </StackPanel>
-
-            <Grid HorizontalAlignment="Left" VerticalAlignment="Center">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="AdapterKind" />
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="AdapterSpeed" />
-                    <ColumnDefinition Width="Auto" SharedSizeGroup="AdapterAddress" />
-                </Grid.ColumnDefinitions>
-
-                <Border Grid.Column="0"
-                        Style="{StaticResource TileBadgeStyle}"
-                        Margin="0,0,16,0"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Left">
-                    <TextBlock Text="{Binding Kind}"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                </Border>
-
-                <StackPanel Grid.Column="1" Margin="0,0,16,0" VerticalAlignment="Center">
-                    <TextBlock Text="LINK" Style="{StaticResource CaptionTextStyle}" />
-                    <TextBlock Text="{Binding Speed}"
-                               FontSize="12.5"
-                               Margin="0,1,0,0"
-                               Typography.NumeralAlignment="Tabular"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                </StackPanel>
-
-                <StackPanel Grid.Column="2" VerticalAlignment="Center" MinWidth="110">
-                    <TextBlock Text="ADDRESS" Style="{StaticResource CaptionTextStyle}" />
-                    <TextBlock Text="{Binding Address}"
-                               FontSize="12.5"
-                               Margin="0,1,0,0"
-                               TextTrimming="CharacterEllipsis"
-                               MaxWidth="220"
-                               Typography.NumeralAlignment="Tabular"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                </StackPanel>
-            </Grid>
-        </controls:AdaptiveRow>
-    </DataTemplate>
-
     <!-- A label above a figure, inside the detail panel. -->
     <Style x:Key="DetailCaptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
         <Setter Property="Margin" Value="0,0,0,3" />
     </Style>
 
     <Style x:Key="DetailValueStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize14}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
     </Style>
 
     <Style x:Key="DetailNoteStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize11_5}" />
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
     </Style>
@@ -349,7 +295,7 @@
 
             <TextBlock Grid.Column="0"
                        Text="{Binding Label}"
-                       FontSize="10.5"
+                       FontSize="{DynamicResource TextSize10_5}"
                        VerticalAlignment="Center"
                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
 
@@ -362,7 +308,7 @@
 
             <TextBlock Grid.Column="2"
                        Text="{Binding Value}"
-                       FontSize="10.5"
+                       FontSize="{DynamicResource TextSize10_5}"
                        Margin="7,0,0,0"
                        TextAlignment="Right"
                        VerticalAlignment="Center"
@@ -387,7 +333,7 @@
 
             <TextBlock Grid.Column="0"
                        Text="{Binding Label}"
-                       FontSize="11.5"
+                       FontSize="{DynamicResource TextSize11_5}"
                        MaxWidth="170"
                        Margin="0,0,10,0"
                        VerticalAlignment="Center"
@@ -403,7 +349,7 @@
 
             <TextBlock Grid.Column="2"
                        Text="{Binding Value}"
-                       FontSize="11.5"
+                       FontSize="{DynamicResource TextSize11_5}"
                        MinWidth="32"
                        Margin="8,0,0,0"
                        TextAlignment="Right"
@@ -426,13 +372,13 @@
                         Margin="0,0,12,0"
                         VerticalAlignment="Center">
                 <TextBlock Text="{Binding Label}"
-                           FontSize="12"
+                           FontSize="{DynamicResource TextSize12}"
                            FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
                 <TextBlock Text="{Binding Format}"
-                           FontSize="10.5"
+                           FontSize="{DynamicResource TextSize10_5}"
                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
             </StackPanel>
 
@@ -446,7 +392,7 @@
 
             <TextBlock Grid.Column="2"
                        Text="{Binding Free}"
-                       FontSize="11.5"
+                       FontSize="{DynamicResource TextSize11_5}"
                        VerticalAlignment="Center"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         </Grid>
@@ -463,7 +409,7 @@
 
             <TextBlock Grid.Column="0"
                        Text="{Binding Slot}"
-                       FontSize="12"
+                       FontSize="{DynamicResource TextSize12}"
                        MaxWidth="220"
                        Margin="0,0,16,0"
                        TextTrimming="CharacterEllipsis"
@@ -471,20 +417,20 @@
 
             <TextBlock Grid.Column="1"
                        Text="{Binding Size}"
-                       FontSize="12"
+                       FontSize="{DynamicResource TextSize12}"
                        FontWeight="SemiBold"
                        Margin="0,0,16,0"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
             <TextBlock Grid.Column="2"
                        Text="{Binding Speed}"
-                       FontSize="12"
+                       FontSize="{DynamicResource TextSize12}"
                        Margin="0,0,16,0"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
             <TextBlock Grid.Column="3"
                        Text="{Binding Part}"
-                       FontSize="12"
+                       FontSize="{DynamicResource TextSize12}"
                        TextTrimming="CharacterEllipsis"
                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
         </Grid>

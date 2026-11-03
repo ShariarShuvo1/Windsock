@@ -6,7 +6,9 @@ using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using FluentIcons.Common;
 
 namespace Windsock.App.Controls;
@@ -25,6 +27,17 @@ namespace Windsock.App.Controls;
 /// takes width, which the panels have more of.
 /// </para>
 /// <para>
+/// The list is one Tab stop. Tab lands on the entry showing the page (or its
+/// group, folded), the arrows move from there without choosing anything, and
+/// Enter or Space chooses - Windows' own navigation pattern. The next Tab goes
+/// on to the page. Every entry used to be a stop that chose itself as it took
+/// focus, so tabbing from the search box to the page turned the page twenty
+/// times and ended on Settings. Only one entry at a time is a Tab stop
+/// (<see cref="KeepTabStop"/>): the one with the keyboard while it is in the
+/// list, and the page's own once it leaves. WPF's TabOnceActiveElement would
+/// say the same, but it is not public.
+/// </para>
+/// <para>
 /// Two widths: open, naming each section beside its icon, and compact, icons
 /// only. The column glides between them and the page beside it gives way as it
 /// goes. Which one the user wants is <see cref="IsPaneOpen"/>; which one is on
@@ -37,11 +50,13 @@ namespace Windsock.App.Controls;
 [TemplatePart(Name = PanePart, Type = typeof(FrameworkElement))]
 [TemplatePart(Name = TogglePart, Type = typeof(FrameworkElement))]
 [TemplatePart(Name = BodyPart, Type = typeof(FrameworkElement))]
+[TemplatePart(Name = SearchPart, Type = typeof(FrameworkElement))]
 public sealed class NavigationPane : TabControl
 {
     private const string PanePart = "PART_Pane";
     private const string TogglePart = "PART_Toggle";
     private const string BodyPart = "PART_Body";
+    private const string SearchPart = "PART_Search";
 
     private static readonly Duration GlideDuration = new(TimeSpan.FromMilliseconds(220));
 
@@ -59,9 +74,23 @@ public sealed class NavigationPane : TabControl
             typeof(NavigationPane),
             new PropertyMetadata(string.Empty));
 
+    public static readonly DependencyProperty BadgeProperty =
+        DependencyProperty.RegisterAttached(
+            "Badge",
+            typeof(string),
+            typeof(NavigationPane),
+            new PropertyMetadata(string.Empty));
+
     public static readonly DependencyProperty BodyProperty =
         DependencyProperty.Register(
             nameof(Body),
+            typeof(object),
+            typeof(NavigationPane),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty SearchProperty =
+        DependencyProperty.Register(
+            nameof(Search),
             typeof(object),
             typeof(NavigationPane),
             new PropertyMetadata(null));
@@ -166,9 +195,16 @@ public sealed class NavigationPane : TabControl
     private FrameworkElement? _pane;
     private FrameworkElement? _toggle;
     private FrameworkElement? _body;
+    private FrameworkElement? _search;
     private bool _sized;
     private bool _syncing;
     private Popup? _flyout;
+
+    // Set by Ctrl+Tab from the page for the selection it makes: the new page
+    // takes the keyboard, not the list.
+    private bool _keyboardToPage;
+
+    public NavigationPane() => Loaded += (_, _) => KeepTabStop();
 
     /// <summary>Raised when the user opens or folds the column.</summary>
     public event EventHandler? PaneOpenChanged;
@@ -205,6 +241,23 @@ public sealed class NavigationPane : TabControl
     }
 
     /// <summary>
+    /// A count worth acting on, drawn on the entry's icon so it shows with the
+    /// names folded away too - the alerts not yet read. Empty for none.
+    /// </summary>
+    public static string GetBadge(DependencyObject element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        return (string)element.GetValue(BadgeProperty);
+    }
+
+    /// <summary>Sets the count on an entry's icon.</summary>
+    public static void SetBadge(DependencyObject element, string value)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        element.SetValue(BadgeProperty, value);
+    }
+
+    /// <summary>
     /// The page beside the column. Whatever is in it shows the selected section
     /// by binding to <see cref="TabControl.SelectedContent"/>, so it can put
     /// something above the panel that stays whichever section is chosen.
@@ -213,6 +266,13 @@ public sealed class NavigationPane : TabControl
     {
         get => GetValue(BodyProperty);
         set => SetValue(BodyProperty, value);
+    }
+
+    /// <summary>What sits at the top of the column, under its button: the search box.</summary>
+    public object? Search
+    {
+        get => GetValue(SearchProperty);
+        set => SetValue(SearchProperty, value);
     }
 
     /// <summary>Whether the user wants the sections named.</summary>
@@ -310,6 +370,7 @@ public sealed class NavigationPane : TabControl
         _pane = GetTemplateChild(PanePart) as FrameworkElement;
         _toggle = GetTemplateChild(TogglePart) as FrameworkElement;
         _body = GetTemplateChild(BodyPart) as FrameworkElement;
+        _search = GetTemplateChild(SearchPart) as FrameworkElement;
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() => new NavigationPaneAutomationPeer(this);
@@ -356,6 +417,63 @@ public sealed class NavigationPane : TabControl
             {
                 item.Visibility = parent.IsExpanded && IsPaneShown ? Visibility.Visible : Visibility.Collapsed;
             }
+        }
+
+        KeepTabStop();
+    }
+
+    /// <summary>Puts the keyboard on the first entry that can be seen, or the last: Home and End in the list.</summary>
+    internal void FocusEnd(bool last)
+    {
+        List<NavigationItem> shown = Shown();
+
+        if (shown.Count > 0)
+        {
+            shown[last ? ^1 : 0].Focus();
+        }
+    }
+
+    /// <summary>Puts the keyboard on the entry above or below one, round the ends: Up and Down in the list.</summary>
+    internal void FocusNext(NavigationItem from, int direction)
+    {
+        List<NavigationItem> shown = Shown();
+        int at = shown.IndexOf(from);
+
+        if (shown.Count > 0)
+        {
+            shown[at < 0 ? 0 : (at + direction + shown.Count) % shown.Count].Focus();
+        }
+    }
+
+    /// <summary>
+    /// Puts the keyboard on the list where Tab would: the entry showing the
+    /// page, or its group while the entry is folded away and cannot take it.
+    /// </summary>
+    public void FocusList()
+    {
+        KeepTabStop();
+        Items.OfType<NavigationItem>().FirstOrDefault(item => KeyboardNavigation.GetIsTabStop(item))?.Focus();
+    }
+
+    /// <summary>
+    /// Makes one entry the list's only Tab stop: the one with the keyboard
+    /// while it is in the list, otherwise the one showing the page - or its
+    /// group, while the group or the whole sidebar is folded and the entry
+    /// cannot be seen.
+    /// </summary>
+    internal void KeepTabStop()
+    {
+        List<NavigationItem> items = [.. Items.OfType<NavigationItem>()];
+
+        NavigationItem? stop = Keyboard.FocusedElement is NavigationItem { IsVisible: true } focused && items.Contains(focused)
+            ? focused
+            : SelectedItem is NavigationItem chosen
+                ? chosen.Visibility != Visibility.Visible && chosen.ParentItem is { } group ? group : chosen
+                : items.FirstOrDefault(item => item.Visibility == Visibility.Visible);
+
+        foreach (NavigationItem item in items)
+        {
+            KeyboardNavigation.SetIsTabStop(item, ReferenceEquals(item, stop));
         }
     }
 
@@ -405,12 +523,64 @@ public sealed class NavigationPane : TabControl
             return;
         }
 
+        bool hadKeyboard = IsKeyboardFocusWithin || _keyboardToPage;
+        bool toPage = _keyboardToPage;
+        _keyboardToPage = false;
+
         base.OnSelectionChanged(e);
         FollowSelection();
+        KeepTabStop();
+
+        // The tab control puts the keyboard on the chosen entry, which cannot
+        // take it while it is folded away; the old page then goes with the
+        // keyboard still in it, leaving it nowhere - where even Ctrl+Tab no
+        // longer reaches the window. Once the new page is laid out, the
+        // keyboard is put somewhere it can be seen.
+        if (hadKeyboard)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => SettleKeyboard(toPage)));
+        }
 
         if (IsOverlay)
         {
             Show(false, animate: true);
+        }
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+
+        switch (e.Key)
+        {
+            // A tab control answers Home and End from anywhere inside it by
+            // going to its first or last tab - here from anywhere on the page,
+            // which turned it to the Taskbar or Settings. The entries answer
+            // them in the list (NavigationItem); nothing else here should.
+            case Key.Home or Key.End:
+                return;
+
+            // Ctrl+Tab still turns the page, as in any tab control, now that
+            // putting the keyboard on an entry no longer does.
+            case Key.Tab when (e.KeyboardDevice.Modifiers & ModifierKeys.Control) != 0:
+                Step((e.KeyboardDevice.Modifiers & ModifierKeys.Shift) != 0 ? -1 : 1);
+                e.Handled = true;
+                return;
+        }
+
+        base.OnKeyDown(e);
+    }
+
+    protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        base.OnLostKeyboardFocus(e);
+
+        // Leaving the list after arrowing about in it without choosing, the
+        // keyboard should come back to the page showing, not where it left.
+        if (e.OldFocus is NavigationItem && e.NewFocus is not NavigationItem)
+        {
+            KeepTabStop();
         }
     }
 
@@ -519,6 +689,63 @@ public sealed class NavigationPane : TabControl
         }
     }
 
+    /// <summary>The entries that can be seen and used, top to bottom.</summary>
+    private List<NavigationItem> Shown() =>
+        [.. Items.OfType<NavigationItem>().Where(item => item.IsVisible && item.IsEnabled)];
+
+    /// <summary>
+    /// Chooses the section before or after the one showing, round the end:
+    /// Ctrl+Tab. Sections folded away count, since they are pages too. From the
+    /// page the keyboard stays in the page area, as Windows' navigation keeps
+    /// it in the content; from the list it stays in the list.
+    /// </summary>
+    private void Step(int direction)
+    {
+        List<NavigationItem> sections = [.. Items.OfType<NavigationItem>().Where(item => !item.HasChildren && item.IsEnabled)];
+
+        if (sections.Count == 0)
+        {
+            return;
+        }
+
+        int at = SelectedItem is NavigationItem chosen ? sections.IndexOf(chosen) : -1;
+        int next = at < 0 ? 0 : (at + direction + sections.Count) % sections.Count;
+
+        _keyboardToPage = !(Keyboard.FocusedElement is NavigationItem focused && Items.Contains(focused));
+        sections[next].IsSelected = true;
+        _keyboardToPage = false;
+    }
+
+    /// <summary>
+    /// Where the keyboard goes after the page changed with it inside the pane:
+    /// into the new page after a Ctrl+Tab from a page, otherwise left where the
+    /// tab control put it unless that is nowhere to be seen, when the list's
+    /// Tab stop takes it.
+    /// </summary>
+    private void SettleKeyboard(bool toPage)
+    {
+        if (toPage)
+        {
+            if (_body is null
+                || !_body.MoveFocus(new TraversalRequest(FocusNavigationDirection.First))
+                || Keyboard.FocusedElement is not Visual into
+                || !_body.IsAncestorOf(into))
+            {
+                // A page with nothing to focus: the list rather than nowhere.
+                FocusList();
+            }
+
+            return;
+        }
+
+        if (Keyboard.FocusedElement is not UIElement { IsVisible: true } focused
+            || focused is Window
+            || PresentationSource.FromVisual(focused) is null)
+        {
+            FocusList();
+        }
+    }
+
     /// <summary>A group's sections, beside it, for the folded sidebar.</summary>
     private void OpenFlyout(NavigationItem group)
     {
@@ -528,10 +755,12 @@ public sealed class NavigationPane : TabControl
         {
             Text = group.Header as string,
             Margin = new Thickness(10, 4, 10, 6),
-            FontSize = 11.5,
             FontWeight = FontWeights.SemiBold,
         };
         title.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
+
+        // On the type ramp, so Windows' Text size grows it with everything else.
+        title.SetResourceReference(TextBlock.FontSizeProperty, "TextSize11_5");
         list.Children.Add(title);
 
         foreach (NavigationItem section in group.Children)
@@ -571,6 +800,9 @@ public sealed class NavigationPane : TabControl
             {
                 _flyout!.IsOpen = false;
                 section.IsSelected = true;
+
+                // The section is hidden while the names are folded; its group holds the page now.
+                group.Focus();
             };
             list.Children.Add(entry);
         }
@@ -674,7 +906,7 @@ public sealed class NavigationPane : TabControl
     /// else in the template. Here that would hide the fold button and the
     /// whole page, the overview included, from screen readers and from every
     /// automation that drives the window. So the order is the reading order:
-    /// the button, the sections, then the page.
+    /// the button, the search box, the sections, then the page.
     /// </remarks>
     private sealed class NavigationPaneAutomationPeer(NavigationPane owner) : TabControlAutomationPeer(owner)
     {
@@ -686,6 +918,11 @@ public sealed class NavigationPane : TabControl
             if (pane._toggle is not null && UIElementAutomationPeer.CreatePeerForElement(pane._toggle) is { } toggle)
             {
                 children.Add(toggle);
+            }
+
+            if (pane._search is not null && new FrameworkElementAutomationPeer(pane._search).GetChildren() is { } search)
+            {
+                children.AddRange(search);
             }
 
             if (base.GetChildrenCore() is { } sections)

@@ -1,5 +1,45 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!--
+        The type ramp. Every size of text in the window is one of these, taken
+        with DynamicResource, so Windows' Text size setting (Settings ›
+        Accessibility › Text size) can grow them all at once: ThemeManager puts
+        a scaled copy of each in the application's own resources, which win over
+        these. Small text grows by the whole factor and large text by less
+        (TextScaling in Core). The key is the size at 100 percent, with an
+        underscore for a half: TextSize12_5 is 12.5.
+
+        Icons keep their size - text size is not zoom - and so does the taskbar
+        meter, whose bar is a fixed thickness. A page that writes a literal
+        FontSize opts out of the setting; use a key here instead.
+    -->
+    <!-- Windows' Text size as a factor, 1 to 2.25, for what grows with text without being text: FlowGrid's columns. -->
+    <sys:Double x:Key="TextScale">1</sys:Double>
+
+    <sys:Double x:Key="TextSize9">9</sys:Double>
+    <sys:Double x:Key="TextSize10">10</sys:Double>
+    <sys:Double x:Key="TextSize10_5">10.5</sys:Double>
+    <sys:Double x:Key="TextSize11">11</sys:Double>
+    <sys:Double x:Key="TextSize11_5">11.5</sys:Double>
+    <sys:Double x:Key="TextSize12">12</sys:Double>
+    <sys:Double x:Key="TextSize12_5">12.5</sys:Double>
+    <sys:Double x:Key="TextSize13">13</sys:Double>
+    <sys:Double x:Key="TextSize13_5">13.5</sys:Double>
+    <sys:Double x:Key="TextSize14">14</sys:Double>
+    <sys:Double x:Key="TextSize15">15</sys:Double>
+    <sys:Double x:Key="TextSize16">16</sys:Double>
+    <sys:Double x:Key="TextSize17">17</sys:Double>
+    <sys:Double x:Key="TextSize18">18</sys:Double>
+    <sys:Double x:Key="TextSize19">19</sys:Double>
+    <sys:Double x:Key="TextSize20">20</sys:Double>
+    <sys:Double x:Key="TextSize22">22</sys:Double>
+    <sys:Double x:Key="TextSize24">24</sys:Double>
+    <sys:Double x:Key="TextSize28">28</sys:Double>
+    <sys:Double x:Key="TextSize32">32</sys:Double>
+    <sys:Double x:Key="TextSize40">40</sys:Double>
+    <sys:Double x:Key="TextSize46">46</sys:Double>
 
     <!--
         WPF's TextBlock cannot be selected - unlike WinUI, it has no
@@ -42,7 +82,7 @@
 
     <!-- Small uppercase caption above a value, used throughout the app. -->
     <Style x:Key="CaptionTextStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize11}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
     </Style>
@@ -55,7 +95,7 @@
     <Style x:Key="ReadoutTextStyle"
            TargetType="TextBox"
            BasedOn="{StaticResource SelectableTextStyle}">
-        <Setter Property="FontSize" Value="46" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize46}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
@@ -65,7 +105,7 @@
     <Style x:Key="ReadoutUnitTextStyle"
            TargetType="TextBox"
            BasedOn="{StaticResource SelectableTextStyle}">
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize14}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         <Setter Property="Margin" Value="7,0,0,9" />

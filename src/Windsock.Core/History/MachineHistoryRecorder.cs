@@ -31,6 +31,7 @@ public sealed partial class MachineHistoryRecorder : BackgroundService
     private readonly IMachineHistoryStore _store;
     private readonly UsageRecorder _recorder;
     private readonly ILogger<MachineHistoryRecorder> _logger;
+    private readonly WriteFailureLog _failures = new();
     private readonly Lock _gate = new();
     private readonly SystemMinuteTally _systemTally = new();
     private readonly ConnectionMinuteTally _connectionTally = new();
@@ -217,7 +218,10 @@ public sealed partial class MachineHistoryRecorder : BackgroundService
         }
         catch (Exception ex) when (HistoryFailure.IsStorage(ex))
         {
-            LogStoreFailed(ex);
+            if (_failures.ShouldLog(ex))
+            {
+                LogStoreFailed(ex);
+            }
         }
     }
 

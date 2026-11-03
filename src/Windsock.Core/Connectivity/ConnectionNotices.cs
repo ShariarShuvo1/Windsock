@@ -1,5 +1,6 @@
 using System.Globalization;
 using Windsock.Core.Notifications;
+using Windsock.Core.Formatting;
 
 namespace Windsock.Core.Connectivity;
 
@@ -42,7 +43,7 @@ public static class ConnectionNotices
         string message = outage.Duration is { } duration
             ? string.Create(
                 CultureInfo.CurrentCulture,
-                $"The internet was out for {OutageWords.Spoken(duration)}, from {outage.Start.ToLocalTime():t}.")
+                $"The internet was out for {OutageWords.Spoken(duration)}, from {ClockFormat.Time(outage.Start.ToLocalTime())}.")
             : "The internet is reachable again.";
 
         return new Notice(NoticeTopics.ConnectionRestored, "Back online", message)

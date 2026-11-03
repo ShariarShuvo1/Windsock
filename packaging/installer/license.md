@@ -14,9 +14,9 @@ Address locations on the world map are looked up **offline**, from a database
 shipped inside the application. Nothing is sent to any geolocation service.
 
 Windsock reaches the network only to look up the names of addresses you are
-already connected to, to trace a route when you ask a graph to draw one, and
-to check this project's releases page for a newer version. Each can be turned
-off in Settings.
+already connected to and to trace a route, each only once you switch it on, and
+to check this project's releases page for a newer version, which you can switch
+off. Settings › Data and privacy lists each with its own switch.
 
 **Windsock installs no kernel driver and contains none.**
 

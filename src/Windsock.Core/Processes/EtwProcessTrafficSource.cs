@@ -2,6 +2,7 @@
 using System.Security.Principal;
 using Microsoft.Diagnostics.Tracing.Parsers;
 using Microsoft.Diagnostics.Tracing.Session;
+using Windsock.Core.Timeline;
 
 namespace Windsock.Core.Processes;
 
@@ -9,7 +10,7 @@ namespace Windsock.Core.Processes;
 /// Attributes packets to processes by listening to the Windows kernel's network
 /// trace events.
 /// </summary>
-public sealed class EtwProcessTrafficSource : IProcessTrafficSource, IProcessEndpointSource, IProcessTrafficLedger, IDisposable
+public sealed class EtwProcessTrafficSource : IProcessTrafficSource, IProcessEndpointSource, IProcessTrafficLedger, IFlowLedger, ITrafficSplitSource, IDisposable
 {
     private const string SessionName = "Windsock-network";
     private const int EndpointCap = 2048;
@@ -40,6 +41,32 @@ public sealed class EtwProcessTrafficSource : IProcessTrafficSource, IProcessEnd
     /// <summary>How many ended ids are remembered before the oldest are let go.</summary>
     private const int EndedCap = 16_384;
     private readonly List<EndpointKey> _stale = [];
+
+    /// <summary>
+    /// How many process-and-far-end pairs are kept between two takes. A
+    /// torrent client reaches a couple of thousand; past this, a process's
+    /// further far ends are folded into one entry with no address.
+    /// </summary>
+    private const int FlowCap = 32_768;
+
+    /// <summary>
+    /// How many process-and-far-end pairs are kept between takes before each
+    /// process's new far ends are folded into one entry of its own. Settable
+    /// for tests.
+    /// </summary>
+    internal int FlowCapacity { get; init; } = FlowCap;
+
+    private readonly Dictionary<FlowKey, FlowCounters> _flows = [];
+    private readonly HashSet<int> _flowProcesses = [];
+    private readonly Dictionary<int, string> _flowImages = [];
+    private volatile bool _collectFlows;
+
+    // Running totals for the local/internet split, added to per packet
+    // without the lock.
+    private long _localSent;
+    private long _localReceived;
+    private long _internetSent;
+    private long _internetReceived;
     private volatile int _watching;
     private TraceEventSession? _session;
     private Thread? _worker;
@@ -191,8 +218,64 @@ public sealed class EtwProcessTrafficSource : IProcessTrafficSource, IProcessEnd
         }
     }
 
-    /// <inheritdoc />
+    /// <inheritdoc cref="IProcessTrafficLedger.CanAttribute" />
     public bool CanAttribute => State == TrafficSourceState.Running;
+
+    /// <inheritdoc />
+    public bool CollectFlows
+    {
+        get => _collectFlows;
+        set
+        {
+            _collectFlows = value;
+
+            if (!value)
+            {
+                lock (_gate)
+                {
+                    _flows.Clear();
+                    _flowProcesses.Clear();
+                    _flowImages.Clear();
+                }
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public void TakeFlows(List<FlowSample> into)
+    {
+        ArgumentNullException.ThrowIfNull(into);
+        into.Clear();
+
+        lock (_gate)
+        {
+            foreach ((FlowKey key, FlowCounters counters) in _flows)
+            {
+                string? image = _images.GetValueOrDefault(key.ProcessId) ?? _flowImages.GetValueOrDefault(key.ProcessId);
+
+                into.Add(new FlowSample(
+                    key.ProcessId,
+                    key.Remote,
+                    counters.Sent,
+                    counters.Received,
+                    counters.Packets,
+                    counters.First,
+                    counters.Last,
+                    image));
+            }
+
+            _flows.Clear();
+            _flowProcesses.Clear();
+            _flowImages.Clear();
+        }
+    }
+
+    /// <inheritdoc />
+    public TrafficSplit ReadSplit() => new(
+        Interlocked.Read(ref _localSent),
+        Interlocked.Read(ref _localReceived),
+        Interlocked.Read(ref _internetSent),
+        Interlocked.Read(ref _internetReceived));
 
     /// <summary>
     /// Whether a process's traffic is still being broken down by endpoint.
@@ -341,11 +424,12 @@ public sealed class EtwProcessTrafficSource : IProcessTrafficSource, IProcessEnd
     /// what it talks to on this machine; only the process's totals, and so its
     /// rates, leave it out.
     /// </remarks>
-    private void Count(int processId, int bytes, bool sent, IPAddress? local, IPAddress? remote, int port)
+    internal void Count(int processId, int bytes, bool sent, IPAddress? local, IPAddress? remote, int port)
     {
         if (!LoopbackEnds.StaysOnMachine(local, remote))
         {
-            Add(processId, bytes, sent);
+            Split(bytes, sent, remote);
+            Add(processId, bytes, sent, remote, port);
         }
 
         if (_watching != 0)
@@ -354,7 +438,30 @@ public sealed class EtwProcessTrafficSource : IProcessTrafficSource, IProcessEnd
         }
     }
 
-    private void Add(int processId, int bytes, bool sent)
+    /// <summary>
+    /// Adds a packet to the local or the internet total by its far end. Not
+    /// per process and not under the lock: four running sums, each read atomically.
+    /// </summary>
+    private void Split(int bytes, bool sent, IPAddress? remote)
+    {
+        if (bytes <= 0)
+        {
+            return;
+        }
+
+        bool local = TrafficReach.IsLocal(remote);
+
+        if (sent)
+        {
+            Interlocked.Add(ref local ? ref _localSent : ref _internetSent, bytes);
+        }
+        else
+        {
+            Interlocked.Add(ref local ? ref _localReceived : ref _internetReceived, bytes);
+        }
+    }
+
+    private void Add(int processId, int bytes, bool sent, IPAddress? remote, int port)
     {
         if (processId <= 0 || bytes <= 0)
         {
@@ -384,6 +491,48 @@ public sealed class EtwProcessTrafficSource : IProcessTrafficSource, IProcessEnd
             {
                 counters.Received += bytes;
             }
+
+            if (_collectFlows)
+            {
+                Flow(processId, bytes, sent, remote, port);
+            }
+        }
+    }
+
+    /// <summary>Adds a packet to its process-and-far-end pair. Call with the lock held.</summary>
+    private void Flow(int processId, int bytes, bool sent, IPAddress? remote, int port)
+    {
+        FlowKey key = new(processId, EndpointKey.From(remote, port));
+
+        if (!_flows.TryGetValue(key, out FlowCounters? counters))
+        {
+            // Past the cap a process's new far ends share one entry with no
+            // address, so its bytes still count. That entry is made when first
+            // needed, one a process at most, so the cap can be passed by no
+            // more than the number of processes.
+            if (_flows.Count >= FlowCapacity)
+            {
+                key = new FlowKey(processId, default);
+            }
+
+            if (!_flows.TryGetValue(key, out counters))
+            {
+                counters = new FlowCounters { First = DateTime.UtcNow.Ticks };
+                _flows[key] = counters;
+                _flowProcesses.Add(processId);
+            }
+        }
+
+        counters.Packets++;
+        counters.Last = DateTime.UtcNow.Ticks;
+
+        if (sent)
+        {
+            counters.Sent += bytes;
+        }
+        else
+        {
+            counters.Received += bytes;
         }
     }
 
@@ -455,6 +604,12 @@ public sealed class EtwProcessTrafficSource : IProcessTrafficSource, IProcessEnd
             string? file = string.IsNullOrEmpty(image) ? _images.GetValueOrDefault(processId) : image;
             _images.Remove(processId);
 
+            // Its flows wait to be taken, and need its file to be put to an app.
+            if (file is not null && _flowProcesses.Contains(processId))
+            {
+                _flowImages[processId] = file;
+            }
+
             if (_ended.Count >= EndedCap)
             {
                 _ended.Clear();
@@ -482,6 +637,21 @@ public sealed class EtwProcessTrafficSource : IProcessTrafficSource, IProcessEnd
                 _watching = _watched.Count;
             }
         }
+    }
+
+    private readonly record struct FlowKey(int ProcessId, EndpointKey Remote);
+
+    private sealed class FlowCounters
+    {
+        public long Sent;
+        public long Received;
+        public long Packets;
+
+        /// <summary>UTC ticks of the first packet since the last take.</summary>
+        public long First;
+
+        /// <summary>UTC ticks of the last packet.</summary>
+        public long Last;
     }
 
     private sealed class Counters

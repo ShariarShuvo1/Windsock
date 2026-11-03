@@ -134,4 +134,11 @@ public sealed partial class AppRowViewModel : ObservableObject
         Name.Contains(term, StringComparison.OrdinalIgnoreCase)
         || FilePath.Contains(term, StringComparison.OrdinalIgnoreCase)
         || KindText.Contains(term, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// What the row says, which is what a screen reader names the table's row
+    /// by: "Google Chrome, 12.7 GB in all, download 11.5 GB, upload 1.17 GB".
+    /// </summary>
+    public override string ToString() =>
+        string.Concat(Name, ", ", TotalText, " in all, download ", DownloadText, ", upload ", UploadText);
 }

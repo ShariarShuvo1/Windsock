@@ -1,0 +1,72 @@
+<UserControl x:Class="Windsock.App.Views.MeterPrivacyRows"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:MeterPrivacyViewModel}"
+             d:DesignWidth="800">
+
+    <!--
+        The taskbar meter's outside contacts, as rows of Settings › Data and
+        privacy's "What leaves this PC" band: the feeds its places may read,
+        and keeping its public address current. Both start off.
+    -->
+    <StackPanel>
+        <Border Style="{StaticResource BandRowStyle}">
+            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                <StackPanel VerticalAlignment="Center">
+                    <controls:SettingHead HorizontalAlignment="Left"
+                                          Text="Meter feeds"
+                                          Hint="A place on the taskbar meter can show one value from a JSON document at an address you type: https anywhere, http only on this PC or your own network, or a file on this PC's own drives (never a share). With this on, Windsock asks those addresses and only those, as often as each place says, and the request carries nothing about you beyond what any web request does. Off, they are never asked." />
+                    <TextBlock Text="{Binding FeedsNote}"
+                               Style="{StaticResource DetailNoteStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+
+                <controls:FlowRow Spacing="8" LineSpacing="8" HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                              VerticalAlignment="Center"
+                              Content="Read feeds"
+                              IsChecked="{Binding Feeds, Mode=TwoWay}"
+                              AutomationProperties.Name="Meter feeds" />
+
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            controls:PageLink.To="taskbar"
+                            AutomationProperties.Name="Open the Taskbar page"
+                            ToolTip="Open the Taskbar page">
+                        <fluent:SymbolIcon Symbol="Open" FontSize="14" />
+                    </Button>
+                </controls:FlowRow>
+            </controls:AdaptiveRow>
+        </Border>
+
+        <Border Style="{StaticResource BandRowStyle}">
+            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                <StackPanel VerticalAlignment="Center">
+                    <controls:SettingHead HorizontalAlignment="Left"
+                                          Text="Public address on the meter"
+                                          Hint="A place on the taskbar meter can show the address the internet sees, to check a VPN at a glance. It shows what the Connection page's Look up last found and asks nothing itself, unless this is on: then it asks the same service again, at most every five minutes, while the meter shows it." />
+                    <TextBlock Text="{Binding PublicAddressNote}"
+                               Style="{StaticResource DetailNoteStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+
+                <CheckBox HorizontalAlignment="Left"
+                          Style="{StaticResource ToolbarCheckStyle}"
+                          VerticalAlignment="Center"
+                          Content="Keep it current"
+                          IsChecked="{Binding RefreshPublicAddress, Mode=TwoWay}"
+                          IsEnabled="{Binding CanRefreshPublicAddress}"
+                          ToolTipService.ShowOnDisabled="True"
+                          ToolTip="{Binding PublicAddressNote}"
+                          AutomationProperties.Name="Keep the meter's public address current" />
+            </controls:AdaptiveRow>
+        </Border>
+    </StackPanel>
+</UserControl>

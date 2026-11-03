@@ -1,90 +1,24 @@
+using System.Drawing;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
+using Windsock.Core.Docking;
 
 namespace Windsock.App.Services;
 
-internal readonly record struct DockPlacement(
-    nint Host,
-    int X,
-    int Y,
-    int Width,
-    int Height,
-    uint Dpi);
-
+/// <summary>
+/// The Win32 calls that put a meter window into a taskbar, move it, and take
+/// it out again. Every one of them is allowed to fail: a call that does means
+/// no meter on that taskbar, never a crash.
+/// </summary>
 internal static class TaskbarDock
 {
-    private const string TaskbarClass = "Shell_TrayWnd";
-    private const string NotifyClass = "TrayNotifyWnd";
-    private const int Gap = 6;
-    private const int Inset = 3;
-
-    /// <summary>Where a taskbar could not be found.</summary>
-    public static DockPlacement None => default;
-
-    /// <summary>The taskbar on the primary display, or zero when there is none.</summary>
-    public static nint Taskbar()
-    {
-        HWND taskbar = PInvoke.FindWindow(TaskbarClass, null);
-        return taskbar;
-    }
-
     /// <summary>
-    /// Finds the taskbar and the edge the meter hangs from.
+    /// Sent to a child window after its top-level parent changed DPI. WPF
+    /// answers it by reading the window's DPI again, which is what a meter
+    /// parented into a taskbar on another monitor needs.
     /// </summary>
-    public static DockPlacement Frame()
-    {
-        nint taskbar = Taskbar();
-
-        if (taskbar == 0)
-        {
-            return None;
-        }
-
-        var host = new HWND(taskbar);
-
-        if (!PInvoke.GetWindowRect(host, out RECT bar))
-        {
-            return None;
-        }
-
-        HWND notify = PInvoke.FindWindowEx(host, HWND.Null, NotifyClass, null);
-
-        int right = notify != HWND.Null && PInvoke.GetWindowRect(notify, out RECT area)
-            ? area.left
-            : bar.right;
-
-        return new DockPlacement(
-            taskbar,
-            right - bar.left - Gap,
-            Inset,
-            0,
-            Math.Max(1, bar.bottom - bar.top - (Inset * 2)),
-            Dpi(host));
-    }
-
-    /// <summary>Hangs a meter of a given width from a frame's right edge.</summary>
-    public static DockPlacement Hang(DockPlacement frame, int width) =>
-        frame with
-        {
-            X = frame.X - width,
-            Width = Math.Max(1, width),
-        };
-
-    /// <summary>The same placement, in screen coordinates, for a floating meter.</summary>
-    public static DockPlacement OnScreen(DockPlacement placement)
-    {
-        if (placement.Host == 0 || !PInvoke.GetWindowRect(new HWND(placement.Host), out RECT bar))
-        {
-            return placement;
-        }
-
-        return placement with
-        {
-            X = bar.left + placement.X,
-            Y = bar.top + placement.Y,
-        };
-    }
+    private const uint DpiChangedAfterParent = 0x02E3;
 
     /// <summary>
     /// Makes <paramref name="window"/> a child of the taskbar.
@@ -102,6 +36,7 @@ internal static class TaskbarDock
         {
             return false;
         }
+
         Style(child, style => (style & ~(uint)WINDOW_STYLE.WS_POPUP) | (uint)WINDOW_STYLE.WS_CHILD);
 
         return true;
@@ -123,6 +58,26 @@ internal static class TaskbarDock
         Style(child, style => (style & ~(uint)WINDOW_STYLE.WS_CHILD) | (uint)WINDOW_STYLE.WS_POPUP);
     }
 
+    /// <summary>
+    /// Tells WPF to read the window's DPI again, now that it has a parent
+    /// whose DPI decides its own.
+    /// </summary>
+    /// <remarks>
+    /// A child window gets no WM_DPICHANGED of its own. Its DPI is its
+    /// top-level parent's, and the meter's top-level parent is Explorer's
+    /// taskbar, which on another monitor can be at a different scale from
+    /// wherever WPF first made the window. WPF handles the message Windows
+    /// sends children after a parent's DPI changes by reading the DPI again,
+    /// so the same message, sent after parenting, brings it up to date.
+    /// </remarks>
+    public static void SyncDpi(nint window)
+    {
+        if (window != 0)
+        {
+            _ = PInvoke.SendMessage(new HWND(window), DpiChangedAfterParent, 0, 0);
+        }
+    }
+
     /// <summary>Marks a window as one that never takes focus and never appears in Alt+Tab.</summary>
     public static void Aside(nint window, bool topmost)
     {
@@ -140,26 +95,39 @@ internal static class TaskbarDock
     }
 
     /// <summary>
-    /// Puts the window where the placement says, and above the taskbar's own
-    /// content.
+    /// Puts the window where it belongs - in its parent's coordinates when it
+    /// is docked, in screen coordinates when it floats - and shows it.
     /// </summary>
-    public static bool Place(nint window, DockPlacement placement, bool floating)
+    public static bool Place(nint window, PixelRect rect, bool floating)
     {
         if (window == 0)
         {
             return false;
         }
+
         HWND order = floating ? new HWND(-1) : HWND.Null;
 
         return PInvoke.SetWindowPos(
             new HWND(window),
             order,
-            placement.X,
-            placement.Y,
-            placement.Width,
-            placement.Height,
+            rect.Left,
+            rect.Top,
+            Math.Max(1, rect.Width),
+            Math.Max(1, rect.Height),
             SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
     }
+
+    /// <summary>Hides the window without destroying it.</summary>
+    public static void Hide(nint window)
+    {
+        if (window != 0)
+        {
+            _ = PInvoke.ShowWindow(new HWND(window), SHOW_WINDOW_CMD.SW_HIDE);
+        }
+    }
+
+    /// <summary>Whether the window is on screen.</summary>
+    public static bool IsShown(nint window) => window != 0 && PInvoke.IsWindowVisible(new HWND(window));
 
     /// <summary>
     /// Whether the window is still the frontmost child of its taskbar.
@@ -187,15 +155,36 @@ internal static class TaskbarDock
         }
     }
 
-    private static uint Dpi(HWND window)
+    /// <summary>
+    /// Moves a classic taskbar's task band to <paramref name="screen"/>, which
+    /// is how its buttons are made to lay themselves out clear of the meter.
+    /// </summary>
+    public static bool MoveBand(nint band, PixelRect screen)
     {
-        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 14393))
+        if (band == 0 || screen.IsEmpty || !PInvoke.IsWindow(new HWND(band)))
         {
-            return 96;
+            return false;
         }
 
-        uint dpi = PInvoke.GetDpiForWindow(window);
-        return dpi == 0 ? 96 : dpi;
+        HWND parent = PInvoke.GetParent(new HWND(band));
+        Point near = new(screen.Left, screen.Top);
+        Point far = new(screen.Right, screen.Bottom);
+
+        // Both corners, and the nearer of the two: in a mirrored parent - a
+        // right-to-left Windows - the screen's left edge is the client's right.
+        if (parent != HWND.Null && (!PInvoke.ScreenToClient(parent, ref near) || !PInvoke.ScreenToClient(parent, ref far)))
+        {
+            return false;
+        }
+
+        return PInvoke.SetWindowPos(
+            new HWND(band),
+            HWND.Null,
+            Math.Min(near.X, far.X),
+            Math.Min(near.Y, far.Y),
+            screen.Width,
+            screen.Height,
+            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER);
     }
 
     private static void Style(HWND window, Func<uint, uint> change) =>

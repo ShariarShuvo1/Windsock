@@ -1,0 +1,448 @@
+<UserControl x:Class="Windsock.App.Views.SpeedTestPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:SpeedTestPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="1200">
+
+    <!--
+        Connection › Speed test. The last result leads on the page; the server
+        (and what it does with the result), the schedule, the history and the
+        plan are subjects of their own, on bands. Nothing runs until the person
+        presses Run test or switches the schedule on, and the server is named
+        above the button before either.
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <!-- The field box lives with the Usage styles; merged here as the other pages that use it do. -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Styles/Usage.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="FigureValueStyle" TargetType="TextBlock" BasedOn="{StaticResource StatValueStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource TextSize20}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="LineStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <controls:SectionPage Title="Speed test" Subtitle="{Binding Subtitle}">
+        <controls:SectionPage.Actions>
+            <controls:FlowRow Spacing="8" LineSpacing="8">
+                <Button Style="{StaticResource PrimaryButtonStyle}"
+                        Command="{Binding RunCommand}"
+                        Visibility="{Binding IsRunning, Converter={StaticResource InverseBooleanToVisibility}}"
+                        AutomationProperties.Name="Run a speed test"
+                        ToolTip="{Binding Destination}">
+                    <StackPanel Orientation="Horizontal">
+                        <fluent:SymbolIcon Symbol="Play" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="Run test" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Button Style="{StaticResource ToolbarButtonStyle}"
+                        Command="{Binding StopCommand}"
+                        Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibility}}"
+                        AutomationProperties.Name="Stop the speed test">
+                    <StackPanel Orientation="Horizontal">
+                        <fluent:SymbolIcon Symbol="Stop" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="Stop" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </controls:FlowRow>
+        </controls:SectionPage.Actions>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="{StaticResource PagePadding}">
+            <StackPanel>
+                <!-- Who will be contacted, before anything is, and why a test cannot start. -->
+                <TextBlock Margin="4,0,4,0" Style="{StaticResource LineStyle}" AutomationProperties.LiveSetting="Polite">
+                    <Run Text="Tests against" />
+                    <Run Text="{Binding Destination, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                </TextBlock>
+                <TextBlock Text="{Binding Refusal}"
+                           Margin="4,4,4,0"
+                           Style="{StaticResource LineStyle}"
+                           Foreground="{DynamicResource HotBrush}"
+                           Visibility="{Binding Refusal, Converter={StaticResource TextToVisibility}}" />
+
+                <!-- While a test runs. -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Margin="0,12,0,0"
+                        Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel>
+                        <DockPanel LastChildFill="True">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding LiveSpeed}" FontWeight="SemiBold"
+                                       Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="{Binding Phase}" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       controls:LiveRegion.Speaks="True" />
+                        </DockPanel>
+                        <ProgressBar Value="{Binding Progress, Mode=OneWay}" Maximum="1" Height="4" Margin="0,8,0,0"
+                                     AutomationProperties.Name="Speed test progress" />
+                        <TextBlock Text="{Binding LiveLatency}" Style="{StaticResource LineStyle}" Margin="0,6,0,0"
+                                   Visibility="{Binding LiveLatency, Converter={StaticResource TextToVisibility}}" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding Phase}"
+                           Margin="4,8,4,0"
+                           Style="{StaticResource LineStyle}"
+                           controls:LiveRegion.Speaks="True"
+                           Visibility="{Binding IsRunning, Converter={StaticResource InverseBooleanToVisibility}}" />
+
+                <!-- ============ The last result, on the page ============ -->
+                <controls:FlowGrid Style="{StaticResource PlateStripStyle}" MinimumColumnWidth="150" Margin="0,10,0,0">
+                    <Border Style="{StaticResource PlateCellStyle}" ToolTip="How fast data arrived at this PC during the last test.">
+                        <StackPanel>
+                            <ContentControl Content="DOWNLOAD" Style="{StaticResource DirectionLabelStyle}" />
+                            <TextBlock Text="{Binding DownloadValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Download speed" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}" ToolTip="How fast this PC sent data during the last test.">
+                        <StackPanel>
+                            <ContentControl Content="UPLOAD" Style="{StaticResource UploadLabelStyle}" />
+                            <TextBlock Text="{Binding UploadValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Upload speed" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}" ToolTip="Response time with the line quiet, before the test filled it.">
+                        <StackPanel>
+                            <TextBlock Text="QUIET" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding QuietValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Response time, quiet" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}" ToolTip="How much longer the response time got while the test filled the line. A large figure is bufferbloat, which ruins calls and games while anything downloads.">
+                        <StackPanel>
+                            <TextBlock Text="UNDER LOAD" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding LoadedValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Extra response time under load" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}" ToolTip="A letter for the extra response time under load, after Waveform's bufferbloat test: A+ under 5 ms, A under 30, B under 60, C under 200, D under 400, F beyond.">
+                        <StackPanel>
+                            <TextBlock Text="LOAD GRADE" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding GradeValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Latency under load grade" />
+                            <TextBlock Text="{Binding GradeNote}" Style="{StaticResource StatNoteStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </controls:FlowGrid>
+
+                <TextBlock Text="{Binding ResultNote}" Margin="4,8,4,0" Style="{StaticResource LineStyle}" controls:LiveRegion.Speaks="True" />
+
+                <!-- ============ The server ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="0,18,0,0">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Server" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="Where tests run. Each test moves a few hundred megabytes in about twenty seconds."
+                                       TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Test against"
+                                                      Hint="Measurement Lab runs free public servers for research and needs no account. A LibreSpeed server is one you run yourself, on your own network or a server you rent." />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="220"
+                                                 HorizontalAlignment="Left"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding Servers}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Server"
+                                                 SelectedValue="{Binding SelectedServer, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Test against" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <!-- M-Lab's terms, stated in full before the switch that accepts them. -->
+                        <Border Style="{StaticResource BandRowStyle}"
+                                Visibility="{Binding IsMeasurementLab, Converter={StaticResource BooleanToVisibility}}">
+                            <StackPanel>
+                                <Border Style="{StaticResource TileStyle}" Margin="0,0,0,10">
+                                    <DockPanel LastChildFill="True">
+                                        <fluent:SymbolIcon DockPanel.Dock="Left" Symbol="Globe" FontSize="16" Margin="0,1,10,0" VerticalAlignment="Top"
+                                                           Foreground="{DynamicResource AccentBrush}" />
+                                        <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource TextSize12_5}" Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                            <Run Text="Measurement Lab publishes every test it runs, with this PC's public address, the time and the results, as open data, and keeps it for good." FontWeight="SemiBold" />
+                                            <Run Text="A test asks locate.measurementlab.net for the nearest server and runs there. Windsock never runs one by itself unless you also switch on automatic tests below. M-Lab will remove a test on request, with proof that the address was yours, at privacy@measurementlab.net." />
+                                        </TextBlock>
+                                    </DockPanel>
+                                </Border>
+
+                                <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <controls:SettingHead HorizontalAlignment="Left"
+                                                              Text="Agree to M-Lab publishing my tests"
+                                                              Hint="Turning this off stops M-Lab tests, automatic ones included. Tests already run stay published; ask M-Lab to remove them." />
+                                        <TextBlock Text="{Binding AgreedNote}" Style="{StaticResource DetailNoteStyle}" Margin="0,4,0,0"
+                                                   Visibility="{Binding AgreedNote, Converter={StaticResource TextToVisibility}}" />
+                                    </StackPanel>
+                                    <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                              HorizontalAlignment="Left"
+                                              VerticalAlignment="Center"
+                                              Content="I agree"
+                                              IsChecked="{Binding MeasurementLabAgreed, Mode=TwoWay}"
+                                              AutomationProperties.Name="Agree to M-Lab publishing my tests with my public address" />
+                                </controls:AdaptiveRow>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}"
+                                Visibility="{Binding IsLibreSpeed, Converter={StaticResource BooleanToVisibility}}">
+                            <StackPanel>
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Your LibreSpeed server"
+                                                      Hint="The address you open the server's test page at, such as http://192.168.0.5/speedtest/ or https://speed.example.org/. Only that server is contacted; LibreSpeed's optional telemetry is never sent." />
+                                <DockPanel LastChildFill="True" Margin="0,8,0,0">
+                                    <Button DockPanel.Dock="Right"
+                                            Style="{StaticResource ToolbarButtonStyle}"
+                                            Margin="8,0,0,0"
+                                            Content="Use this server"
+                                            Command="{Binding ApplyLibreSpeedCommand}" />
+                                    <TextBox x:Name="LibreSpeedBox"
+                                             Style="{StaticResource FieldBoxStyle}"
+                                             Text="{Binding LibreSpeedUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             MaxLength="400"
+                                             AutomationProperties.Name="LibreSpeed server address">
+                                        <TextBox.InputBindings>
+                                            <KeyBinding Key="Enter" Command="{Binding ApplyLibreSpeedCommand}" />
+                                        </TextBox.InputBindings>
+                                    </TextBox>
+                                </DockPanel>
+                                <TextBlock Text="{Binding LibreSpeedProblem}" Margin="0,6,0,0" Style="{StaticResource LineStyle}"
+                                           Foreground="{DynamicResource HotBrush}"
+                                           Visibility="{Binding LibreSpeedProblem, Converter={StaticResource TextToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ The schedule ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Automatic tests" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="{Binding ScheduleNote}" TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Run tests by themselves"
+                                                      Hint="At random times through the day, so a pattern shows - slow every evening, say - without you remembering to test. Never more than four a day, as M-Lab asks of apps, and skipped while the internet is down." />
+                                <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Content="Run automatically"
+                                          IsChecked="{Binding Scheduled, Mode=TwoWay}"
+                                          AutomationProperties.Name="Run speed tests automatically" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}" Visibility="{Binding Scheduled, Converter={StaticResource BooleanToVisibility}}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="How often"
+                                                      Hint="An average: the times are random, a few hours apart." />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="180"
+                                                 HorizontalAlignment="Left"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding TestsADayOptions}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Tests"
+                                                 SelectedValue="{Binding TestsADay, Mode=TwoWay}"
+                                                 AutomationProperties.Name="How many automatic tests a day" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}" Visibility="{Binding Scheduled, Converter={StaticResource BooleanToVisibility}}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Also on metered connections"
+                                                      Hint="A test moves a few hundred megabytes. Off, automatic tests are skipped while Windows treats the connection as metered, such as a phone's hotspot." />
+                                <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Content="Test on metered connections"
+                                          IsChecked="{Binding OnMetered, Mode=TwoWay}"
+                                          AutomationProperties.Name="Run automatic tests on metered connections" />
+                            </controls:AdaptiveRow>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ History ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <controls:AdaptiveRow Breakpoint="560" Spacing="10" LeadFills="True" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="History" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                                <TextBlock Text="{Binding HistoryNote}" TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Visibility="{Binding HasTests, Converter={StaticResource BooleanToVisibility}}">
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding AskClearCommand}"
+                                        Visibility="{Binding IsConfirmingClear, Converter={StaticResource InverseBooleanToVisibility}}"
+                                        AutomationProperties.Name="Delete every speed test"
+                                        ToolTip="Forget every test kept on this PC. You will be asked first. Tests M-Lab published stay published.">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="Delete" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Delete all" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <StackPanel Orientation="Horizontal" Visibility="{Binding IsConfirmingClear, Converter={StaticResource BooleanToVisibility}}">
+                                    <TextBlock Text="Forget every test?" VerticalAlignment="Center" Margin="0,0,8,0"
+                                               FontSize="{DynamicResource TextSize12}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <Button Style="{StaticResource PrimaryButtonStyle}" Content="Delete" Margin="0,0,6,0"
+                                            Command="{Binding ClearCommand}" AutomationProperties.Name="Confirm deleting every speed test" />
+                                    <Button Style="{StaticResource ToolbarButtonStyle}" Content="Keep"
+                                            Command="{Binding CancelClearCommand}" AutomationProperties.Name="Keep the speed tests" />
+                                </StackPanel>
+                            </StackPanel>
+                        </controls:AdaptiveRow>
+
+                        <StackPanel Visibility="{Binding HasTests, Converter={StaticResource BooleanToVisibility}}">
+                            <controls:MetricBarsChart x:Name="TrendChart"
+                                                      Height="150"
+                                                      Items="{Binding Trend}"
+                                                      ReferenceValue="{Binding TrendReference}"
+                                                      AxisFormat="0' Mbit/s'"
+                                                      PrimaryBrush="{DynamicResource DownloadBrush}"
+                                                      PairedBrush="{DynamicResource UploadBrush}"
+                                                      HighlightBrush="{DynamicResource DownloadBrush}"
+                                                      ReferenceBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                      GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                      AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                      AutomationProperties.Name="Download and upload of each test" />
+                            <TextBlock Text="{Binding SelectedDetail, ElementName=TrendChart}" Style="{StaticResource DetailNoteStyle}" Margin="0,4,0,10" />
+
+                            <ItemsControl ItemsSource="{Binding Tests}" Focusable="False" AutomationProperties.Name="Speed tests">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:SpeedTestRow}">
+                                        <Border Style="{StaticResource TileStyle}" Padding="12,8">
+                                            <DockPanel LastChildFill="True">
+                                                <Button DockPanel.Dock="Right"
+                                                        Style="{StaticResource ToolbarButtonStyle}"
+                                                        Background="Transparent"
+                                                        VerticalAlignment="Center"
+                                                        Margin="8,0,0,0"
+                                                        Command="{Binding DeleteCommand}"
+                                                        AutomationProperties.Name="{Binding DeleteName}"
+                                                        ToolTip="Delete this test">
+                                                    <fluent:SymbolIcon Symbol="Delete" FontSize="13" />
+                                                </Button>
+                                                <StackPanel>
+                                                    <DockPanel LastChildFill="True">
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding When}" Style="{StaticResource LineStyle}" Margin="12,0,0,0" />
+                                                        <TextBlock Text="{Binding Speeds}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                                   Typography.NumeralAlignment="Tabular">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Failed}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </DockPanel>
+                                                    <TextBlock Text="{Binding Details}" Style="{StaticResource LineStyle}" Margin="0,2,0,0" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                    Visibility="{Binding HasTests, Converter={StaticResource InverseBooleanToVisibility}}">
+                            <fluent:SymbolIcon Symbol="Gauge" FontSize="22" Margin="0,0,0,8" HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Text="No tests yet" Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="Choose a server above, then press Run test. Every result is kept here with the trend, so a slow evening or a slow month shows."
+                                       Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ The plan ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Am I getting what I pay for?" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="{Binding PlanSummary}" TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <controls:FlowRow Spacing="10" LineSpacing="8">
+                            <StackPanel>
+                                <TextBlock Text="Plan download, Mbit/s" Style="{StaticResource DetailNoteStyle}" Margin="0,0,0,4" />
+                                <TextBox Style="{StaticResource FieldBoxStyle}" Width="130"
+                                         Text="{Binding PlanDownload, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Plan download speed in megabits a second">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" Command="{Binding ApplyPlanCommand}" />
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Plan upload, Mbit/s" Style="{StaticResource DetailNoteStyle}" Margin="0,0,0,4" />
+                                <TextBox Style="{StaticResource FieldBoxStyle}" Width="130"
+                                         Text="{Binding PlanUpload, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Plan upload speed in megabits a second">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" Command="{Binding ApplyPlanCommand}" />
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                            </StackPanel>
+                            <!-- An empty label above the button, so it sits on the boxes' line. -->
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource DetailNoteStyle}" Margin="0,0,0,4" />
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        HorizontalAlignment="Left"
+                                        Content="Compare"
+                                        Command="{Binding ApplyPlanCommand}"
+                                        AutomationProperties.Name="Save the plan's speeds and compare" />
+                            </StackPanel>
+                        </controls:FlowRow>
+
+                        <StackPanel Margin="0,12,0,0" Visibility="{Binding HasPlanBars, Converter={StaticResource BooleanToVisibility}}">
+                            <controls:MetricBarsChart x:Name="PlanChart"
+                                                      Height="140"
+                                                      Items="{Binding PlanBars}"
+                                                      ReferenceValue="1"
+                                                      AxisFormat="0%"
+                                                      PrimaryBrush="{DynamicResource DownloadBrush}"
+                                                      HighlightBrush="{DynamicResource HotBrush}"
+                                                      ReferenceBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                      GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                      AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                      AutomationProperties.Name="Share of the plan's download by hour of day" />
+                            <TextBlock Text="{Binding SelectedDetail, ElementName=PlanChart}" Style="{StaticResource DetailNoteStyle}" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </controls:SectionPage>
+</UserControl>

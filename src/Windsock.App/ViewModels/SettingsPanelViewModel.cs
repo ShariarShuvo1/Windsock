@@ -8,6 +8,9 @@ using Microsoft.Extensions.Logging;
 using Windsock.App.Services;
 using Windsock.App.Theming;
 using Windsock.App.Views;
+using Windsock.Core.Alerts;
+using Windsock.Core.Connectivity;
+using Windsock.Core.Hardware;
 using Windsock.Core.History;
 using Windsock.Core.Networking;
 using Windsock.Core.Settings;
@@ -39,9 +42,41 @@ public sealed record DetailOption(int Days, string Label)
     public override string ToString() => Label;
 }
 
+/// <summary>The pages Settings is split into.</summary>
+public enum SettingsPage
+{
+    General,
+    Appearance,
+    Privacy,
+    Advanced,
+    About,
+}
+
+/// <summary>One of Settings' pages, as its tab names it.</summary>
+public sealed record SettingsPageOption(SettingsPage Page, string Label, string Subtitle)
+{
+    /// <summary>Returns the label, so automation announces the tab by name.</summary>
+    public override string ToString() => Label;
+}
+
 /// <summary>
-/// Backs the Settings panel.
+/// Backs Settings: five pages, each holding one kind of setting.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Settings was one long card until 2026-10-05. Now General holds how the
+/// window behaves and what is measured; Appearance how it looks; Data and
+/// privacy what is kept on this PC and everything that leaves it; Advanced
+/// what needs administrator rights or a separate driver, and the settings
+/// file; About the version and where it comes from. Notifications moved to
+/// the Alerts page, with the alerts they govern.
+/// </para>
+/// <para>
+/// The privacy page lists every outside contact with its own switch, and each
+/// is the same setting as wherever else it appears: the route tracing switch
+/// is the map's, the internet check is the Connection page's.
+/// </para>
+/// </remarks>
 public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposable
 {
     private const string HistoryUnreadable =
@@ -52,9 +87,9 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
     private readonly ThemeManager _theme;
     private readonly IpHelperTotalsSource _totals;
     private readonly ThroughputMonitor _monitor;
-#if !STORE
-    private readonly NetworkRouteCache _routes;
-#endif
+    private readonly OutsideContacts _contacts;
+    private readonly ConnectionMonitor _connection;
+    private readonly SystemMonitor _system;
     private readonly UpdateService _updates;
     private readonly UsageRecorder _recorder;
     private readonly IStartupSwitch _startup;
@@ -72,9 +107,9 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
         ThemeManager theme,
         IpHelperTotalsSource totals,
         ThroughputMonitor monitor,
-#if !STORE
-        NetworkRouteCache routes,
-#endif
+        OutsideContacts contacts,
+        ConnectionMonitor connection,
+        SystemMonitor system,
         UsageRecorder recorder,
         IStartupSwitch startup,
         UpdateService updates,
@@ -82,18 +117,20 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
         IAppDetailStore detail,
         Dispatcher dispatcher,
         ILogger<SettingsPanelViewModel> logger,
-        NotificationsCardViewModel notifications)
+        AlertDesk alerts,
+        HomeFeedSettingsViewModel homeFeed)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(notifications);
+        ArgumentNullException.ThrowIfNull(contacts);
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(system);
         ArgumentNullException.ThrowIfNull(detail);
 
+        HomeFeed = homeFeed;
         _detail = detail;
-
-        Notifications = notifications;
-#if !STORE
-        ArgumentNullException.ThrowIfNull(routes);
-#endif
+        _contacts = contacts;
+        _connection = connection;
+        _system = system;
 
         // Before any property below is set: setting one saves, and a user who
         // had switched update checks off made that save run against a store
@@ -111,6 +148,7 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
         _history = history;
         _logger = logger;
         DescribeHistory();
+        AttachAlerts(alerts);
 
         recorder.Recorded += OnRecorded;
         ArgumentNullException.ThrowIfNull(recorder);
@@ -119,9 +157,6 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
         _theme = theme;
         _totals = totals;
         _monitor = monitor;
-#if !STORE
-        _routes = routes;
-#endif
         _recorder = recorder;
         _startup = startup;
 
@@ -134,10 +169,6 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
 
         Adapters = [];
         SelectedTheme = settings.Theme;
-#if !STORE
-        FollowRoutes = settings.FollowRoutes;
-        routes.IsEnabled = settings.FollowRoutes;
-#endif
 
         Closings =
         [
@@ -176,14 +207,19 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
         recorder.RecordingChanged += OnRecordingChanged;
         StartWithWindows = startup.State == StartupState.On;
         StartupNote = startup.Detail;
+
+        Pages =
+        [
+            new(SettingsPage.General, "General", "How the window behaves, and what is measured"),
+            new(SettingsPage.Appearance, "Appearance", "How Windsock looks"),
+            new(SettingsPage.Privacy, "Data and privacy", "What is kept on this PC, and everything that leaves it"),
+            new(SettingsPage.Advanced, "Advanced", AdvancedSubtitle),
+            new(SettingsPage.About, "About", "The version, updates, and where Windsock comes from"),
+        ];
+
+        _contacts.Changed += OnContactsChanged;
         Refresh();
     }
-
-    /// <summary>
-    /// The Notifications card. Its own view model, disposed with the window's
-    /// scope, because it listens to a service that outlives the window.
-    /// </summary>
-    public NotificationsCardViewModel Notifications { get; }
 
     /// <summary>Whether Windsock looks for a newer version on its own.</summary>
     [ObservableProperty]
@@ -257,6 +293,8 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
         _updates.Changed -= OnUpdatesChanged;
         _recorder.Recorded -= OnRecorded;
         _recorder.RecordingChanged -= OnRecordingChanged;
+        _contacts.Changed -= OnContactsChanged;
+        DetachAlerts();
     }
 
     // Raised on the UI thread: the updater is only ever driven from it, and
@@ -306,12 +344,6 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
 
     /// <summary>The schemes on offer.</summary>
     public IReadOnlyList<ThemeOption> Themes { get; }
-
-#if !STORE
-    /// <summary>Whether the way to each far end is found and drawn.</summary>
-    [ObservableProperty]
-    public partial bool FollowRoutes { get; set; } = true;
-#endif
 
     /// <summary>What closing the window can be made to do.</summary>
     public IReadOnlyList<CloseOption> Closings { get; } = [];
@@ -398,7 +430,13 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
 
             try
             {
-                await Task.Run(_history.RemoveEverything).ConfigureAwait(true);
+                await Task.Run(() =>
+                {
+                    _history.RemoveEverything();
+
+                    // The record of alerts is history too, and the networks remembered for them.
+                    ForgetAlerts();
+                }).ConfigureAwait(true);
             }
             catch (Exception ex) when (HistoryFailure.IsStorage(ex))
             {
@@ -518,7 +556,8 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
     /// </summary>
     public void Refresh()
     {
-        Notifications.Refresh();
+        ReadContacts();
+        ReadAdvanced();
 
         // Asking Windows takes a round trip in the packaged edition, so the
         // cached answer goes up first and the fresh one follows.
@@ -766,14 +805,4 @@ public sealed partial class SettingsPanelViewModel : ObservableObject, IDisposab
         StartWithWindows = on;
         _mirroring = false;
     }
-
-#if !STORE
-    partial void OnFollowRoutesChanged(bool value)
-    {
-        _routes.IsEnabled = value;
-
-        _settings.FollowRoutes = value;
-        _store.Save(_settings);
-    }
-#endif
 }

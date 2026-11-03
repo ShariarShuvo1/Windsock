@@ -92,6 +92,9 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
     private bool _mirroring;
     private bool _unreadable;
 
+    /// <summary>Records kept beside history that go with a period of it; see <see cref="EraseWithHistory"/>.</summary>
+    private readonly List<Windsock.Core.Insight.IErasedWithHistory> _erasedWith;
+
     public HistoryPanelViewModel(
         IUsageHistoryStore store,
         IAppUsageStore windows,
@@ -104,10 +107,14 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         UsageRecorder recorder,
         WindsockSettings settings,
         ISettingsStore settingsStore,
+        HistoryMarksViewModel marks,
+        IEnumerable<Windsock.Core.Insight.IErasedWithHistory> erasedWith,
         Dispatcher dispatcher,
         ILogger<HistoryPanelViewModel> logger)
     {
+        _erasedWith = [.. erasedWith];
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(marks);
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(apps);
         ArgumentNullException.ThrowIfNull(names);
@@ -142,6 +149,7 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         PeakDownColumn = Column.Number<HistoryRowViewModel>("Peak down", ColumnKind.Rate, row => row.PeakDownBytes);
         PeakUpColumn = Column.Number<HistoryRowViewModel>("Peak up", ColumnKind.Rate, row => row.PeakUpBytes);
         RecordedColumn = Column.Number<HistoryRowViewModel>("Minutes", ColumnKind.Count, row => row.MinutesRecorded);
+        NetworkColumn = Column.Text<HistoryRowViewModel>("Network", row => row.Network);
 
         Columns =
         [
@@ -153,7 +161,12 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
             PeakDownColumn,
             PeakUpColumn,
             RecordedColumn,
+            NetworkColumn,
         ];
+
+        // The network each row was on is read beside the period, not with it.
+        Marks = marks;
+        marks.NetworksRead += OnNetworksRead;
 
         foreach (TableColumn column in Columns)
         {
@@ -167,6 +180,7 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         _recorder.Recorded += OnRecorded;
         _collector.Changed += OnCollected;
         _store.Erased += OnErased;
+        ClockFormat.Changed += OnClockChanged;
         _icons.Loaded += OnIconLoaded;
 
         Ranges =
@@ -241,6 +255,12 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
 
     public TableColumn<HistoryRowViewModel> RecordedColumn { get; }
 
+    /// <summary>The network each row was on, once read.</summary>
+    public TableColumn<HistoryRowViewModel> NetworkColumn { get; }
+
+    /// <summary>The networks, events, notes, measuring and stopwatch beside the period.</summary>
+    public HistoryMarksViewModel Marks { get; }
+
     /// <summary>Whether a filter or a sort is narrowing what the table shows.</summary>
     public bool IsCustomised => Columns.Any(column => !column.IsDefault) || IsSorted;
 
@@ -300,8 +320,12 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         _recorder.Recorded -= OnRecorded;
         _collector.Changed -= OnCollected;
         _store.Erased -= OnErased;
+        ClockFormat.Changed -= OnClockChanged;
         _icons.Loaded -= OnIconLoaded;
+        Marks.NetworksRead -= OnNetworksRead;
     }
+
+    private void OnNetworksRead(object? sender, EventArgs e) => Rebuild();
 
     // Icons are read in the background; the popover's list takes each as it lands.
     private void OnIconLoaded(object? sender, EventArgs e) =>
@@ -385,6 +409,20 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
 
     private void OnErased(object? sender, EventArgs e) =>
         _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => _ = LoadAsync()));
+
+    // Windows' clock went from 12 to 24-hour or back: the rows, the range line
+    // and the chart's axis are written again, now or at the next showing.
+    private void OnClockChanged(object? sender, EventArgs e) =>
+        _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            if (_live)
+            {
+                _ = LoadAsync();
+                return;
+            }
+
+            _missedWhileHidden = true;
+        }));
 
     // Raised on the writer thread, so everything, the checks included, runs on the page's.
     private void OnRecorded(object? sender, EventArgs e) =>
@@ -1052,6 +1090,7 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         RangeStart = from;
         RangeEnd = until;
         Revision++;
+        Marks.Follow(from, until, granularity, buckets);
 
         (string downValue, string downUnit) = SizeFormatter.Split(summary.AllDown);
         (string upValue, string upUnit) = SizeFormatter.Split(summary.AllUp);
@@ -1127,6 +1166,7 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         RangeStart = from;
         RangeEnd = until;
         Revision++;
+        Marks.Follow(from, until, granularity, []);
 
         DownloadValue = MeterReadout.Unknown;
         DownloadUnit = string.Empty;
@@ -1142,7 +1182,9 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         CoverageText = string.Empty;
         RangeLabel = Label(from, until);
         IsEmpty = true;
-        Notice = Unreadable;
+
+        // A newer version's file has its own banner, which says why.
+        Notice = Marks.IsReadOnly ? string.Empty : Unreadable;
     }
 
     private static string Coverage(
@@ -1236,10 +1278,35 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         return string.Format(
             CultureInfo.CurrentCulture,
             "{0} to {1}",
-            from.ToString("d MMM, h:mm tt", CultureInfo.CurrentCulture),
+            from.ToString(ClockFormat.Current.DateAndTime, ClockFormat.Current.Format),
             last.Date == from.Date
-                ? last.ToString("h:mm tt", CultureInfo.CurrentCulture)
-                : last.ToString("d MMM, h:mm tt", CultureInfo.CurrentCulture));
+                ? ClockFormat.Time(last)
+                : last.ToString(ClockFormat.Current.DateAndTime, ClockFormat.Current.Format));
+    }
+
+    /// <summary>
+    /// Erases a period of history, and the same period of every record kept
+    /// beside it - the connection timeline in the full edition - which the
+    /// store's own event cannot reach, since it does not say which period went.
+    /// A record that cannot be written does not stop the history going.
+    /// </summary>
+    private int EraseWithHistory(DateTimeOffset from, DateTimeOffset until)
+    {
+        int removed = _store.Delete(from, until);
+
+        foreach (Windsock.Core.Insight.IErasedWithHistory record in _erasedWith)
+        {
+            try
+            {
+                record.Delete(from, until);
+            }
+            catch (Exception ex) when (HistoryFailure.IsStorage(ex))
+            {
+                LogDeleteFailed(ex);
+            }
+        }
+
+        return removed;
     }
 
     [RelayCommand]
@@ -1257,15 +1324,17 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
 
         try
         {
-            removed = await Task.Run(() => _store.Delete(from, until)).ConfigureAwait(true);
+            removed = await Task.Run(() => EraseWithHistory(from, until)).ConfigureAwait(true);
         }
         catch (Exception ex) when (HistoryFailure.IsStorage(ex))
         {
             LogDeleteFailed(ex);
-            Notice = string.Format(
-                CultureInfo.CurrentCulture,
-                "Could not delete {0}, because the history file could not be written. It may be damaged.",
-                row.From);
+            Notice = HistoryFailure.IsReadOnly(ex)
+                ? "Nothing was deleted: this history file was written by a newer version of Windsock, which this version only reads."
+                : string.Format(
+                    CultureInfo.CurrentCulture,
+                    "Could not delete {0}, because the history file could not be written. It may be damaged.",
+                    row.From);
             return;
         }
 
@@ -1288,7 +1357,7 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         SaveFileDialog dialog = new()
         {
             Title = "Export usage history",
-            Filter = "CSV file (*.csv)|*.csv|All files (*.*)|*.*",
+            Filter = "CSV file, network use only (*.csv)|*.csv|JSON file, everything History holds (*.json)|*.json",
             DefaultExt = ".csv",
             FileName = string.Format(
                 CultureInfo.InvariantCulture,
@@ -1303,6 +1372,13 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         }
 
         string path = dialog.FileName;
+
+        if (dialog.FilterIndex == 2 || path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            Notice = await Marks.ExportJsonAsync(path, from, until, granularity).ConfigureAwait(true);
+            return;
+        }
+
         IReadOnlyList<UsageBucket> buckets;
 
         // Read before the file is created, so a history that cannot be read
@@ -1415,7 +1491,9 @@ public sealed partial class HistoryPanelViewModel : ObservableObject, IDisposabl
         {
             // Each import is one transaction, so a failure part-way keeps none of it.
             LogImportFailed(ex);
-            Notice = "Nothing was imported, because the history file could not be written. It may be damaged.";
+            Notice = HistoryFailure.IsReadOnly(ex)
+                ? "Nothing was imported: this history file was written by a newer version of Windsock, which this version only reads."
+                : "Nothing was imported, because the history file could not be written. It may be damaged.";
             return;
         }
 

@@ -1,0 +1,634 @@
+<UserControl x:Class="Windsock.App.Views.AdaptersPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:AdaptersPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="1200">
+
+    <!--
+        Network › Adapters and Wi-Fi: what this PC is connected to. The answer
+        to "connected through what, at which address, by which router and DNS"
+        leads on the page itself; Wi-Fi, its drops, the networks nearby and the
+        adapters one by one are subjects of their own, each on a band.
+        Everything here is read from Windows; nothing is sent anywhere.
+    -->
+    <UserControl.Resources>
+        <Style x:Key="FigureValueStyle" TargetType="TextBlock" BasedOn="{StaticResource StatValueStyle}">
+            <Setter Property="FontSize" Value="{DynamicResource TextSize18}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="TileNameStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource TextSize14}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+
+        <Style x:Key="TileLineStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+
+        <DataTemplate x:Key="BadgeTemplate">
+            <Border Style="{StaticResource TileBadgeStyle}" Margin="0,0,6,4" Background="{DynamicResource QuietFillBrush}">
+                <TextBlock Text="{Binding}"
+                           FontSize="{DynamicResource TextSize11}"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <controls:SectionPage Title="Adapters and Wi-Fi" Subtitle="{Binding Subtitle}">
+        <controls:SectionPage.Actions>
+            <controls:FlowRow Spacing="8" LineSpacing="8">
+                <Button Style="{StaticResource ToolbarButtonStyle}"
+                        Command="{Binding CopyCommand}"
+                        AutomationProperties.Name="Copy details"
+                        ToolTip="Copy the adapters, addresses, DNS and connection state as text, for a help request">
+                    <StackPanel Orientation="Horizontal">
+                        <fluent:SymbolIcon Symbol="Copy" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="Copy details" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="FlushDnsButton"
+                        Style="{StaticResource ToolbarButtonStyle}"
+                        Command="{Binding FlushDnsCommand}"
+                        AutomationProperties.Name="Clear the DNS cache"
+                        ToolTip="Forget the names Windows has looked up, as ipconfig /flushdns does. Nothing disconnects.">
+                    <StackPanel Orientation="Horizontal">
+                        <fluent:SymbolIcon Symbol="Broom" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="Clear DNS cache" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </controls:FlowRow>
+        </controls:SectionPage.Actions>
+
+        <ScrollViewer x:Name="Body"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="{StaticResource PagePadding}">
+            <StackPanel>
+                <!-- What a copy or a fix just did. -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Visibility="{Binding Notice, Converter={StaticResource TextToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <Button DockPanel.Dock="Right"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Background="Transparent"
+                                Margin="8,0,0,0"
+                                Command="{Binding DismissNoticeCommand}"
+                                AutomationProperties.Name="Dismiss the message">
+                            <fluent:SymbolIcon Symbol="Dismiss" FontSize="12" />
+                        </Button>
+                        <fluent:SymbolIcon DockPanel.Dock="Left" Symbol="Info" FontSize="15" Margin="0,0,10,0"
+                                           VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="{Binding Notice}"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.LiveSetting="Polite" controls:LiveRegion.Speaks="True"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </DockPanel>
+                </Border>
+
+                <!-- Asks once, in place, before an adapter is restarted. -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Visibility="{Binding ConfirmText, Converter={StaticResource TextToVisibility}}">
+                    <controls:AdaptiveRow Breakpoint="520" Spacing="10" LeadFills="True">
+                        <TextBlock Text="{Binding ConfirmText}"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.LiveSetting="Assertive" controls:LiveRegion.Speaks="True"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Style="{StaticResource PrimaryButtonStyle}"
+                                    Content="Restart"
+                                    Margin="0,0,6,0"
+                                    Command="{Binding ConfirmCommand}"
+                                    AutomationProperties.Name="Confirm restarting the adapter" />
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Content="Keep it running"
+                                    Command="{Binding CancelConfirmCommand}"
+                                    AutomationProperties.Name="Do not restart the adapter" />
+                        </StackPanel>
+                    </controls:AdaptiveRow>
+                </Border>
+
+                <!-- ============ The answer, on the page ============ -->
+                <!-- Six plates, which divide evenly at every width. IPv6 is on Connection > Status. -->
+                <controls:FlowGrid Style="{StaticResource PlateStripStyle}" MinimumColumnWidth="150">
+                    <Border Style="{StaticResource PlateCellStyle}"
+                            ToolTip="The adapter internet traffic leaves by: the first one with a router, in the order Windows ranks routes. A VPN that has taken over comes first.">
+                        <StackPanel>
+                            <TextBlock Text="CONNECTED VIA" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding CarrierValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Connected via" />
+                            <TextBlock Text="{Binding CarrierNote}" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}" ToolTip="This PC's IPv4 address on that network.">
+                        <StackPanel>
+                            <TextBlock Text="ADDRESS" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding AddressValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Address" />
+                            <TextBlock Text="{Binding AddressNote}" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}" ToolTip="The router this PC sends everything bound for another network to.">
+                        <StackPanel>
+                            <TextBlock Text="ROUTER" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding RouterValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Router address" />
+                            <TextBlock Text="{Binding RouterNote}" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}" ToolTip="The DNS server that turns names into addresses. Encryption is what Windows' settings say, not proof of what a lookup used.">
+                        <StackPanel>
+                            <TextBlock Text="DNS" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding DnsValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="DNS server" />
+                            <TextBlock Text="{Binding DnsNote}" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}" ToolTip="Whether Windows treats this network as metered. Change it, or set a data limit, in Windows Settings.">
+                        <StackPanel>
+                            <TextBlock Text="METERED" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding MeteredValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Metered" />
+                            <TextBlock Text="{Binding MeteredNote}" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}" ToolTip="Whether a VPN is up, and whether internet traffic goes through it.">
+                        <StackPanel>
+                            <TextBlock Text="VPN" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding VpnValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="VPN" />
+                            <TextBlock Text="{Binding VpnNote}" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+                </controls:FlowGrid>
+
+                <Button Style="{StaticResource ToolbarButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Margin="-2,8,0,0"
+                        Background="Transparent"
+                        Command="{Binding OpenMeteredSettingsCommand}"
+                        AutomationProperties.Name="Open Windows network settings"
+                        ToolTip="Metered connection and data limits are set in Windows Settings, network by network">
+                    <StackPanel Orientation="Horizontal">
+                        <fluent:SymbolIcon Symbol="Open" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="Metered and data limit settings" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <!-- ============ Wi-Fi ============ -->
+                <Border Style="{StaticResource BandStyle}"
+                        Margin="0,18,0,0"
+                        Visibility="{Binding HasWifi, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="{Binding WifiTitle}" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="{Binding WifiNote}" TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <controls:FlowGrid Style="{StaticResource PlateStripStyle}"
+                                           MinimumColumnWidth="140"
+                                           Visibility="{Binding WifiConnected, Converter={StaticResource BooleanToVisibility}}">
+                            <Border Style="{StaticResource InsetPlateCellStyle}" ToolTip="The Wi-Fi generation of this link. Wi-Fi 6E is Wi-Fi 6 on the 6 GHz band.">
+                                <StackPanel>
+                                    <TextBlock Text="GENERATION" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding GenerationValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Wi-Fi generation" />
+                                    <TextBlock Text="{Binding GenerationNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource InsetPlateCellStyle}" ToolTip="The channel, its band and how wide it is. Wider is faster but crowds more neighbours.">
+                                <StackPanel>
+                                    <TextBlock Text="CHANNEL" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding ChannelValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Channel" />
+                                    <TextBlock Text="{Binding ChannelNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource InsetPlateCellStyle}" ToolTip="How strongly the router is heard. -67 dBm or better is good for calls and video; below -80 dBm is weak.">
+                                <StackPanel>
+                                    <TextBlock Text="SIGNAL" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding SignalValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Signal" />
+                                    <TextBlock Text="{Binding SignalNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource InsetPlateCellStyle}" ToolTip="The speed the Wi-Fi link runs at - the most this link could carry, not what the internet delivers.">
+                                <StackPanel>
+                                    <TextBlock Text="LINK RATE" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding RateValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Link rate" />
+                                    <TextBlock Text="{Binding RateNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource InsetPlateCellStyle}" ToolTip="The network's name. Since Windows 11 24H2 Windows gives it only to apps you allow location.">
+                                <StackPanel>
+                                    <TextBlock Text="NETWORK" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding NameValue}" Style="{StaticResource FigureValueStyle}" AutomationProperties.Name="Wi-Fi network" />
+                                    <TextBlock Text="{Binding NameNote}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+                        </controls:FlowGrid>
+
+                        <ItemsControl ItemsSource="{Binding WifiLinks}"
+                                      Focusable="False"
+                                      Margin="2,8,0,0"
+                                      Visibility="{Binding IsMultiLink, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="Wi-Fi 7 links">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:WifiLinkRow}">
+                                    <TextBlock Text="{Binding Text}" Style="{StaticResource TileLineStyle}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- The last five minutes of signal; the same line sits under the Overview's chart. -->
+                        <StackPanel Margin="0,14,0,0" Visibility="{Binding WifiConnected, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Text="Signal, last five minutes" Style="{StaticResource CardTitleStyle}" FontSize="{DynamicResource TextSize13}" />
+                            <TextBlock Text="Higher is stronger. The lines mark -67 dBm, good enough for calls, and -80 dBm, weak."
+                                       Style="{StaticResource CardNoteStyle}" TextWrapping="Wrap" />
+                            <controls:SignalStrip Height="96"
+                                                  Margin="0,8,0,0"
+                                                  Points="{Binding SignalPoints}"
+                                                  Revision="{Binding SignalRevision}"
+                                                  SampleIntervalSeconds="1"
+                                                  VisibleSampleCount="300"
+                                                  LeftInset="40"
+                                                  ShowScale="True"
+                                                  LineBrush="{DynamicResource NetworkBrush}"
+                                                  GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                  AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                  AutomationProperties.Name="Wi-Fi signal over the last five minutes"
+                                                  AutomationProperties.HelpText="{Binding SignalSummary}" />
+                        </StackPanel>
+
+                        <controls:FlowRow Spacing="8" LineSpacing="8" Margin="0,14,0,0">
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding AskForNameCommand}"
+                                    Visibility="{Binding CanAskForName, Converter={StaticResource BooleanToVisibility}}"
+                                    AutomationProperties.Name="Show the network's name"
+                                    ToolTip="Ask Windows for the network's name. Windows may ask you to allow location for Windsock first.">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Location" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Show the network's name" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding OpenLocationSettingsCommand}"
+                                    Visibility="{Binding LocationDenied, Converter={StaticResource BooleanToVisibility}}"
+                                    AutomationProperties.Name="Open location settings"
+                                    ToolTip="Location for Windsock, and for desktop apps, is switched on in Windows Settings, Privacy and security, Location">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Open" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Location settings" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding ScanCommand}"
+                                    AutomationProperties.Name="Scan for nearby networks"
+                                    ToolTip="Listen for nearby networks and see how crowded each channel is. Takes a few seconds; needs Windows' location permission.">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="WiFi1" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Scan nearby networks" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button x:Name="ShareQrButton"
+                                    Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding ShareQrCommand}"
+                                    Visibility="{Binding WifiConnected, Converter={StaticResource BooleanToVisibility}}"
+                                    AutomationProperties.Name="Share as QR code"
+                                    ToolTip="Show this network as a code a phone can scan to join. Reads the saved password from Windows; nothing is kept.">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="QrCode" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Share as QR code" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </controls:FlowRow>
+
+                        <!-- The code, while asked for. It holds the password; it goes when hidden. -->
+                        <Border x:Name="QrPanel"
+                                Style="{StaticResource TileStyle}"
+                                Margin="0,12,0,0"
+                                Visibility="{Binding HasQr, Converter={StaticResource BooleanToVisibility}}">
+                            <controls:AdaptiveRow Breakpoint="480" Spacing="18" LeadWidth="216">
+                                <controls:QrView Width="200" Height="200"
+                                                 HorizontalAlignment="Left"
+                                                 Code="{Binding Qr}"
+                                                 AutomationProperties.Name="QR code for joining the Wi-Fi network" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding QrTitle}" Style="{StaticResource TileNameStyle}" />
+                                    <TextBlock Text="{Binding QrNote}" Style="{StaticResource TileLineStyle}" />
+                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                            HorizontalAlignment="Left"
+                                            Margin="0,10,0,0"
+                                            Content="Hide the code"
+                                            Command="{Binding HideQrCommand}"
+                                            AutomationProperties.Name="Hide the QR code" />
+                                </StackPanel>
+                            </controls:AdaptiveRow>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Nearby networks ============ -->
+                <Border Style="{StaticResource BandStyle}"
+                        Margin="0,14,0,0"
+                        Visibility="{Binding HasWifi, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Nearby networks" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="{Binding ScanNote}" TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" AutomationProperties.LiveSetting="Polite" controls:LiveRegion.Speaks="True" />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding Bands}" Focusable="False" AutomationProperties.Name="Channel crowding by band">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:BandCrowdingRow}">
+                                    <Border Style="{StaticResource TileStyle}">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="True">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Summary}" Style="{StaticResource TileLineStyle}" Margin="12,0,0,0" />
+                                                <TextBlock Text="{Binding Band}" Style="{StaticResource TileNameStyle}" />
+                                            </DockPanel>
+                                            <TextBlock Text="{Binding Suggestion}" Style="{StaticResource TileLineStyle}" />
+                                            <controls:MetricBarsChart x:Name="Crowding"
+                                                                      Height="110"
+                                                                      Margin="0,8,0,0"
+                                                                      Items="{Binding Bars}"
+                                                                      AxisFormat="0.#"
+                                                                      PrimaryBrush="{DynamicResource MapBusyBrush}"
+                                                                      HighlightBrush="{DynamicResource NetworkBrush}"
+                                                                      GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                                      AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                      AutomationProperties.Name="{Binding Band, StringFormat='How busy each channel is on {0}'}" />
+                                            <TextBlock Text="{Binding SelectedDetail, ElementName=Crowding}" Style="{StaticResource DetailNoteStyle}" Margin="0,4,0,0" controls:LiveRegion.Speaks="True" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ItemsControl ItemsSource="{Binding Nearby}"
+                                      Focusable="False"
+                                      Margin="0,8,0,0"
+                                      Visibility="{Binding HasScan, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="Nearby networks">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:NearbyRow}">
+                                    <Border Style="{StaticResource TileStyle}" Padding="12,8">
+                                        <controls:AdaptiveRow Breakpoint="520" Spacing="12" LeadFills="True">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource TileNameStyle}" FontSize="{DynamicResource TextSize13}" />
+                                                <TextBlock Text="{Binding Where}" Style="{StaticResource TileLineStyle}" />
+                                            </StackPanel>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Signal}" Style="{StaticResource TileLineStyle}" Margin="0" />
+                                                <TextBlock Text="{Binding Generation}" Style="{StaticResource DetailNoteStyle}" />
+                                            </StackPanel>
+                                        </controls:AdaptiveRow>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Drops ============ -->
+                <Border Style="{StaticResource BandStyle}"
+                        Margin="0,14,0,0"
+                        Visibility="{Binding HasWifi, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Wi-Fi drops" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="{Binding DropsSummary}" TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding Drops}"
+                                      Focusable="False"
+                                      Visibility="{Binding HasDrops, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="Wi-Fi drops">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:DropRow}">
+                                    <Border Style="{StaticResource TileStyle}" Padding="12,8">
+                                        <DockPanel LastChildFill="True">
+                                            <fluent:SymbolIcon DockPanel.Dock="Left" Symbol="WiFiOff" FontSize="15" Margin="0,2,10,0" VerticalAlignment="Top">
+                                                <fluent:SymbolIcon.Style>
+                                                    <Style TargetType="fluent:SymbolIcon">
+                                                        <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Deliberate}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </fluent:SymbolIcon.Style>
+                                            </fluent:SymbolIcon>
+                                            <StackPanel>
+                                                <DockPanel LastChildFill="True">
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Back}" Style="{StaticResource TileLineStyle}" Margin="12,0,0,0" />
+                                                    <TextBlock Text="{Binding When}" Style="{StaticResource TileNameStyle}" FontSize="{DynamicResource TextSize13}" />
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding Reason}" Style="{StaticResource TileLineStyle}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ToggleButton Style="{StaticResource ToolbarButtonStyle}"
+                                      HorizontalAlignment="Left"
+                                      Margin="0,8,0,0"
+                                      IsChecked="{Binding ShowAllDrops}"
+                                      Content="{Binding MoreDropsText}"
+                                      AutomationProperties.Name="{Binding MoreDropsText}"
+                                      Visibility="{Binding HasMoreDrops, Converter={StaticResource BooleanToVisibility}}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Adapters, one by one ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <controls:AdaptiveRow Breakpoint="560" Spacing="10" LeadFills="True" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="Adapters" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                                <TextBlock Text="Every connection this PC has, the one carrying internet traffic first."
+                                           TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Left"
+                                      Content="Show every adapter"
+                                      IsChecked="{Binding ShowEvery, Mode=TwoWay}"
+                                      AutomationProperties.Name="Show every adapter"
+                                      ToolTip="Also list adapters that are not connected, virtual switches and Windows' own tunnels" />
+                        </controls:AdaptiveRow>
+
+                        <ItemsControl ItemsSource="{Binding Adapters}" Focusable="False" AutomationProperties.Name="Adapters">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:AdapterTileViewModel}">
+                                    <Border Style="{StaticResource TileStyle}">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="True">
+                                                <Border DockPanel.Dock="Left"
+                                                        Width="32" Height="32" CornerRadius="8" Margin="0,0,12,0" VerticalAlignment="Top"
+                                                        Background="{DynamicResource QuietFillBrush}">
+                                                    <fluent:SymbolIcon Symbol="{Binding Icon}" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <fluent:SymbolIcon.Style>
+                                                            <Style TargetType="fluent:SymbolIcon">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsUp}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource NetworkBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </fluent:SymbolIcon.Style>
+                                                    </fluent:SymbolIcon>
+                                                </Border>
+
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" Style="{StaticResource TileNameStyle}" />
+                                                    <TextBlock Text="{Binding Summary}" Style="{StaticResource TileLineStyle}" />
+                                                    <TextBlock Text="{Binding Description}" Style="{StaticResource DetailNoteStyle}" />
+                                                </StackPanel>
+                                            </DockPanel>
+
+                                            <ItemsControl ItemsSource="{Binding Badges}"
+                                                          ItemTemplate="{StaticResource BadgeTemplate}"
+                                                          Focusable="False"
+                                                          Margin="44,8,0,0"
+                                                          Visibility="{Binding HasBadges, Converter={StaticResource BooleanToVisibility}}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                            </ItemsControl>
+
+                                            <ItemsControl ItemsSource="{Binding Facts}" Focusable="False" Margin="44,8,0,0">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <controls:FlowGrid MinimumColumnWidth="160" Spacing="12" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:FactRow}">
+                                                        <StackPanel Margin="0,0,0,8">
+                                                            <TextBlock Text="{Binding Label}"
+                                                                       FontSize="{DynamicResource TextSize11_5}"
+                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                            <TextBox Text="{Binding Value, Mode=OneWay}"
+                                                                     Style="{StaticResource SelectableTextStyle}"
+                                                                     FontSize="{DynamicResource TextSize12_5}"
+                                                                     TextWrapping="Wrap"
+                                                                     AutomationProperties.Name="{Binding Label}" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <ItemsControl ItemsSource="{Binding DnsServers}"
+                                                          Focusable="False"
+                                                          Margin="44,0,0,0"
+                                                          Visibility="{Binding HasDnsServers, Converter={StaticResource BooleanToVisibility}}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:DnsRow}">
+                                                        <DockPanel LastChildFill="True" Margin="0,0,0,6">
+                                                            <fluent:SymbolIcon DockPanel.Dock="Left" FontSize="13" Margin="0,1,8,0" VerticalAlignment="Top">
+                                                                <fluent:SymbolIcon.Style>
+                                                                    <Style TargetType="fluent:SymbolIcon">
+                                                                        <Setter Property="Symbol" Value="Globe" />
+                                                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsConfigured}" Value="True">
+                                                                                <Setter Property="Symbol" Value="ShieldLock" />
+                                                                                <Setter Property="Foreground" Value="{DynamicResource GoodBrush}" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </fluent:SymbolIcon.Style>
+                                                            </fluent:SymbolIcon>
+                                                            <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource TextSize12}" Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                                <Run Text="DNS" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                                <Run Text="{Binding Address, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                                <Run Text="·" />
+                                                                <Run Text="{Binding Origin, Mode=OneWay}" />
+                                                                <Run Text="·" />
+                                                                <Run Text="{Binding Encryption, Mode=OneWay}" />
+                                                            </TextBlock>
+                                                        </DockPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <controls:FlowRow Spacing="8" LineSpacing="8" Margin="44,6,0,0">
+                                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                        Command="{Binding OpenSettingsCommand}"
+                                                        AutomationProperties.Name="{Binding SettingsName}"
+                                                        ToolTip="Metered connection, data limit, DNS and address settings for this kind of connection">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <fluent:SymbolIcon Symbol="Open" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                        <TextBlock Text="Windows Settings" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+
+                                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                        Command="{Binding RenewCommand}"
+                                                        Visibility="{Binding OffersFixes, Converter={StaticResource BooleanToVisibility}}"
+                                                        AutomationProperties.Name="{Binding RenewName}"
+                                                        ToolTip="Ask the router to renew this adapter's address, as ipconfig /renew does. Windows asks for administrator permission.">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <fluent:SymbolIcon Symbol="ArrowSync" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                        <TextBlock Text="Renew address" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+
+                                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                        Command="{Binding RestartCommand}"
+                                                        Visibility="{Binding OffersFixes, Converter={StaticResource BooleanToVisibility}}"
+                                                        AutomationProperties.Name="{Binding RestartName}"
+                                                        ToolTip="Switch this adapter off and on again. The connection drops for a few seconds. You will be asked first.">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <fluent:SymbolIcon Symbol="ArrowClockwise" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                        <TextBlock Text="Restart adapter" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </controls:FlowRow>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                    Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}">
+                            <fluent:SymbolIcon Symbol="PlugDisconnected" FontSize="22" Margin="0,0,0,8" HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Text="No adapter is connected" Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="Plug in a cable or join a Wi-Fi network; an adapter is listed here as soon as Windows gives it an address. Show every adapter lists the ones that are not connected."
+                                       Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </controls:SectionPage>
+</UserControl>

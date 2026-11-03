@@ -1,4 +1,5 @@
 using System.Globalization;
+using Windsock.Core.Formatting;
 
 namespace Windsock.Core.Connectivity;
 
@@ -109,21 +110,23 @@ public static class OutageWords
     {
         ArgumentNullException.ThrowIfNull(outage);
 
-        culture ??= CultureInfo.CurrentCulture;
+        // Windows' own clock, 12 or 24-hour, unless a culture is given (tests).
+        ClockPatterns clock = culture is null ? ClockFormat.Current : new ClockPatterns(DateTimeFormatInfo.GetInstance(culture));
+        culture ??= clock.Format;
 
         DateTimeOffset start = outage.Start.ToLocalTime();
         DateTime today = now.ToLocalTime().Date;
 
         if (outage.End is not { } finished)
         {
-            return string.Create(culture, $"{Day(start.Date, today, culture)}, {start:t} – now");
+            return string.Create(culture, $"{Day(start.Date, today, culture)}, {clock.Time(start)} – now");
         }
 
         DateTimeOffset end = finished.ToLocalTime();
 
         return end.Date == start.Date
-            ? string.Create(culture, $"{Day(start.Date, today, culture)}, {start:t} – {end:t}")
-            : string.Create(culture, $"{Day(start.Date, today, culture)} {start:t} – {Day(end.Date, today, culture)} {end:t}");
+            ? string.Create(culture, $"{Day(start.Date, today, culture)}, {clock.Time(start)} – {clock.Time(end)}")
+            : string.Create(culture, $"{Day(start.Date, today, culture)} {clock.Time(start)} – {Day(end.Date, today, culture)} {clock.Time(end)}");
     }
 
     /// <summary>

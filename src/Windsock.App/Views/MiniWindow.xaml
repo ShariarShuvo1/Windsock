@@ -1,0 +1,127 @@
+<Window x:Class="Windsock.App.Views.MiniWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:Windsock.App.Controls"
+        xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+        xmlns:local="clr-namespace:Windsock.App.Views"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MiniViewModel}"
+        Title="Windsock compact window"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="Manual"
+        TextOptions.TextFormattingMode="Display"
+        FocusManager.FocusedElement="{Binding ElementName=Frame}"
+        AutomationProperties.HelpText="Drag to move. Double-click or press Enter to open Windsock, right-click or press Shift+F10 for more, Escape to close.">
+
+    <Window.Resources>
+        <!--
+            The keyboard's ring, drawn just inside the frame rather than just
+            outside it as FocusRingStyle is: the window is exactly the frame's
+            size, so a ring outside it would fall off the window and not show.
+        -->
+        <Style x:Key="FrameFocusStyle">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Border Margin="1"
+                                CornerRadius="7"
+                                BorderThickness="2"
+                                BorderBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                                SnapsToDevicePixels="True" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!--
+        The rates and their last minute, for a second screen or beside a game.
+        It floats, so it takes the popover's look - the one surface with an
+        outline - and nothing else: no title bar, no buttons, no taskbar entry.
+        Dragged anywhere on it; the menu and double-click do the rest.
+
+        Fixed widths for the figures and the chart, so a rate going from KB/s
+        to MB/s does not make the window jump under the reader's eye.
+    -->
+    <local:MiniFrame x:Name="Frame"
+            Background="{DynamicResource PopupBrush}"
+            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="12,9,10,9"
+            SnapsToDevicePixels="True"
+            Focusable="True"
+            FocusVisualStyle="{StaticResource FrameFocusStyle}"
+            AutomationProperties.HelpText="Press it, or Enter, to open Windsock. Shift+F10 for more, Escape to close."
+            ToolTipService.InitialShowDelay="1200">
+        <AutomationProperties.Name>
+            <MultiBinding StringFormat="Download {0}, upload {1}">
+                <Binding Path="Download" />
+                <Binding Path="Upload" />
+            </MultiBinding>
+        </AutomationProperties.Name>
+        <local:MiniFrame.ToolTip>
+            <ToolTip Content="Drag to move · double-click or Enter to open Windsock · right-click or Shift+F10 for more" />
+        </local:MiniFrame.ToolTip>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" VerticalAlignment="Center" MinWidth="92">
+                <TextBlock FontSize="{DynamicResource TextSize13}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource DownloadBrush}"
+                           Typography.NumeralAlignment="Tabular"
+                           AutomationProperties.Name="{Binding Download, StringFormat='Download {0}'}">
+                    <Run Text="↓" /><Run Text=" " /><Run Text="{Binding Download, Mode=OneWay}" />
+                </TextBlock>
+                <TextBlock Margin="0,2,0,0"
+                           FontSize="{DynamicResource TextSize13}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource UploadBrush}"
+                           Typography.NumeralAlignment="Tabular"
+                           AutomationProperties.Name="{Binding Upload, StringFormat='Upload {0}'}">
+                    <Run Text="↑" /><Run Text=" " /><Run Text="{Binding Upload, Mode=OneWay}" />
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Both directions on one scale, so they compare. -->
+            <Border Grid.Column="1"
+                    Width="120"
+                    Height="38"
+                    Margin="10,0,0,0"
+                    Padding="4,3"
+                    CornerRadius="5"
+                    Background="{DynamicResource InsetBrush}">
+                <Grid>
+                    <controls:MeterSpark Values="{Binding DownloadMinute}"
+                                         AutomationProperties.Name="Download, last minute"
+                                         Count="{Binding MinuteCount}"
+                                         Version="{Binding MinuteVersion}"
+                                         Ceiling="{Binding MinuteTop}"
+                                         Mode="Line"
+                                         Ink="{DynamicResource DownloadBrush}" />
+                    <controls:MeterSpark Values="{Binding UploadMinute}"
+                                         AutomationProperties.Name="Upload, last minute"
+                                         Count="{Binding MinuteCount}"
+                                         Version="{Binding MinuteVersion}"
+                                         Ceiling="{Binding MinuteTop}"
+                                         Mode="Line"
+                                         Ink="{DynamicResource UploadBrush}" />
+                </Grid>
+            </Border>
+        </Grid>
+    </local:MiniFrame>
+</Window>

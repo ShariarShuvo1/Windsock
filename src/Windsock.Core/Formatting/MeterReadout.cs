@@ -2,6 +2,7 @@
 using System.Text;
 using Windsock.Core.Connectivity;
 using Windsock.Core.Hardware;
+using Windsock.Core.Meter;
 using Windsock.Core.Settings;
 
 namespace Windsock.Core.Formatting;
@@ -14,6 +15,8 @@ public readonly record struct MeterReading(
     double UploadBytesPerSecond,
     SystemSnapshot Machine)
 {
+    private readonly MeterExtras? _extras;
+
     /// <summary>A reading before anything has been measured.</summary>
     public static MeterReading Empty { get; } = new(0, 0, SystemSnapshot.Empty);
 
@@ -22,6 +25,13 @@ public readonly record struct MeterReading(
     /// watching the connection, which leaves the network figures as they are.
     /// </summary>
     public ConnectionState Connection { get; init; }
+
+    /// <summary>Everything besides the network and the machine; nothing known by default.</summary>
+    public MeterExtras Extras
+    {
+        get => _extras ?? MeterExtras.None;
+        init => _extras = value;
+    }
 }
 
 /// <summary>
@@ -52,18 +62,30 @@ public static class MeterReadout
     public static MeterLine Compose(MeterSlot slot, in MeterReading reading, TaskbarSettings settings)
     {
         ArgumentNullException.ThrowIfNull(slot);
+
+        return Compose(slot, slot.Field, reading, settings);
+    }
+
+    /// <summary>
+    /// Turns one of the readings a cell shows - its own, or one it rotates to -
+    /// into the line it draws, in that cell's own units.
+    /// </summary>
+    public static MeterLine Compose(MeterSlot slot, MeterField field, in MeterReading reading, TaskbarSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(slot);
         ArgumentNullException.ThrowIfNull(settings);
 
         (string value, string unit) = Measure(
-            slot.Field,
+            field,
+            slot,
             reading,
             slot.Family ?? settings.Family,
             slot.Scale ?? settings.Scale);
 
         return new MeterLine(
-            slot.Field,
-            GroupOf(slot.Field),
-            (slot.ShowLabel ?? settings.ShowLabels) ? Label(slot.Field) : string.Empty,
+            field,
+            GroupOf(field),
+            (slot.ShowLabel ?? settings.ShowLabels) ? Label(field, slot) : string.Empty,
             value,
             (slot.ShowUnit ?? settings.ShowUnit) ? unit : string.Empty);
     }
@@ -72,9 +94,10 @@ public static class MeterReadout
     public static MeterGroup GroupOf(MeterField field) => field switch
     {
         MeterField.ProcessorLoad or MeterField.ProcessorClock
-            or MeterField.ProcessorTemperature => MeterGroup.Processor,
+            or MeterField.ProcessorTemperature or MeterField.ProcessorPower => MeterGroup.Processor,
 
-        MeterField.BoardTemperature => MeterGroup.System,
+        MeterField.BoardTemperature or MeterField.BatteryCharge or MeterField.BatteryTime
+            or MeterField.Feed or MeterField.NpuLoad => MeterGroup.System,
 
         MeterField.GraphicsLoad or MeterField.GraphicsTemperature
             or MeterField.GraphicsMemory or MeterField.GraphicsPower => MeterGroup.Graphics,
@@ -98,6 +121,7 @@ public static class MeterReadout
         MeterField.ProcessorLoad => "CPU",
         MeterField.ProcessorClock => "CLK",
         MeterField.ProcessorTemperature => "CPU",
+        MeterField.ProcessorPower => "CPU",
         MeterField.BoardTemperature => "SYS",
         MeterField.GraphicsLoad => "GPU",
         MeterField.GraphicsTemperature => "GPU",
@@ -108,8 +132,30 @@ public static class MeterReadout
         MeterField.StorageLoad => "DISK",
         MeterField.StorageTemperature => "DISK",
         MeterField.StorageUsed => "DISK",
+        MeterField.RouterPing => "LAN",
+        MeterField.InternetPing => "PING",
+        MeterField.TodayTotal => "DAY",
+        MeterField.MonthTotal => "MON",
+        MeterField.LocalAddress => "IP",
+        MeterField.PublicAddress => "WAN",
+        MeterField.Feed => "JSON",
+        MeterField.Plan => "PLAN",
+        MeterField.WifiSignal => "WIFI",
+        MeterField.BatteryCharge => "BAT",
+        MeterField.BatteryTime => "BAT",
+        MeterField.NpuLoad => "NPU",
         _ => string.Empty,
     };
+
+    /// <summary>The short mark for a field in a particular cell: a feed may name itself.</summary>
+    public static string Label(MeterField field, MeterSlot slot)
+    {
+        ArgumentNullException.ThrowIfNull(slot);
+
+        return field == MeterField.Feed && slot.Feed is { Label.Length: > 0 } feed
+            ? feed.Label.Trim()
+            : Label(field);
+    }
 
     /// <summary>
     /// Which part of the machine a reading describes, for the picture that
@@ -120,6 +166,14 @@ public static class MeterReadout
         MeterField.Download => MeterMark.Download,
         MeterField.Upload => MeterMark.Upload,
         MeterField.NetworkTotal => MeterMark.Network,
+        MeterField.RouterPing or MeterField.InternetPing => MeterMark.Ping,
+        MeterField.TodayTotal or MeterField.MonthTotal => MeterMark.Total,
+        MeterField.LocalAddress or MeterField.PublicAddress => MeterMark.Address,
+        MeterField.Feed => MeterMark.Feed,
+        MeterField.Plan => MeterMark.Plan,
+        MeterField.WifiSignal => MeterMark.Wifi,
+        MeterField.BatteryCharge or MeterField.BatteryTime => MeterMark.Battery,
+        MeterField.Pacer => MeterMark.Pacer,
         _ => GroupOf(field) switch
         {
             MeterGroup.Processor => MeterMark.Processor,
@@ -132,24 +186,60 @@ public static class MeterReadout
     };
 
     /// <summary>
+    /// The mark for a reading as it stands: Wi-Fi drawn with its bars, a
+    /// battery with its charge, everything else as <see cref="MarkOf(MeterField)"/>.
+    /// </summary>
+    public static MeterMark MarkOf(MeterField field, in MeterReading reading)
+    {
+        switch (field)
+        {
+            case MeterField.WifiSignal:
+                return reading.Extras.Wifi?.Bars switch
+                {
+                    >= 4 => MeterMark.WifiFour,
+                    3 => MeterMark.WifiThree,
+                    2 => MeterMark.WifiTwo,
+                    1 => MeterMark.WifiOne,
+                    _ => MeterMark.Wifi,
+                };
+
+            case MeterField.BatteryCharge or MeterField.BatteryTime:
+                return reading.Machine.Battery is { IsCharging: true } ? MeterMark.BatteryCharging : MeterMark.Battery;
+
+            default:
+                return MarkOf(field);
+        }
+    }
+
+    /// <summary>
     /// What the unit beside a figure reads as, before there is a figure.
     /// </summary>
-    public static string Unit(MeterField field, RateFamily family, RateScale scale) => field switch
+    public static string Unit(MeterField field, RateFamily family, RateScale scale) =>
+        Unit(field, family, scale, TemperatureUnit.Celsius);
+
+    /// <summary>
+    /// What the unit beside a figure reads as, before there is a figure, with
+    /// temperatures in the scale chosen.
+    /// </summary>
+    public static string Unit(MeterField field, RateFamily family, RateScale scale, TemperatureUnit temperature) => field switch
     {
         MeterField.Download or MeterField.Upload or MeterField.NetworkTotal =>
             Rate(Middling, family, scale).Unit,
 
         MeterField.ProcessorLoad or MeterField.GraphicsLoad or MeterField.GraphicsMemory
-            or MeterField.MemoryLoad or MeterField.StorageLoad or MeterField.StorageUsed => "%",
+            or MeterField.MemoryLoad or MeterField.StorageLoad or MeterField.StorageUsed
+            or MeterField.BatteryCharge or MeterField.WifiSignal or MeterField.NpuLoad => "%",
 
         MeterField.ProcessorClock => "GHz",
 
         MeterField.BoardTemperature or MeterField.GraphicsTemperature
-            or MeterField.StorageTemperature or MeterField.ProcessorTemperature => "°C",
+            or MeterField.StorageTemperature or MeterField.ProcessorTemperature => TemperatureFormatter.Symbol(temperature),
 
-        MeterField.GraphicsPower => "W",
+        MeterField.GraphicsPower or MeterField.ProcessorPower => "W",
 
-        MeterField.MemoryUsed => SizeFormatter.Split(MiddlingBytes).Unit,
+        MeterField.MemoryUsed or MeterField.TodayTotal or MeterField.MonthTotal => SizeFormatter.Split(MiddlingBytes).Unit,
+
+        MeterField.RouterPing or MeterField.InternetPing => "ms",
 
         _ => string.Empty,
     };
@@ -166,6 +256,7 @@ public static class MeterReadout
         MeterField.ProcessorLoad => "CPU usage",
         MeterField.ProcessorClock => "CPU clock",
         MeterField.ProcessorTemperature => "CPU temperature",
+        MeterField.ProcessorPower => "CPU power",
         MeterField.BoardTemperature => "System temperature",
         MeterField.GraphicsLoad => "GPU usage",
         MeterField.GraphicsTemperature => "GPU temperature",
@@ -176,6 +267,19 @@ public static class MeterReadout
         MeterField.StorageLoad => "Disk activity",
         MeterField.StorageTemperature => "Disk temperature",
         MeterField.StorageUsed => "Disk space used",
+        MeterField.RouterPing => "Response time, router",
+        MeterField.InternetPing => "Response time, internet",
+        MeterField.TodayTotal => "Used today",
+        MeterField.MonthTotal => "Used this month",
+        MeterField.LocalAddress => "Local address",
+        MeterField.PublicAddress => "Public address",
+        MeterField.Feed => "A value from JSON",
+        MeterField.Plan => "Data plan left",
+        MeterField.WifiSignal => "Wi-Fi signal",
+        MeterField.BatteryCharge => "Battery charge",
+        MeterField.BatteryTime => "Battery time",
+        MeterField.Pacer => "Windsock, animated",
+        MeterField.NpuLoad => "NPU usage",
         _ => "Nothing",
     };
 
@@ -184,7 +288,25 @@ public static class MeterReadout
         field is not (MeterField.Empty
             or MeterField.Download
             or MeterField.Upload
-            or MeterField.NetworkTotal);
+            or MeterField.NetworkTotal
+            or MeterField.RouterPing
+            or MeterField.InternetPing
+            or MeterField.TodayTotal
+            or MeterField.MonthTotal
+            or MeterField.LocalAddress
+            or MeterField.PublicAddress
+            or MeterField.Feed
+            or MeterField.Plan
+            or MeterField.WifiSignal
+            or MeterField.Pacer);
+
+    /// <summary>The key a feed's value is kept under: its address and its field together.</summary>
+    public static string FeedKey(MeterFeed feed)
+    {
+        ArgumentNullException.ThrowIfNull(feed);
+
+        return string.Concat(feed.Address.Trim(), "\n", feed.Path.Trim());
+    }
 
     /// <summary>
     /// The full reading, for the tooltip that appears on hover.
@@ -198,7 +320,7 @@ public static class MeterReadout
         ArgumentNullException.ThrowIfNull(settings);
 
         var text = new StringBuilder();
-        var seen = new HashSet<MeterField>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
 
         if (Offline(reading) is { } offline)
         {
@@ -207,28 +329,33 @@ public static class MeterReadout
 
         foreach (MeterSlot slot in slots)
         {
-            MeterField field = slot.Field;
-
-            if (field == MeterField.Empty || !seen.Add(field))
+            foreach (MeterField field in slot.Fields())
             {
-                continue;
-            }
-            (string value, string unit) = Measure(
-                field,
-                reading,
-                slot.Family ?? settings.Family,
-                slot.Scale ?? settings.Scale);
+                if (field is MeterField.Empty or MeterField.Pacer || !seen.Add(string.Concat(field.ToString(), "\n", slot.Card, "\n", slot.Feed is { } feed ? FeedKey(feed) : null)))
+                {
+                    continue;
+                }
 
-            if (text.Length > 0)
-            {
-                text.Append('\n');
-            }
+                (string value, string unit) = Measure(
+                    field,
+                    slot,
+                    reading,
+                    slot.Family ?? settings.Family,
+                    slot.Scale ?? settings.Scale);
 
-            text.Append(CultureInfo.CurrentCulture, $"{Name(field)}  {value}");
+                if (text.Length > 0)
+                {
+                    text.Append('\n');
+                }
 
-            if (unit.Length > 0)
-            {
-                text.Append(CultureInfo.CurrentCulture, $" {unit}");
+                string name = field == MeterField.Feed && slot.Feed is { Label.Length: > 0 } named ? named.Label.Trim() : Name(field);
+
+                text.Append(CultureInfo.CurrentCulture, $"{name}  {value}");
+
+                if (unit.Length > 0)
+                {
+                    text.Append(CultureInfo.CurrentCulture, $" {unit}");
+                }
             }
         }
 
@@ -249,7 +376,7 @@ public static class MeterReadout
         string headline = OutageWords.Headline(state.Cause ?? OutageCause.Unknown);
 
         return state.Since is { } since
-            ? string.Create(CultureInfo.CurrentCulture, $"{headline} since {since.ToLocalTime():t}")
+            ? string.Create(CultureInfo.CurrentCulture, $"{headline} since {ClockFormat.Time(since.ToLocalTime())}")
             : headline;
     }
 
@@ -260,13 +387,61 @@ public static class MeterReadout
     /// </summary>
     public const double OfflineTrickle = 1024;
 
+    /// <summary>
+    /// A reading as a number in its field's base unit - bytes a second, bytes,
+    /// percent, degrees Celsius, milliseconds, megahertz, watts, minutes - for
+    /// colour levels and graphs; nothing when there is no reading, or nothing
+    /// numeric about it.
+    /// </summary>
+    public static double? Number(MeterField field, MeterSlot slot, in MeterReading reading)
+    {
+        ArgumentNullException.ThrowIfNull(slot);
+
+        SystemSnapshot machine = reading.Machine;
+        MeterExtras extras = reading.Extras;
+
+        return field switch
+        {
+            MeterField.Download => Usable(reading.DownloadBytesPerSecond),
+            MeterField.Upload => Usable(reading.UploadBytesPerSecond),
+            MeterField.NetworkTotal => Usable(reading.DownloadBytesPerSecond) + Usable(reading.UploadBytesPerSecond),
+            MeterField.ProcessorLoad => machine.HasValue ? machine.Processor.BusyPercent : null,
+            MeterField.ProcessorClock => machine.HasValue && machine.Processor.Megahertz > 0 ? machine.Processor.Megahertz : null,
+            MeterField.ProcessorTemperature => machine.Processor.Celsius,
+            MeterField.ProcessorPower => machine.HasValue ? machine.Processor.Watts : null,
+            MeterField.BoardTemperature => machine.BoardCelsius,
+            MeterField.GraphicsLoad => Busiest(Cards(machine, slot.Card), card => card.BusyPercent),
+            MeterField.GraphicsTemperature => Busiest(Cards(machine, slot.Card), card => card.Celsius),
+            MeterField.GraphicsMemory => Busiest(Cards(machine, slot.Card), card => card.MemoryTotal > 0 ? card.MemoryUsed * 100.0 / card.MemoryTotal : null),
+            MeterField.GraphicsPower => Busiest(Cards(machine, slot.Card), card => card.Watts),
+            MeterField.MemoryLoad => machine is { HasValue: true, Memory.Total: > 0 } ? machine.Memory.UsedPercent : null,
+            MeterField.MemoryUsed => machine is { HasValue: true, Memory.Total: > 0 } ? machine.Memory.Used : null,
+            MeterField.StorageLoad => Busiest(machine)?.BusyPercent,
+            MeterField.StorageTemperature => Hottest(machine),
+            MeterField.StorageUsed => Fullest(machine),
+            MeterField.RouterPing => extras.RouterMilliseconds,
+            MeterField.InternetPing => extras.InternetChecked ? extras.InternetMilliseconds : null,
+            MeterField.TodayTotal => extras.TodayBytes,
+            MeterField.MonthTotal => extras.MonthBytes,
+            MeterField.Feed => slot.Feed is { } feed && extras.Feeds is { } feeds && feeds.TryGetValue(FeedKey(feed), out FieldReading read) ? read.Number : null,
+            MeterField.WifiSignal => extras.Wifi?.Percent,
+            MeterField.BatteryCharge => machine.Battery?.ChargePercent,
+            MeterField.BatteryTime => BatteryTime(machine)?.TotalMinutes,
+            MeterField.NpuLoad => machine.HasValue && machine.Npus.Count > 0 ? machine.Npus.Max(npu => npu.BusyPercent) : null,
+            MeterField.Plan => extras.PlanLeft is null ? null : extras.PlanUsedPercent,
+            _ => null,
+        };
+    }
+
     private static (string Value, string Unit) Measure(
         MeterField field,
+        MeterSlot slot,
         in MeterReading reading,
         RateFamily family,
         RateScale scale)
     {
         SystemSnapshot machine = reading.Machine;
+        MeterExtras extras = reading.Extras;
 
         return field switch
         {
@@ -282,27 +457,25 @@ public static class MeterReadout
 
             MeterField.ProcessorClock => Clock(machine),
             MeterField.ProcessorTemperature => machine.Processor.Celsius is { } degrees
-                ? Temperature(degrees)
+                ? Temperature(degrees, extras.Temperature)
                 : Missing,
-            MeterField.BoardTemperature => machine.BoardCelsius is { } heat
-                ? Temperature(heat)
-                : Missing,
-
-            MeterField.GraphicsLoad => Adapter(machine) is { } load
-                ? Percent(load.BusyPercent)
-                : Missing,
-
-            MeterField.GraphicsTemperature => Adapter(machine)?.Celsius is { } celsius
-                ? Temperature(celsius)
-                : Missing,
-
-            MeterField.GraphicsMemory => Adapter(machine) is { MemoryTotal: > 0 } card
-                ? Percent(card.MemoryUsed * 100.0 / card.MemoryTotal)
-                : Missing,
-
-            MeterField.GraphicsPower => Adapter(machine)?.Watts is { } watts
+            MeterField.ProcessorPower => machine is { HasValue: true, Processor.Watts: { } watts }
                 ? (Whole(watts), "W")
                 : Missing,
+            MeterField.BoardTemperature => machine.BoardCelsius is { } heat
+                ? Temperature(heat, extras.Temperature)
+                : Missing,
+
+            MeterField.GraphicsLoad => Each(Cards(machine, slot.Card), card => Whole(Math.Clamp(card.BusyPercent, 0, 100)), "%"),
+            MeterField.GraphicsTemperature => Each(
+                Cards(machine, slot.Card),
+                card => card.Celsius is { } celsius ? TemperatureFormatter.Split(celsius, extras.Temperature).Value : null,
+                TemperatureFormatter.Symbol(extras.Temperature)),
+            MeterField.GraphicsMemory => Each(
+                Cards(machine, slot.Card),
+                card => card.MemoryTotal > 0 ? Whole(Math.Clamp(card.MemoryUsed * 100.0 / card.MemoryTotal, 0, 100)) : null,
+                "%"),
+            MeterField.GraphicsPower => Each(Cards(machine, slot.Card), card => card.Watts is { } watts ? Whole(watts) : null, "W"),
 
             MeterField.MemoryLoad => machine is { HasValue: true, Memory.Total: > 0 }
                 ? Percent(machine.Memory.UsedPercent)
@@ -317,11 +490,30 @@ public static class MeterReadout
                 : Missing,
 
             MeterField.StorageTemperature => Hottest(machine) is { } celsius
-                ? Temperature(celsius)
+                ? Temperature(celsius, extras.Temperature)
                 : Missing,
 
             MeterField.StorageUsed => Fullest(machine) is { } percent
                 ? Percent(percent)
+                : Missing,
+
+            MeterField.RouterPing => Ping(extras.RouterMilliseconds),
+            MeterField.InternetPing => extras.InternetChecked ? Ping(extras.InternetMilliseconds) : Missing,
+            MeterField.TodayTotal => extras.TodayBytes is { } today ? SizeFormatter.Split(today) : Missing,
+            MeterField.MonthTotal => extras.MonthBytes is { } month ? SizeFormatter.Split(month) : Missing,
+            MeterField.LocalAddress => extras.LocalAddress is { Length: > 0 } local ? (local, string.Empty) : Missing,
+            MeterField.PublicAddress => extras.PublicAddress is { Length: > 0 } seen
+                ? (seen, extras.PublicCountry ?? string.Empty)
+                : Missing,
+            MeterField.Feed => Feed(slot, extras),
+            MeterField.Plan => Plan(extras.PlanLeft),
+            MeterField.WifiSignal => extras.Wifi is { Percent: { } signal } wifi
+                ? (Whole(Math.Clamp(signal, 0, 100)), wifi.Band.Length > 0 ? string.Concat("% · ", wifi.Band) : "%")
+                : Missing,
+            MeterField.BatteryCharge => machine.Battery?.ChargePercent is { } charge ? Percent(charge) : Missing,
+            MeterField.BatteryTime => BatteryTime(machine) is { } time ? (Clock(time), string.Empty) : Missing,
+            MeterField.NpuLoad => machine.HasValue && machine.Npus.Count > 0
+                ? Percent(machine.Npus.Max(npu => npu.BusyPercent))
                 : Missing,
 
             _ => (string.Empty, string.Empty),
@@ -344,8 +536,56 @@ public static class MeterReadout
     private static (string Value, string Unit) Percent(double percent) =>
         (Whole(Math.Clamp(percent, 0, 100)), "%");
 
-    private static (string Value, string Unit) Temperature(double celsius) =>
-        (Whole(celsius), "°C");
+    private static (string Value, string Unit) Temperature(double celsius, TemperatureUnit unit) =>
+        TemperatureFormatter.Split(celsius, unit);
+
+    private static (string Value, string Unit) Ping(double? milliseconds) => milliseconds switch
+    {
+        null => Missing,
+        < 1 => ("<1", "ms"),
+        { } taken => (Whole(taken), "ms"),
+    };
+
+    private static (string Value, string Unit) Feed(MeterSlot slot, MeterExtras extras)
+    {
+        if (slot.Feed is not { } feed
+            || extras.Feeds is not { } feeds
+            || !feeds.TryGetValue(FeedKey(feed), out FieldReading read)
+            || read.Value is not { Length: > 0 } value)
+        {
+            return Missing;
+        }
+
+        return (value, feed.Unit.Trim());
+    }
+
+    /// <summary>"41 GB left · 17 days" as the figure and the time after it.</summary>
+    private static (string Value, string Unit) Plan(string? left)
+    {
+        if (left is not { Length: > 0 })
+        {
+            return Missing;
+        }
+
+        int split = left.IndexOf(" · ", StringComparison.Ordinal);
+
+        return split < 0 ? (left, string.Empty) : (left[..split], left[(split + 3)..]);
+    }
+
+    private static TimeSpan? BatteryTime(SystemSnapshot machine) => machine.Battery switch
+    {
+        { IsCharging: true, TimeToFull: { } full } => full,
+        { State: Power.BatteryState.Discharging, TimeLeft: { } left } => left,
+        _ => null,
+    };
+
+    /// <summary>Hours and minutes, "2:05"; a day or more as "24:00".</summary>
+    private static string Clock(TimeSpan time)
+    {
+        int minutes = (int)Math.Clamp(Math.Round(time.TotalMinutes), 0, 99 * 60 + 59);
+
+        return string.Create(CultureInfo.InvariantCulture, $"{minutes / 60}:{minutes % 60:00}");
+    }
 
     private static (string Value, string Unit) Clock(SystemSnapshot machine)
     {
@@ -361,24 +601,85 @@ public static class MeterReadout
             : (Whole(megahertz), "MHz");
     }
 
-    private static GraphicsReading? Adapter(SystemSnapshot machine)
+    /// <summary>
+    /// The graphics cards a cell follows: the busiest by default, one by name,
+    /// or every card.
+    /// </summary>
+    private static List<GraphicsReading> Cards(SystemSnapshot machine, string? card)
     {
-        if (!machine.HasValue)
+        List<GraphicsReading> cards = [];
+
+        if (!machine.HasValue || machine.Graphics.Count == 0)
         {
-            return null;
+            return cards;
+        }
+
+        if (card == MeterSlot.EveryCard)
+        {
+            cards.AddRange(machine.Graphics);
+            return cards;
+        }
+
+        if (card is { Length: > 0 } named)
+        {
+            foreach (GraphicsReading each in machine.Graphics)
+            {
+                if (string.Equals(each.Name, named, StringComparison.Ordinal))
+                {
+                    cards.Add(each);
+                    return cards;
+                }
+            }
+
+            // The card chosen is not there - unplugged, or a driver renamed
+            // it. Nothing rather than another card's figure under its name.
+            return cards;
         }
 
         GraphicsReading? busiest = null;
 
-        foreach (GraphicsReading card in machine.Graphics)
+        foreach (GraphicsReading each in machine.Graphics)
         {
-            if (busiest is null || card.BusyPercent > busiest.BusyPercent)
+            if (busiest is null || each.BusyPercent > busiest.BusyPercent)
             {
-                busiest = card;
+                busiest = each;
             }
         }
 
-        return busiest;
+        cards.Add(busiest!);
+        return cards;
+    }
+
+    private static (string Value, string Unit) Each(List<GraphicsReading> cards, Func<GraphicsReading, string?> read, string unit)
+    {
+        List<string> values = [];
+
+        foreach (GraphicsReading card in cards)
+        {
+            values.Add(read(card) ?? Unknown);
+        }
+
+        if (values.Count == 0 || values.TrueForAll(value => value == Unknown))
+        {
+            return Missing;
+        }
+
+        return (string.Join(" · ", values), unit);
+    }
+
+    private static double? Busiest(List<GraphicsReading> cards, Func<GraphicsReading, double?> read)
+    {
+        double? most = null;
+
+        foreach (GraphicsReading card in cards)
+        {
+            if (read(card) is { } value && double.IsFinite(value) && (most is null || value > most))
+            {
+                most = value;
+            }
+        }
+
+        return most;
     }
 
     private static DriveReading? Busiest(SystemSnapshot machine)

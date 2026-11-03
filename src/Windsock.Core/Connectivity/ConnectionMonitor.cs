@@ -141,14 +141,7 @@ public sealed partial class ConnectionMonitor : BackgroundService
     /// <summary>Checks again soon rather than at the next turn, after a setting changed.</summary>
     public void Nudge()
     {
-        try
-        {
-            _nudge.Release();
-        }
-        catch (SemaphoreFullException)
-        {
-            // Already asked.
-        }
+        _nudge.Signal();
     }
 
     private void Release()

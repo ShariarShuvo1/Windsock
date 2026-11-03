@@ -29,12 +29,18 @@ public partial class HistoryPanelView : UserControl
         PeakDownColumn.Header = viewModel.PeakDownColumn;
         PeakUpColumn.Header = viewModel.PeakUpColumn;
         RecordedColumn.Header = viewModel.RecordedColumn;
+        NetworkColumn.Header = viewModel.NetworkColumn;
+        NetworkColumn.Visibility = Visibility.Collapsed;
 
         Chart.HoverChanged += OnChartHoverChanged;
 
         // The lanes keep to the usage chart's view, so a moment is in the same
         // place in both however far it is zoomed.
         Chart.ViewChanged += (_, _) => Lanes.Follow(Chart.View);
+        Chart.ViewChanged += (_, _) => MarkLanes.Follow(Chart.View);
+        Chart.ViewChanged += (_, _) => MeasureLayer.Follow(Chart.View);
+        MarkLanes.NoteClicked += (_, id) => viewModel.Marks.EditNote(id);
+        viewModel.Marks.PropertyChanged += OnMarksChanged;
         Lanes.HoverChanged += OnLanesHoverChanged;
 
         // Clicking a bar goes to its row, on whatever page it is.
@@ -101,6 +107,30 @@ public partial class HistoryPanelView : UserControl
         {
             ShowRecordedColumn();
         }
+    }
+
+    /// <summary>A note opened for writing - from the row menu or the lane - is brought into view and focused.</summary>
+    private void OnMarksChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // The network column only takes room while the period has a network to name.
+        if (e.PropertyName == nameof(HistoryMarksViewModel.HasNetworkKeys))
+        {
+            NetworkColumn.Visibility = _viewModel.Marks.HasNetworkKeys ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
+
+        if (e.PropertyName != nameof(HistoryMarksViewModel.IsEditingNote) || !_viewModel.Marks.IsEditingNote)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Loaded,
+            new Action(() =>
+            {
+                NoteEditor.BringIntoView();
+                NoteBox.Focus();
+            }));
     }
 
     private void ShowRecordedColumn() =>

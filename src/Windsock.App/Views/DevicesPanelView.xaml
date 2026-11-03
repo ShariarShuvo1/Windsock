@@ -1,0 +1,381 @@
+<UserControl x:Class="Windsock.App.Views.DevicesPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DevicesPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="700">
+
+    <!--
+        Network › Home devices: what is connected at home, and the router's own
+        account of itself. The device list is one band, each device on a tile;
+        the router is a second band below it. Why nothing is being looked for -
+        switched off, or not a private network - is said at the top, with the
+        switch, rather than an empty list left to explain itself.
+    -->
+    <controls:SectionPage Title="Home devices" Subtitle="{Binding PageSubtitle}">
+        <controls:SectionPage.Actions>
+            <controls:FlowRow Spacing="8" LineSpacing="8">
+                <Button Style="{StaticResource ToolbarButtonStyle}"
+                        Command="{Binding SweepCommand}"
+                        AutomationProperties.Name="Look for every device"
+                        ToolTip="Ask every address on this network who holds it: one ARP request each, which stays on your network. Takes about half a minute."
+                        ToolTipService.ShowOnDisabled="True">
+                    <StackPanel Orientation="Horizontal">
+                        <fluent:SymbolIcon Symbol="Radar" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Look for every device" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSweeping}" Value="True">
+                                            <Setter Property="Text" Value="Looking…" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Button>
+            </controls:FlowRow>
+        </controls:SectionPage.Actions>
+
+        <ScrollViewer x:Name="Body"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="{StaticResource PagePadding}">
+            <StackPanel>
+                <!-- Why nothing is being looked for, and the switch when it is off. -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Visibility="{Binding StatusNotice, Converter={StaticResource TextToVisibility}}">
+                    <StackPanel>
+                        <DockPanel LastChildFill="True">
+                            <fluent:SymbolIcon DockPanel.Dock="Left"
+                                               Symbol="Info"
+                                               FontSize="15"
+                                               Margin="0,0,10,0"
+                                               VerticalAlignment="Top"
+                                               Foreground="{DynamicResource AccentBrush}" />
+                            <TextBlock Text="{Binding StatusNotice}"
+                                       FontSize="{DynamicResource TextSize12_5}"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </DockPanel>
+
+                        <Button Style="{StaticResource PrimaryButtonStyle}"
+                                HorizontalAlignment="Left"
+                                Margin="25,10,0,2"
+                                Command="{Binding TurnOnCommand}"
+                                Content="Look for devices on this network"
+                                Visibility="{Binding IsOff, Converter={StaticResource BooleanToVisibility}}"
+                                AutomationProperties.Name="Look for devices on this network"
+                                ToolTip="The same switch as Find devices on my home network, under Settings › Data and privacy" />
+                    </StackPanel>
+                </Border>
+
+                <!-- What the last sweep, wake or forget did. -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Visibility="{Binding ActionNotice, Converter={StaticResource TextToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <fluent:SymbolIcon DockPanel.Dock="Left"
+                                           Symbol="Checkmark"
+                                           FontSize="15"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="{Binding ActionNotice}"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.LiveSetting="Polite" controls:LiveRegion.Speaks="True"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </DockPanel>
+                </Border>
+
+                <!-- ===================== The devices ===================== -->
+                <Border Style="{StaticResource BandStyle}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Devices" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="{Binding ListNote}"
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding Rows}"
+                                      Focusable="False"
+                                      Visibility="{Binding HasRows, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="Devices on the home network">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:DeviceRowViewModel}">
+                                    <Border Style="{StaticResource TileStyle}"
+                                            AutomationProperties.Name="{Binding Spoken}">
+                                        <DockPanel LastChildFill="True">
+                                            <Border DockPanel.Dock="Left"
+                                                    Width="32"
+                                                    Height="32"
+                                                    CornerRadius="8"
+                                                    Margin="0,0,12,0"
+                                                    VerticalAlignment="Top"
+                                                    Background="{DynamicResource QuietFillBrush}">
+                                                <fluent:SymbolIcon Symbol="{Binding Symbol}"
+                                                                   FontSize="16"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </Border>
+
+                                            <StackPanel>
+                                                <DockPanel LastChildFill="True">
+                                                    <Border DockPanel.Dock="Right"
+                                                            Style="{StaticResource TileBadgeStyle}"
+                                                            Background="{DynamicResource AccentSoftBrush}"
+                                                            Margin="10,0,0,0"
+                                                            Visibility="{Binding IsHereNow, Converter={StaticResource BooleanToVisibility}}">
+                                                        <TextBlock Text="Here now"
+                                                                   FontSize="{DynamicResource TextSize11}"
+                                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                    </Border>
+
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </DockPanel>
+
+                                                <TextBlock Text="{Binding Maker}"
+                                                           Margin="0,2,0,0"
+                                                           FontSize="{DynamicResource TextSize12}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                                <TextBlock Text="{Binding Addresses}"
+                                                           Margin="0,2,0,0"
+                                                           FontSize="{DynamicResource TextSize12}"
+                                                           TextWrapping="Wrap"
+                                                           Typography.NumeralAlignment="Tabular"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                                <TextBlock Text="{Binding Seen}"
+                                                           Margin="0,2,0,0"
+                                                           FontSize="{DynamicResource TextSize12}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+
+                                                <!-- Renaming, in place: Enter keeps it, Escape leaves it. -->
+                                                <controls:FlowRow Spacing="6"
+                                                                  LineSpacing="6"
+                                                                  Margin="0,8,0,0"
+                                                                  Visibility="{Binding IsRenaming, Converter={StaticResource BooleanToVisibility}}">
+                                                    <TextBox Style="{StaticResource FieldBoxStyle}"
+                                                             MinWidth="200"
+                                                             MaxLength="63"
+                                                             Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                                             Tag="A name of your own"
+                                                             IsVisibleChanged="OnRenameBoxVisible"
+                                                             AutomationProperties.Name="Name for this device">
+                                                        <TextBox.InputBindings>
+                                                            <KeyBinding Key="Enter" Command="{Binding SaveNameCommand}" />
+                                                            <KeyBinding Key="Escape" Command="{Binding CancelRenameCommand}" />
+                                                        </TextBox.InputBindings>
+                                                    </TextBox>
+                                                    <Button Style="{StaticResource PrimaryButtonStyle}"
+                                                            Command="{Binding SaveNameCommand}"
+                                                            Content="Keep"
+                                                            AutomationProperties.Name="Keep this name" />
+                                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                            Command="{Binding CancelRenameCommand}"
+                                                            Content="Cancel"
+                                                            AutomationProperties.Name="Cancel renaming" />
+                                                </controls:FlowRow>
+
+                                                <!-- The device's own actions. -->
+                                                <controls:FlowRow Spacing="6"
+                                                                  LineSpacing="6"
+                                                                  Margin="0,8,0,0"
+                                                                  Visibility="{Binding IsRenaming, Converter={StaticResource InverseBooleanToVisibility}}">
+                                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                            Command="{Binding StartRenameCommand}"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat='Rename {0}'}"
+                                                            ToolTip="Give it a name of your own. Clear the name to go back to the one found.">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <fluent:SymbolIcon Symbol="Rename" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <TextBlock Text="Rename" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+
+                                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                            Command="{Binding WakeCommand}"
+                                                            Visibility="{Binding CanWake, Converter={StaticResource BooleanToVisibility}}"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat='Wake {0}'}"
+                                                            ToolTip="Broadcast a Wake-on-LAN packet for it on this network. It wakes only if its adapter is set to.">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <fluent:SymbolIcon Symbol="Power" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <TextBlock Text="Wake" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+
+                                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                            Command="{Binding AskForgetCommand}"
+                                                            Visibility="{Binding IsConfirmingForget, Converter={StaticResource InverseBooleanToVisibility}}"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat='Forget {0}'}"
+                                                            ToolTip="Take it off the list. If it is seen again it counts as new.">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <fluent:SymbolIcon Symbol="Delete" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <TextBlock Text="Forget" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Visibility="{Binding IsConfirmingForget, Converter={StaticResource BooleanToVisibility}}">
+                                                        <TextBlock Text="Forget it?"
+                                                                   VerticalAlignment="Center"
+                                                                   FontSize="{DynamicResource TextSize12}"
+                                                                   Margin="0,0,8,0"
+                                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                        <Button Style="{StaticResource PrimaryButtonStyle}"
+                                                                Command="{Binding ForgetCommand}"
+                                                                Content="Forget"
+                                                                Margin="0,0,6,0"
+                                                                AutomationProperties.Name="Confirm forgetting this device" />
+                                                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                                Command="{Binding CancelForgetCommand}"
+                                                                Content="Keep"
+                                                                AutomationProperties.Name="Keep this device" />
+                                                    </StackPanel>
+                                                </controls:FlowRow>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- What the list will hold, why it holds nothing, and what to do. -->
+                        <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                    Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}">
+                            <fluent:SymbolIcon Symbol="Router"
+                                               FontSize="22"
+                                               Margin="0,0,0,8"
+                                               HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="{Binding EmptyNote}" Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===================== The router ===================== -->
+                <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                            <controls:FlowRow DockPanel.Dock="Right" Spacing="8" LineSpacing="8" VerticalAlignment="Top">
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding CheckRouterCommand}"
+                                        Visibility="{Binding IsRouterCheckOn, Converter={StaticResource BooleanToVisibility}}"
+                                        AutomationProperties.Name="Check the router"
+                                        ToolTip="Ask your router over UPnP for its details and its opened ports. Only asks; changes nothing.">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="ArrowSync" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Check" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding TurnOnRouterCheckCommand}"
+                                        Visibility="{Binding IsRouterCheckOn, Converter={StaticResource InverseBooleanToVisibility}}"
+                                        AutomationProperties.Name="Turn on the router check"
+                                        ToolTip="The same switch as Router details, under Settings › Data and privacy">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="Router" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Turn on and check" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </controls:FlowRow>
+
+                            <StackPanel Style="{StaticResource BandHeadStyle}" Margin="0">
+                                <TextBlock Text="Router" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="{Binding RouterChecked}"
+                                           Style="{StaticResource CardNoteStyle}"
+                                           Visibility="{Binding RouterChecked, Converter={StaticResource TextToVisibility}}" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <StackPanel Visibility="{Binding HasReport, Converter={StaticResource BooleanToVisibility}}" Margin="0,8,0,0">
+                            <TextBlock Text="{Binding RouterName}"
+                                       FontSize="{DynamicResource TextSize16}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="{Binding RouterOutside}"
+                                       Margin="0,4,0,0"
+                                       FontSize="{DynamicResource TextSize12_5}"
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding RouterOutside, Converter={StaticResource TextToVisibility}}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding RouterNote}"
+                                   Margin="0,8,0,0"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   TextWrapping="Wrap"
+                                   AutomationProperties.LiveSetting="Polite" controls:LiveRegion.Speaks="True"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                        <TextBlock Text="Ports opened to the internet"
+                                   Margin="0,16,0,8"
+                                   FontWeight="SemiBold"
+                                   Visibility="{Binding HasMappings, Converter={StaticResource BooleanToVisibility}}"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                        <ItemsControl ItemsSource="{Binding Mappings}"
+                                      Focusable="False"
+                                      Visibility="{Binding HasMappings, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="Ports the router has opened to the internet">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:PortMappingRowViewModel}">
+                                    <Border Style="{StaticResource TileStyle}"
+                                            Focusable="True"
+                                            FocusVisualStyle="{StaticResource FocusRingStyle}"
+                                            AutomationProperties.Name="{Binding Spoken}">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="True">
+                                                <TextBlock DockPanel.Dock="Left"
+                                                           Text="{Binding Port}"
+                                                           MinWidth="96"
+                                                           FontWeight="SemiBold"
+                                                           Typography.NumeralAlignment="Tabular"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <TextBlock Text="{Binding Leads, StringFormat='→ {0}'}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            </DockPanel>
+                                            <TextBlock Text="{Binding Asked}"
+                                                       Margin="0,2,0,0"
+                                                       FontSize="{DynamicResource TextSize12}"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="{Binding MappingsNote}"
+                                   Margin="0,8,0,0"
+                                   FontSize="{DynamicResource TextSize12}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding MappingsNote, Converter={StaticResource TextToVisibility}}"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </controls:SectionPage>
+</UserControl>

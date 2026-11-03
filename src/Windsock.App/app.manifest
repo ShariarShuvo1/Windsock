@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Windsock's application manifest.
+
+  It exists for one line: per-monitor DPI awareness, version 2. WPF takes its
+  DPI awareness from here and nowhere else; the ApplicationHighDpiMode property
+  this project used to carry is read only by Windows Forms, so the process was
+  System aware, bitmap-stretched by Windows on any monitor at a different scale
+  from the main one. Worse, docking the meter into Explorer's taskbar, which is
+  Per Monitor V2, is a cross-process SetParent between windows of different
+  awareness, and Windows answers that by quietly resetting the awareness of the
+  child's whole process. Declared here, the two already match.
+
+  Replacing the SDK's default manifest means saying again what that one said:
+  run as the invoker, and the Windows 10 and 11 compatibility entry.
+-->
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 and Windows 11. -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2, PerMonitor</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>

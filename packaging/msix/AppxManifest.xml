@@ -23,9 +23,11 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap5 rescap">
+  IgnorableNamespaces="uap uap3 uap5 desktop rescap">
 
   <Identity
     Name="ShariarShuvo.Windsock"
@@ -115,6 +117,83 @@
             Enabled="false"
             DisplayName="Windsock" />
         </uap5:Extension>
+
+      </Extensions>
+    </Application>
+
+    <!--
+      The command line and the AI tools, each an application of its own whose
+      Executable is the program its alias starts. Windows puts windsock.exe and
+      windsock-mcp.exe in %LOCALAPPDATA%\Microsoft\WindowsApps, which is on
+      PATH, so `windsock status` works in any console once the app is installed,
+      the way winget does; a packaged program cannot be started by its path
+      inside WindowsApps, so this is also how an AI assistant's settings name the
+      tools server.
+
+      Why not an alias on the main application, pointing its Executable at the
+      command line: that is the form Windows Terminal uses, but the main
+      application's own Executable is Windsock.exe, and nothing measured here
+      shows which of the two such an alias would start. An application whose
+      Executable is the command line cannot start anything else. One alias each,
+      too: makeappx refuses a second windows.appExecutionAlias in one
+      Application (measured). AppListEntry="none" keeps both out of Start.
+
+      The unpackaged editions ship the same programs beside Windsock.exe, plus
+      Windsock.com, and reach PATH only if the person adds the folder.
+
+      Not yet exercised by a real Store package: on the first Store build,
+      check that `windsock status` runs in a console and prints there, that
+      piping it (`windsock status | more`) works, and that an assistant can
+      start windsock-mcp. (No double hyphen in here: XML comments cannot hold
+      one.)
+    -->
+    <Application
+      Id="WindsockCommand"
+      Executable="Windsock.Cli.exe"
+      EntryPoint="Windows.FullTrustApplication">
+
+      <uap:VisualElements
+        DisplayName="Windsock command line"
+        Description="The windsock command: status, usage, exports and home devices, for scripts."
+        BackgroundColor="#0E2231"
+        Square150x150Logo="Images\Square150x150Logo.png"
+        Square44x44Logo="Images\Square44x44Logo.png"
+        AppListEntry="none" />
+
+      <Extensions>
+        <uap3:Extension
+          Category="windows.appExecutionAlias"
+          Executable="Windsock.Cli.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="windsock.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+
+    <Application
+      Id="WindsockTools"
+      Executable="Windsock.Mcp.exe"
+      EntryPoint="Windows.FullTrustApplication">
+
+      <uap:VisualElements
+        DisplayName="Windsock tools for AI assistants"
+        Description="A read-only Model Context Protocol server over Windsock's local feed."
+        BackgroundColor="#0E2231"
+        Square150x150Logo="Images\Square150x150Logo.png"
+        Square44x44Logo="Images\Square44x44Logo.png"
+        AppListEntry="none" />
+
+      <Extensions>
+        <uap3:Extension
+          Category="windows.appExecutionAlias"
+          Executable="Windsock.Mcp.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="windsock-mcp.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
       </Extensions>
     </Application>
   </Applications>
@@ -137,10 +216,22 @@
       page, per-app history and the Process page's per-program figures are read
       from it, and nothing is sent anywhere.
 
-      Nothing else is declared. The Store edition takes no trace session, no
-      driver and no elevation.
+      The Store edition takes no trace session, no driver and no elevation.
     -->
     <rescap:Capability Name="networkDataUsageManagement" />
+
+    <!--
+      Location, for Wi-Fi only. Since Windows 11 24H2 the network's name and
+      the nearby networks a scan hears are given only to apps the person has
+      allowed location, because both can tell where a PC is. Windsock never
+      asks for a position: the Wi-Fi signal, band, channel and speed come from
+      the realtime quality call, which needs nothing, and Windows asks the
+      person only when they open Wi-Fi details or start a scan. Not wiFiControl:
+      that governs the WinRT WiFiAdapter class and MSM notifications, and
+      Windsock uses neither - only wlanapi's queries and scans. Not yet
+      exercised inside a real package (2026-10-05).
+    -->
+    <DeviceCapability Name="location" />
   </Capabilities>
 
 </Package>

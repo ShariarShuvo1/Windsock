@@ -22,7 +22,9 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>Windsock.App</RootNamespace>
     <AssemblyName>Windsock</AssemblyName>
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- Per-monitor DPI v2. WPF reads it only from a manifest; the WinForms
+         ApplicationHighDpiMode property this used to be did nothing here. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\Windsock.ico</ApplicationIcon>
     <!-- Required by the CsWin32 source generator, which emits pointer-based
          interop for the shell's file information structure. -->
@@ -94,5 +96,27 @@
   <ItemGroup>
     <ProjectReference Include="..\Windsock.Core\Windsock.Core.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The command line and the AI tools ship beside Windsock.exe, in both
+      editions. Referencing an executable project copies its apphost, runtime
+      configuration and dependencies into this output and into a publish, where
+      a self-contained publish gives them the same runtime (measured).
+    -->
+    <ProjectReference Include="..\Windsock.Cli\Windsock.Cli.csproj" />
+    <ProjectReference Include="..\Windsock.Mcp\Windsock.Mcp.csproj" />
+  </ItemGroup>
+
+  <!-- Windsock.com: the command line's apphost under the name a console finds
+       first (PATHEXT lists .COM before .EXE), so `windsock` runs the command line
+       while Windsock.exe stays the window. See Windsock.Cli.csproj. -->
+  <Target Name="CopyCommandHost" AfterTargets="Build" Condition="Exists('$(OutDir)Windsock.Cli.exe')">
+    <Copy SourceFiles="$(OutDir)Windsock.Cli.exe" DestinationFiles="$(OutDir)Windsock.com" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="PublishCommandHost" AfterTargets="Publish" Condition="Exists('$(PublishDir)Windsock.Cli.exe')">
+    <Copy SourceFiles="$(PublishDir)Windsock.Cli.exe" DestinationFiles="$(PublishDir)Windsock.com" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

@@ -1,0 +1,376 @@
+<UserControl x:Class="Windsock.App.Views.FeedSettingsBand"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:HomeFeedSettingsViewModel}"
+             d:DesignWidth="800">
+
+    <!--
+        Settings › Advanced: the local feed, then what reads it - an OBS
+        overlay, the windsock command and AI assistants. Two bands, one per
+        subject: the feed's own switch, address, token and port; then the three
+        ways in, each with what to copy.
+    -->
+    <UserControl.Resources>
+        <!--
+            Text to copy, drawn as text but reached by Tab so it can be read
+            and selected from the keyboard: it carries the keyboard's ring,
+            since nothing else about it changes when it has focus.
+        -->
+        <Style x:Key="CodeTextStyle" TargetType="TextBox" BasedOn="{StaticResource SelectableTextStyle}">
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Courier New" />
+            <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="IsTabStop" Value="True" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- ===================== The feed ===================== -->
+        <Border Style="{StaticResource BandStyle}" Margin="0,0,0,12">
+            <StackPanel>
+                <StackPanel Style="{StaticResource BandHeadStyle}">
+                    <TextBlock Text="Local feed" Style="{StaticResource CardTitleStyle}" />
+                    <TextBlock Text="Read-only JSON for programs on this PC: Rainmeter, Stream Deck, Home Assistant, an OBS overlay, the windsock command and AI assistants. It answers this PC only, and only requests carrying its token."
+                               TextWrapping="Wrap"
+                               Style="{StaticResource CardNoteStyle}" />
+                </StackPanel>
+
+                <Border Style="{StaticResource BandRowStyle}">
+                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                        <StackPanel VerticalAlignment="Center">
+                            <controls:SettingHead HorizontalAlignment="Left"
+                                                  Text="Local feed"
+                                                  Hint="Listens on 127.0.0.1 and ::1, which no other computer can reach, and only answers: it never sends anything anywhere. It refuses requests from other computers, from web pages, and without the token below. Rates, the connection, today's and this month's use, the data plan, the machine's load and the household's traffic; never your devices or your apps." />
+
+                            <TextBlock Text="{Binding FeedState}"
+                                       Margin="0,4,0,0"
+                                       AutomationProperties.LiveSetting="Polite">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource DetailNoteStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding FeedFailed}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <CheckBox HorizontalAlignment="Left"
+                                  Style="{StaticResource ToolbarCheckStyle}"
+                                  VerticalAlignment="Center"
+                                  Content="Turn on"
+                                  IsChecked="{Binding FeedEnabled, Mode=TwoWay}"
+                                  AutomationProperties.Name="Local feed" />
+                    </controls:AdaptiveRow>
+                </Border>
+
+                <Border Style="{StaticResource BandRowStyle}">
+                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                        <StackPanel VerticalAlignment="Center">
+                            <controls:SettingHead HorizontalAlignment="Left"
+                                                  Text="Address"
+                                                  Hint="Ask it with the token in a header: curl -H &quot;Authorization: Bearer TOKEN&quot; followed by this address and v1/status. The endpoints are listed in the README." />
+                            <TextBox Text="{Binding Address, Mode=OneWay}"
+                                     Style="{StaticResource CodeTextStyle}"
+                                     Margin="0,4,0,0"
+                                     AutomationProperties.Name="The feed's address" />
+                        </StackPanel>
+
+                        <Button HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding CopyAddressCommand}"
+                                AutomationProperties.Name="Copy the feed's address">
+                            <StackPanel Orientation="Horizontal">
+                                <fluent:SymbolIcon Symbol="Copy" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="Copy" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </controls:AdaptiveRow>
+                </Border>
+
+                <Border Style="{StaticResource BandRowStyle}">
+                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                        <StackPanel VerticalAlignment="Center">
+                            <controls:SettingHead HorizontalAlignment="Left"
+                                                  Text="Token"
+                                                  Hint="Every request must carry it, so other accounts on this PC and web pages cannot read the feed. It is kept in feed.json beside your settings, never in the settings file, so exporting settings never takes it along. Resetting it shuts out every program that had the old one." />
+                            <TextBox Text="{Binding TokenText, Mode=OneWay}"
+                                     Style="{StaticResource CodeTextStyle}"
+                                     Margin="0,4,0,0"
+                                     AutomationProperties.Name="The feed's token" />
+                        </StackPanel>
+
+                        <controls:FlowRow HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Spacing="8"
+                                          LineSpacing="8"
+                                          Visibility="{Binding HasToken, Converter={StaticResource BooleanToVisibility}}">
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding ToggleTokenCommand}"
+                                    Content="{Binding TokenButtonLabel}"
+                                    AutomationProperties.Name="Show or hide the token" />
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding CopyTokenCommand}"
+                                    AutomationProperties.Name="Copy the token">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Copy" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Copy" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding AskResetCommand}"
+                                    Visibility="{Binding IsConfirmingReset, Converter={StaticResource InverseBooleanToVisibility}}"
+                                    AutomationProperties.Name="Reset the token"
+                                    ToolTip="Make a new token. You will be asked first.">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="KeyReset" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Reset" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <StackPanel Orientation="Horizontal"
+                                        Visibility="{Binding IsConfirmingReset, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Text="Shut out every program using it?"
+                                           VerticalAlignment="Center"
+                                           FontSize="{DynamicResource TextSize12}"
+                                           Margin="0,0,8,0"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <Button Style="{StaticResource PrimaryButtonStyle}"
+                                        Command="{Binding ResetTokenCommand}"
+                                        Content="Reset"
+                                        Margin="0,0,6,0"
+                                        AutomationProperties.Name="Confirm resetting the token" />
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding CancelResetCommand}"
+                                        Content="Keep"
+                                        AutomationProperties.Name="Keep the token" />
+                            </StackPanel>
+                        </controls:FlowRow>
+                    </controls:AdaptiveRow>
+                </Border>
+
+                <Border Style="{StaticResource BandRowStyle}">
+                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                        <StackPanel VerticalAlignment="Center">
+                            <controls:SettingHead HorizontalAlignment="Left"
+                                                  Text="Port"
+                                                  Hint="The feed's port on this PC, 40406 unless you choose another. Programs set up with the old port need the new one." />
+                            <TextBlock Text="{Binding PortProblem}"
+                                       Style="{StaticResource DetailNoteStyle}"
+                                       Foreground="{DynamicResource HotBrush}"
+                                       Margin="0,4,0,0"
+                                       AutomationProperties.LiveSetting="Polite"
+                                       Visibility="{Binding PortProblem, Converter={StaticResource TextToVisibility}}" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                            <TextBox Style="{StaticResource FieldBoxStyle}"
+                                     Width="96"
+                                     MaxLength="5"
+                                     Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}"
+                                     AutomationProperties.Name="Feed port">
+                                <TextBox.InputBindings>
+                                    <KeyBinding Key="Enter" Command="{Binding ApplyPortCommand}" />
+                                </TextBox.InputBindings>
+                            </TextBox>
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ApplyPortCommand}"
+                                    Content="Use this port"
+                                    AutomationProperties.Name="Use this port" />
+                        </StackPanel>
+                    </controls:AdaptiveRow>
+                </Border>
+
+                <Border Style="{StaticResource BandRowStyle}">
+                    <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                        <controls:SettingHead HorizontalAlignment="Left"
+                                              Text="Token in the address"
+                                              Hint="Lets a program that cannot send a header - OBS, a browser's live events, Rainmeter's WebParser - put the token in the address instead (?token=). A token in an address can end up in that program's logs or history, so a program that can send the Authorization header should." />
+
+                        <CheckBox HorizontalAlignment="Left"
+                                  Style="{StaticResource ToolbarCheckStyle}"
+                                  VerticalAlignment="Center"
+                                  Content="Allow"
+                                  IsChecked="{Binding TokenInAddress, Mode=TwoWay}"
+                                  AutomationProperties.Name="Token in the address" />
+                    </controls:AdaptiveRow>
+                </Border>
+
+                <TextBlock Text="{Binding FeedNotice}"
+                           Style="{StaticResource DetailNoteStyle}"
+                           TextWrapping="Wrap"
+                           Margin="0,10,0,2"
+                           AutomationProperties.LiveSetting="Polite"
+                           Visibility="{Binding FeedNotice, Converter={StaticResource TextToVisibility}}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ===================== What reads it ===================== -->
+        <Border Style="{StaticResource BandStyle}" Margin="0,0,0,12">
+            <StackPanel>
+                <StackPanel Style="{StaticResource BandHeadStyle}">
+                    <TextBlock Text="Overlay, command line and AI assistants" Style="{StaticResource CardTitleStyle}" />
+                    <TextBlock Text="Ways in to the feed, each with what to copy. The overlay and AI assistants need the feed on; the command line's exports and device list do not."
+                               TextWrapping="Wrap"
+                               Style="{StaticResource CardNoteStyle}" />
+                </StackPanel>
+
+                <!-- The OBS overlay: what it shows, how big, and the address with the token. -->
+                <Border Style="{StaticResource BandRowStyle}">
+                    <StackPanel>
+                        <controls:SettingHead HorizontalAlignment="Left"
+                                              Text="Stream overlay"
+                                              Hint="A transparent page for an OBS Browser source, updating every second. Choose what it shows, then copy its address into OBS. It is drawn for OBS's own browser; any browser on this PC can open it too." />
+
+                        <controls:FlowRow Spacing="14" LineSpacing="6" Margin="0,10,0,0">
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}" Content="Download" IsChecked="{Binding OverlayDown}" AutomationProperties.Name="Overlay shows download" />
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}" Content="Upload" IsChecked="{Binding OverlayUp}" AutomationProperties.Name="Overlay shows upload" />
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}" Content="Ping" IsChecked="{Binding OverlayPing}" AutomationProperties.Name="Overlay shows ping" />
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}" Content="Today" IsChecked="{Binding OverlayToday}" AutomationProperties.Name="Overlay shows today's use" />
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}" Content="Processor" IsChecked="{Binding OverlayProcessor}" AutomationProperties.Name="Overlay shows processor load" />
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}" Content="In bits" IsChecked="{Binding OverlayBits}" AutomationProperties.Name="Overlay counts in bits" />
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}" Content="Stacked" IsChecked="{Binding OverlayColumn}" AutomationProperties.Name="Overlay stacks its figures" />
+                            <controls:Picker Style="{StaticResource PickerStyle}"
+                                             MinWidth="140"
+                                             ItemsSource="{Binding OverlaySizes}"
+                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                             SelectedValuePath="Pixels"
+                                             SelectedValue="{Binding OverlaySize, Mode=TwoWay}"
+                                             AutomationProperties.Name="Overlay text size" />
+                        </controls:FlowRow>
+
+                        <DockPanel LastChildFill="True" Margin="0,10,0,0">
+                            <Button DockPanel.Dock="Right"
+                                    VerticalAlignment="Top"
+                                    Margin="10,0,0,0"
+                                    Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding CopyOverlayCommand}"
+                                    AutomationProperties.Name="Copy the overlay address"
+                                    ToolTip="Copies the address with the real token in it">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Copy" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Copy" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <TextBox Text="{Binding OverlayAddress, Mode=OneWay}"
+                                     Style="{StaticResource CodeTextStyle}"
+                                     VerticalAlignment="Center"
+                                     AutomationProperties.Name="The overlay's address" />
+                        </DockPanel>
+
+                        <TextBlock Text="{Binding OverlayNote}"
+                                   Style="{StaticResource DetailNoteStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- The windsock command, and putting it on the PATH - asked first, and undone here. -->
+                <Border Style="{StaticResource BandRowStyle}">
+                    <StackPanel>
+                        <controls:SettingHead HorizontalAlignment="Left"
+                                              Text="Command line"
+                                              Hint="windsock status, windsock watch, windsock usage --month 2026-09, windsock export, windsock devices and windsock wake, for scripts. windsock --help lists them. Status and watch read the feed; usage, export and devices read Windsock's files directly, so they work while Windsock is closed." />
+
+                        <TextBlock Text="{Binding PathNote}"
+                                   Style="{StaticResource DetailNoteStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <controls:FlowRow Spacing="8" LineSpacing="8" Margin="0,10,0,0">
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding AskAddToPathCommand}"
+                                    Visibility="{Binding CanAddToPath, Converter={StaticResource BooleanToVisibility}}"
+                                    AutomationProperties.Name="Add Windsock to your PATH"
+                                    ToolTip="So that typing windsock in a new console runs the command line. You will be asked first.">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="WindowConsole" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Add to PATH" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding RemoveFromPathCommand}"
+                                    Visibility="{Binding CanRemoveFromPath, Converter={StaticResource BooleanToVisibility}}"
+                                    AutomationProperties.Name="Remove Windsock from your PATH"
+                                    ToolTip="Takes Windsock's folder out of your PATH again, leaving the rest of it as it was">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Delete" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Remove from PATH" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </controls:FlowRow>
+
+                        <!-- Asks in place, saying exactly what changes and that it can be undone. -->
+                        <Border Style="{StaticResource NoticeStyle}"
+                                Margin="0,10,0,0"
+                                Visibility="{Binding IsConfirmingPath, Converter={StaticResource BooleanToVisibility}}">
+                            <StackPanel>
+                                <TextBlock TextWrapping="Wrap"
+                                           FontSize="{DynamicResource TextSize12_5}"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                    <Run Text="This changes your Windows account's PATH: it adds" />
+                                    <Run Text="{x:Static vm:HomeFeedSettingsViewModel.CommandFolder}" FontWeight="SemiBold" />
+                                    <Run Text="to the end of it, so that typing windsock in a console opened from now on runs Windsock's command line. Nothing else in your PATH changes, and Remove from PATH here, or uninstalling Windsock, takes it out again." />
+                                </TextBlock>
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <Button Style="{StaticResource PrimaryButtonStyle}"
+                                            Command="{Binding AddToPathCommand}"
+                                            Content="Add to PATH"
+                                            Margin="0,0,6,0"
+                                            AutomationProperties.Name="Confirm adding Windsock to your PATH" />
+                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                            Command="{Binding CancelPathCommand}"
+                                            Content="Cancel"
+                                            AutomationProperties.Name="Leave your PATH as it is" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- AI assistants: the settings block to paste. -->
+                <Border Style="{StaticResource BandRowStyle}">
+                    <StackPanel>
+                        <controls:SettingHead HorizontalAlignment="Left"
+                                              Text="AI assistants"
+                                              Hint="A small read-only tools server (Model Context Protocol) an AI assistant can run, to answer questions like how much was used last week from Windsock's own figures. It reads the feed, so the feed must be on. What an assistant reads it may send to the company that runs it; Windsock itself sends nothing." />
+
+                        <DockPanel LastChildFill="True" Margin="0,10,0,0">
+                            <Button DockPanel.Dock="Right"
+                                    VerticalAlignment="Top"
+                                    Margin="10,0,0,0"
+                                    Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding CopyMcpCommand}"
+                                    AutomationProperties.Name="Copy the MCP settings"
+                                    ToolTip="Copies the block to paste into your assistant's MCP settings">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Copy" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Copy" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Border Background="{DynamicResource InsetBrush}" CornerRadius="8" Padding="12,10">
+                                <TextBox Text="{x:Static vm:HomeFeedSettingsViewModel.McpSnippet}"
+                                         Style="{StaticResource CodeTextStyle}"
+                                         TextWrapping="Wrap"
+                                         AutomationProperties.Name="The MCP settings block" />
+                            </Border>
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

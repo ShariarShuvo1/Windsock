@@ -8,6 +8,7 @@ using Windsock.Core.Formatting;
 using Windsock.Core.Hardware;
 using Windsock.Core.History;
 using Windsock.Core.Networking;
+using Windsock.Core.Settings;
 
 namespace Windsock.App.ViewModels;
 
@@ -21,7 +22,6 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
     private const double WarmProcessor = 85;
     private const double WornDrive = 70;
     private const int NamesLastFor = 60;
-    private const int AdaptersLastFor = 30;
     private readonly SystemMonitor _monitor;
     private readonly ThroughputMonitor _throughput;
     private readonly ThroughputOverviewViewModel _rates;
@@ -33,7 +33,6 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
 
     private IDisposable? _watch;
     private int _sinceNamed;
-    private int _sinceAdapters = AdaptersLastFor;
     private bool _identified;
     private bool _reading;
     private bool _closed;
@@ -46,28 +45,34 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
         ThroughputOverviewViewModel rates,
         IUsageHistoryStore history,
         UsageRecorder recorder,
-        Dispatcher dispatcher)
+        Dispatcher dispatcher,
+        IMachineHistoryStore machineHistory,
+        WindsockSettings settings,
+        HouseholdFigureViewModel household)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(throughput);
         ArgumentNullException.ThrowIfNull(rates);
         ArgumentNullException.ThrowIfNull(recorder);
 
+        Household = household;
         _monitor = monitor;
         _throughput = throughput;
         _rates = rates;
         _history = history;
         _recorder = recorder;
         _dispatcher = dispatcher;
+        _machineHistory = machineHistory;
 
         Network = new SystemTileViewModel(SystemPart.Network, "NETWORK", "Network activity");
         Processor = new SystemTileViewModel(SystemPart.Processor, "PROCESSOR", "Processor load", "Clock", "In the kernel", "Running");
         Graphics = new SystemTileViewModel(SystemPart.Graphics, "GRAPHICS", "Graphics load", "Memory", "Temperature", "Power");
         Memory = new SystemTileViewModel(SystemPart.Memory, "MEMORY", "Memory in use", "In use", "Free", "Committed");
         Storage = new SystemTileViewModel(SystemPart.Storage, "STORAGE", "Drive activity", "Reading", "Writing", "Free");
+        Battery = new SystemTileViewModel(SystemPart.Battery, "BATTERY", "Battery charge", "Power", "Time", "Health");
 
         // The network first and chosen, because it is what Windsock is for.
-        Tiles = [Network, Processor, Graphics, Memory, Storage];
+        Tiles = [Network, Processor, Graphics, Memory, Storage, Battery];
         Selected = Network;
         Network.IsSelected = true;
         foreach (SystemTileViewModel tile in Tiles)
@@ -79,13 +84,68 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
         _monitor.Identified += OnIdentified;
         _rates.PropertyChanged += OnRatesChanged;
 
+        // The line under a part's title names what is fitted, so it follows the
+        // cards and drives as they are found.
+        Cards.CollectionChanged += (_, _) => OnPropertyChanged(nameof(PageSubtitle));
+        Drives.CollectionChanged += (_, _) => OnPropertyChanged(nameof(PageSubtitle));
+
         // Identification is announced once. A panel built for a window opened
         // later than that would otherwise wait for it forever and stay blank.
         if (_monitor.IsIdentified)
         {
             Identify();
         }
+
+        StartPc(settings);
     }
+
+    /// <summary>Turns the shared page to one part of the machine, as the sidebar asks.</summary>
+    public void Choose(SystemPart part) => Tiles.First(tile => tile.Part == part).IsSelected = true;
+
+    /// <summary>The page's title: the part chosen in the sidebar.</summary>
+    public string PageTitle => Selected.Part switch
+    {
+        SystemPart.Processor => "Processor",
+        SystemPart.Graphics => "Graphics",
+        SystemPart.Memory => "Memory",
+        SystemPart.Storage => "Storage",
+        SystemPart.Battery => "Battery",
+        _ => "Network",
+    };
+
+    /// <summary>One line under the title: what the part is, as far as the machine has said.</summary>
+    public string PageSubtitle => Selected.Part switch
+    {
+        SystemPart.Processor => ProcessorName.Length > 0 ? ProcessorName : "Reading the processor…",
+        SystemPart.Graphics => Cards.Count > 0 ? string.Join("  ·  ", Cards.Select(card => card.Name)) : "Reading the graphics…",
+        SystemPart.Memory => MemoryFitted.Length > 0 ? MemoryFitted : "Reading the memory…",
+        SystemPart.Storage => Drives.Count switch
+        {
+            0 => "Reading the drives…",
+            1 => "One drive",
+            _ => string.Create(CultureInfo.CurrentCulture, $"{Drives.Count} drives"),
+        },
+        SystemPart.Battery => BatteryDetail.Summary.Length > 0 ? BatteryDetail.Summary : "Reading the battery…",
+        _ => "What this PC is moving right now, and what today has come to",
+    };
+
+    /// <summary>
+    /// The network's rates in miniature - down, then up - for the Taskbar entry
+    /// in the sidebar, which shows what the meter shows.
+    /// </summary>
+    [ObservableProperty]
+    public partial string RatesFigure { get; private set; } = string.Empty;
+
+    /// <summary>What today has come to, both ways together, for the Usage entry in the sidebar.</summary>
+    [ObservableProperty]
+    public partial string TodayFigure { get; private set; } = string.Empty;
+
+    private void DescribeRates() =>
+        RatesFigure = string.Concat(
+            "↓",
+            RateFormatter.Format(_lastDownload, _rates.SelectedFamily, _rates.SelectedScale),
+            " ↑",
+            RateFormatter.Format(_lastUpload, _rates.SelectedFamily, _rates.SelectedScale));
 
     /// <summary>The five tiles, in the order they are shown.</summary>
     public IReadOnlyList<SystemTileViewModel> Tiles { get; }
@@ -117,6 +177,8 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(IsMemoryShowing))]
     [NotifyPropertyChangedFor(nameof(IsStorageShowing))]
     [NotifyPropertyChangedFor(nameof(IsWaiting))]
+    [NotifyPropertyChangedFor(nameof(PageTitle))]
+    [NotifyPropertyChangedFor(nameof(PageSubtitle))]
     public partial SystemTileViewModel Selected { get; set; }
 
     /// <summary>Whether the network's detail is the one showing.</summary>
@@ -215,12 +277,14 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
                 parts.Add(Board);
             }
 
+            if (PowerLine.Length > 0)
+            {
+                parts.Add(PowerLine);
+            }
+
             return string.Join("  ·  ", parts);
         }
     }
-
-    /// <summary>The adapters carrying traffic, fastest first.</summary>
-    public ObservableCollection<AdapterRowViewModel> Adapters { get; } = [];
 
     /// <summary>What was downloaded today, from the history.</summary>
     [ObservableProperty]
@@ -236,6 +300,7 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
 
     /// <summary>What the processor is.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PageSubtitle))]
     public partial string ProcessorName { get; set; } = string.Empty;
 
     /// <summary>Its cores, threads and the split between them.</summary>
@@ -306,6 +371,7 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
 
     /// <summary>What is physically fitted, from the firmware.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PageSubtitle))]
     public partial string MemoryFitted { get; set; } = string.Empty;
 
     /// <summary>One row per logical processor.</summary>
@@ -349,6 +415,7 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
         }
 
         _watch = _monitor.Watch();
+        FollowBusiest();
 
         // The rates never stop being measured, so the network tile catches up
         // on what it missed rather than starting again from a flat line.
@@ -356,7 +423,6 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
         _throughput.SampleTaken += OnThroughputSampled;
         _recorder.Recorded += OnRecorded;
 
-        _sinceAdapters = AdaptersLastFor;
         _ = ReadTodayAsync();
     }
 
@@ -373,6 +439,7 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
 
         _watch.Dispose();
         _watch = null;
+        FollowBusiest();
     }
 
     private void SeedNetwork()
@@ -430,6 +497,7 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
         (string value, string unit) = RateFormatter.Split(_lastDownload, _rates.SelectedFamily, _rates.SelectedScale);
         Network.Show(value, unit, _lastDownload);
         Network.Detail = "Up " + RateFormatter.Format(_lastUpload, _rates.SelectedFamily, _rates.SelectedScale);
+        DescribeRates();
     }
 
     private void DescribeNetwork()
@@ -437,6 +505,7 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
         (string value, string unit) = RateFormatter.Split(_lastDownload, _rates.SelectedFamily, _rates.SelectedScale);
         Network.Restate(value, unit);
         Network.Detail = "Up " + RateFormatter.Format(_lastUpload, _rates.SelectedFamily, _rates.SelectedScale);
+        DescribeRates();
     }
 
     private void OnRecorded(object? sender, EventArgs e) =>
@@ -473,43 +542,23 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
 
             TodayDownload = SizeFormatter.Format(today.BytesDown);
             TodayUpload = SizeFormatter.Format(today.BytesUp);
+            TodayFigure = today.Minutes > 0 || today.BytesDown + today.BytesUp > 0
+                ? string.Concat(SizeFormatter.Format(today.BytesDown + today.BytesUp), " today")
+                : string.Empty;
             TodayNote = _recorder.IsRecording
-                ? string.Create(CultureInfo.InvariantCulture, $"{DurationLabel.Format(today.Minutes * 60d)} recorded today")
+                ? string.Create(CultureInfo.InvariantCulture, $"{DurationLabel.Format(today.Minutes * 60d)} recorded")
                 : "Recording is paused";
         }
         catch (Exception ex) when (HistoryFailure.IsStorage(ex))
         {
             TodayDownload = MeterReadout.Unknown;
             TodayUpload = MeterReadout.Unknown;
+            TodayFigure = string.Empty;
             TodayNote = "The history could not be read";
         }
         finally
         {
             _reading = false;
-        }
-    }
-
-    private async Task ReadAdaptersAsync()
-    {
-        IReadOnlyList<AdapterRowViewModel> read = await Task.Run(AdapterRowViewModel.Read).ConfigureAwait(true);
-
-        if (_closed)
-        {
-            return;
-        }
-
-        // Replaced only when something changed, so a list being read is not a
-        // list that flickers every half minute.
-        if (read.SequenceEqual(Adapters))
-        {
-            return;
-        }
-
-        Adapters.Clear();
-
-        foreach (AdapterRowViewModel adapter in read)
-        {
-            Adapters.Add(adapter);
         }
     }
 
@@ -547,6 +596,7 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
         ProcessorName = processor.Name;
         ProcessorCores = Describe(processor);
         ProcessorSilicon = Silicon(processor);
+        IdentifyPc(machine);
 
         Modules.Clear();
         long fitted = 0;
@@ -644,18 +694,11 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
             _names.Clear();
         }
 
-        // Readings also arrive while the page is hidden, whenever the taskbar
-        // meter watches the machine; nobody needs the adapters listed then.
-        if (_watch is not null && ++_sinceAdapters >= AdaptersLastFor)
-        {
-            _sinceAdapters = 0;
-            _ = ReadAdaptersAsync();
-        }
-
         ApplyProcessor(snapshot.Processor);
         ApplyGraphics(snapshot.Graphics);
         ApplyMemory(snapshot.Memory);
         ApplyStorage(snapshot.Drives);
+        ApplyPc(snapshot);
     }
 
     private void ApplyProcessor(ProcessorReading reading)
@@ -1047,6 +1090,7 @@ public sealed partial class SystemPanelViewModel : ObservableObject, IDisposable
         _monitor.Sampled -= OnSampled;
         _monitor.Identified -= OnIdentified;
         _rates.PropertyChanged -= OnRatesChanged;
+        StopPc();
 
         foreach (SystemTileViewModel tile in Tiles)
         {

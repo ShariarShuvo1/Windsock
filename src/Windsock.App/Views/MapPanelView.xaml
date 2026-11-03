@@ -1,0 +1,63 @@
+<UserControl x:Class="Windsock.App.Views.MapPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             xmlns:views="clr-namespace:Windsock.App.Views"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:MapPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="700">
+
+    <!--
+        The map, and nothing else: everything this PC is talking to and the way
+        the traffic goes, with the page's whole height under the heading. It used
+        to share the Apps page with the table, behind a splitter. Its own
+        controls float along the foot of the picture; the page's one Pause sits
+        in the heading, in the same place as on every other live page.
+    -->
+    <controls:SectionPage Title="Map"
+                          Subtitle="Everything this PC is talking to, and the way the traffic goes">
+        <controls:SectionPage.Actions>
+            <Button Style="{StaticResource ToolbarButtonStyle}"
+                    Command="{Binding ToggleLiveCommand}"
+                    AutomationProperties.Name="{Binding LiveLabel}"
+                    ToolTip="Hold the map still so it can be read. Nothing stops being measured while it is paused.">
+                <StackPanel Orientation="Horizontal">
+                    <fluent:SymbolIcon FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0">
+                        <fluent:SymbolIcon.Style>
+                            <Style TargetType="fluent:SymbolIcon">
+                                <Setter Property="Symbol" Value="PauseCircle" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLive}" Value="False">
+                                        <Setter Property="Symbol" Value="PlayCircle" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </fluent:SymbolIcon.Style>
+                    </fluent:SymbolIcon>
+
+                    <TextBlock Text="{Binding LiveLabel}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </controls:SectionPage.Actions>
+
+        <!--
+            No scroller: the map takes exactly the height the page has. Given
+            unlimited height inside a scroller, the picture asks for as much as
+            its whole layout would need, thousands of pixels, and the page grew
+            to match.
+        -->
+        <controls:DetachHost x:Name="MapHost"
+                             Margin="{StaticResource PagePadding}"
+                             WindowTitle="Network map"
+                             WindowWidth="1240"
+                             WindowHeight="820"
+                             Note="The map is open in a window of its own.">
+            <views:NetworkMapView DataContext="{Binding Map}" />
+        </controls:DetachHost>
+    </controls:SectionPage>
+</UserControl>

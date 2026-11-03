@@ -1,0 +1,116 @@
+<Window x:Class="Windsock.App.Views.ImportSettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+        mc:Ignorable="d"
+        Title="Import settings"
+        Width="500"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!--
+        Everything an imported file would change, before any of it does. The
+        list is the point of the dialog: settings somebody chose are about to be
+        replaced, and they should see which. History is never part of it.
+    -->
+    <Grid Margin="22,20,22,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <fluent:SymbolIcon Symbol="ArrowImport"
+                               FontSize="18"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"
+                               Foreground="{DynamicResource AccentBrush}" />
+
+            <TextBlock Text="Import these settings?"
+                       FontSize="{DynamicResource TextSize15}"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+        </StackPanel>
+
+        <TextBlock x:Name="Summary"
+                   Grid.Row="1"
+                   FontSize="{DynamicResource TextSize12_5}"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,12"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+        <!-- One tile a change, on a band of their own, with the band between them. -->
+        <Border Grid.Row="2"
+                Style="{StaticResource BandStyle}"
+                Padding="8"
+                Margin="0,0,0,18">
+            <ScrollViewer MaxHeight="300"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="Changes" Focusable="False" AutomationProperties.Name="What would change">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource TileStyle}" Padding="12,8,12,9">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}"
+                                               FontSize="{DynamicResource TextSize12_5}"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock FontSize="{DynamicResource TextSize12}" TextWrapping="Wrap" Margin="0,2,0,0">
+                                        <Run Text="{Binding Was, Mode=OneWay}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <Run Text=" → " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <Run Text="{Binding Becomes, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Changes past the list's length, and what the file holds that this PC will not take as it is. -->
+        <StackPanel x:Name="Beneath" Grid.Row="3" Margin="0,-8,0,18" Visibility="Collapsed">
+            <TextBlock x:Name="More"
+                       Visibility="Collapsed"
+                       FontSize="{DynamicResource TextSize12}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,6"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            <TextBlock x:Name="Notes"
+                       Visibility="Collapsed"
+                       FontSize="{DynamicResource TextSize12}"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       AutomationProperties.Name="What this PC will not take as it is" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Style="{StaticResource PrimaryButtonStyle}"
+                    Content="Import and restart"
+                    MinWidth="140"
+                    Margin="0,0,8,0"
+                    Click="OnImport"
+                    AutomationProperties.Name="Import and restart" />
+
+            <Button Style="{StaticResource ToolbarButtonStyle}"
+                    Content="Cancel"
+                    MinWidth="84"
+                    IsCancel="True"
+                    IsDefault="True"
+                    Click="OnCancel"
+                    AutomationProperties.Name="Cancel import" />
+        </StackPanel>
+    </Grid>
+</Window>

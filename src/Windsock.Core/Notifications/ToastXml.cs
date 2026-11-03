@@ -48,10 +48,16 @@ public static class ToastXml
             writer.WriteEndElement();
             writer.WriteEndElement();
 
-            if (!sound || notice.Quiet)
+            if (!Audible(notice, sound))
             {
                 writer.WriteStartElement("audio");
                 writer.WriteAttributeString("silent", "true");
+                writer.WriteEndElement();
+            }
+            else if (SoundSource(notice.Sound) is { } source)
+            {
+                writer.WriteStartElement("audio");
+                writer.WriteAttributeString("src", source);
                 writer.WriteEndElement();
             }
 
@@ -60,6 +66,36 @@ public static class ToastXml
 
         return text.ToString();
     }
+
+    /// <summary>
+    /// Whether a notice makes a sound at all: never while sound is off, never
+    /// when its kind was set to silent, and for a notice quiet by nature only
+    /// when somebody chose a sound for its kind.
+    /// </summary>
+    public static bool Audible(Notice notice, bool sound)
+    {
+        ArgumentNullException.ThrowIfNull(notice);
+
+        return sound && notice.Sound switch
+        {
+            NoticeSound.Silent => false,
+            NoticeSound.Default => !notice.Quiet,
+            _ => true,
+        };
+    }
+
+    /// <summary>
+    /// The Windows sound a choice names, or nothing for Windows' default. These
+    /// are the documented <c>ms-winsoundevent</c> names a notice may use.
+    /// </summary>
+    public static string? SoundSource(NoticeSound sound) => sound switch
+    {
+        NoticeSound.Reminder => "ms-winsoundevent:Notification.Reminder",
+        NoticeSound.Message => "ms-winsoundevent:Notification.IM",
+        NoticeSound.Mail => "ms-winsoundevent:Notification.Mail",
+        NoticeSound.Text => "ms-winsoundevent:Notification.SMS",
+        _ => null,
+    };
 
     /// <summary>
     /// Shortens text to a length, ending it with an ellipsis rather than

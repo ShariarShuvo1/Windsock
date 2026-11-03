@@ -1,4 +1,6 @@
-﻿namespace Windsock.Core.Hardware;
+﻿using Windsock.Core.Power;
+
+namespace Windsock.Core.Hardware;
 
 /// <summary>
 /// What the machine is doing, at one instant.
@@ -21,6 +23,24 @@ public sealed record SystemSnapshot(
 
     /// <summary>Whether this is a real reading rather than the empty one.</summary>
     public bool HasValue => Taken != DateTimeOffset.MinValue;
+
+    /// <summary>
+    /// The batteries taken together, or nothing on a machine without one.
+    /// Read every five seconds, however often the rest is.
+    /// </summary>
+    public BatteryReading? Battery { get; init; }
+
+    /// <summary>Mains or battery, the power mode and battery saver.</summary>
+    public PowerReading Power { get; init; } = PowerReading.Unknown;
+
+    /// <summary>Each neural processor's load; empty on a machine without one.</summary>
+    public IReadOnlyList<NpuReading> Npus { get; init; } = [];
+
+    /// <summary>
+    /// The busiest processes for processor, memory and file I/O, or nothing
+    /// while nobody has asked for them.
+    /// </summary>
+    public BusiestProcesses? Busiest { get; init; }
 }
 
 /// <summary>
@@ -38,7 +58,50 @@ public sealed record ProcessorReading(
 {
     /// <summary>A reading before anything has been read.</summary>
     public static ProcessorReading Empty { get; } = new(0, 0, [], 0, 0, 0, 0);
+
+    /// <summary>
+    /// Windows' <c>% Processor Utility</c>: the time busy scaled by the clock
+    /// against the base clock, so it passes 100 under turbo and falls below
+    /// the time busy when the chip slows down. What Task Manager showed before
+    /// it moved to time busy in 2025, and what its Details tab still offers as
+    /// "CPU Utility". Nothing where the counter is absent.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="BusyPercent"/> is the share of time not idle, which is what
+    /// Task Manager shows since KB5064081 (August 2025) on Windows 11 24H2,
+    /// and on 25H2.
+    /// </remarks>
+    public double? UtilityPercent { get; init; }
+
+    /// <summary>The performance cores' average load, on a hybrid chip.</summary>
+    public double? PerformancePercent { get; init; }
+
+    /// <summary>The efficiency cores' average load, on a hybrid chip.</summary>
+    public double? EfficiencyPercent { get; init; }
+
+    /// <summary>
+    /// The processor package's power, from its energy counter, in the full
+    /// edition run as administrator with PawnIO installed; otherwise nothing.
+    /// </summary>
+    public double? Watts { get; init; }
 }
+
+/// <summary>
+/// What one neural processor was doing.
+/// </summary>
+/// <param name="Name">The driver's description of it.</param>
+/// <param name="BusyPercent">Its busiest engine, 0 to 100, as Task Manager shows an NPU.</param>
+/// <param name="Engines">Each kind of engine and how busy it was.</param>
+/// <param name="DedicatedBytes">Its own memory in use, or nothing where it has none or will not say.</param>
+/// <param name="SharedBytes">System memory it is using.</param>
+/// <param name="Processes">The processes using it, busiest first.</param>
+public sealed record NpuReading(
+    string Name,
+    double BusyPercent,
+    IReadOnlyList<EngineLoad> Engines,
+    long? DedicatedBytes,
+    long? SharedBytes,
+    IReadOnlyList<GraphicsProcess> Processes);
 
 /// <summary>
 /// What one display adapter was doing.

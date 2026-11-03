@@ -1,0 +1,113 @@
+<UserControl x:Class="Windsock.App.Views.MeterCardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:MeterCardViewModel}"
+             Width="296"
+             TextOptions.TextFormattingMode="Display">
+
+    <!--
+        What the meter says when the pointer rests on it, in the app's own
+        popover look rather than the taskbar's: it floats above the bar like
+        any of Windows' own flyouts. One subject a row, headed in small capitals
+        the way the app's sheets are, and nothing that needs a click - it closes
+        when the pointer leaves.
+    -->
+    <UserControl.Resources>
+        <Style x:Key="CardHeadStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource TextSize10}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,12,0,4" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+        </Style>
+
+        <Style x:Key="CardLineStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+
+        <Style x:Key="CardNoteStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource TextSize11_5}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- The rates now, large, and the connection under them. -->
+        <DockPanel LastChildFill="False">
+            <TextBlock DockPanel.Dock="Left"
+                       FontSize="{DynamicResource TextSize15}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource DownloadBrush}"
+                       Typography.NumeralAlignment="Tabular">
+                <Run Text="↓" /><Run Text=" " /><Run Text="{Binding Download, Mode=OneWay}" />
+            </TextBlock>
+
+            <TextBlock DockPanel.Dock="Right"
+                       FontSize="{DynamicResource TextSize15}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource UploadBrush}"
+                       Typography.NumeralAlignment="Tabular">
+                <Run Text="↑" /><Run Text=" " /><Run Text="{Binding Upload, Mode=OneWay}" />
+            </TextBlock>
+        </DockPanel>
+
+        <TextBlock Text="{Binding Connection}" Style="{StaticResource CardNoteStyle}" Margin="0,2,0,0" />
+
+        <!-- The last minute: both directions on one scale, so they compare. -->
+        <TextBlock Text="LAST MINUTE" Style="{StaticResource CardHeadStyle}" />
+        <Border Height="44" CornerRadius="6" Background="{DynamicResource InsetBrush}" Padding="6,4">
+            <Grid>
+                <controls:MeterSpark Values="{Binding DownloadMinute}"
+                                     Count="{Binding MinuteCount}"
+                                     Version="{Binding MinuteVersion}"
+                                     Ceiling="{Binding MinuteTop}"
+                                     Mode="Line"
+                                     Ink="{DynamicResource DownloadBrush}" />
+                <controls:MeterSpark Values="{Binding UploadMinute}"
+                                     Count="{Binding MinuteCount}"
+                                     Version="{Binding MinuteVersion}"
+                                     Ceiling="{Binding MinuteTop}"
+                                     Mode="Line"
+                                     Ink="{DynamicResource UploadBrush}" />
+            </Grid>
+        </Border>
+        <TextBlock Text="{Binding Peak}" Style="{StaticResource CardNoteStyle}" Margin="0,4,0,0" />
+
+        <TextBlock Text="TODAY" Style="{StaticResource CardHeadStyle}"
+                   Visibility="{Binding Today, Converter={StaticResource TextToVisibility}}" />
+        <TextBlock Text="{Binding Today}" Style="{StaticResource CardLineStyle}"
+                   Visibility="{Binding Today, Converter={StaticResource TextToVisibility}}" />
+
+        <TextBlock Text="WI-FI" Style="{StaticResource CardHeadStyle}"
+                   Visibility="{Binding Wifi, Converter={StaticResource TextToVisibility}}" />
+        <TextBlock Text="{Binding Wifi}" Style="{StaticResource CardLineStyle}"
+                   Visibility="{Binding Wifi, Converter={StaticResource TextToVisibility}}" />
+
+        <TextBlock Text="BUSIEST APPS, LAST FIVE MINUTES" Style="{StaticResource CardHeadStyle}" />
+        <ItemsControl ItemsSource="{Binding Apps}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:CardApp}">
+                    <DockPanel Margin="0,1,0,1">
+                        <TextBlock DockPanel.Dock="Right"
+                                   Text="{Binding Amount}"
+                                   Style="{StaticResource CardNoteStyle}"
+                                   Margin="12,0,0,0" />
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource CardLineStyle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                    </DockPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding AppsNote}" Style="{StaticResource CardNoteStyle}"
+                   Visibility="{Binding AppsNote, Converter={StaticResource TextToVisibility}}" />
+
+        <TextBlock Text="ON THE METER" Style="{StaticResource CardHeadStyle}" />
+        <TextBlock Text="{Binding Readings}" Style="{StaticResource CardNoteStyle}" />
+    </StackPanel>
+</UserControl>

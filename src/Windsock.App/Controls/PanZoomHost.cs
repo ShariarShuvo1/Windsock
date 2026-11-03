@@ -1,4 +1,7 @@
 ﻿using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -10,9 +13,32 @@ namespace Windsock.App.Controls;
 /// Gives its child as much room as it asks for, and lets the reader move
 /// around inside it.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The keyboard moves it too. The view is a Tab stop of its own, ringed while
+/// it has the focus: there the arrow keys move the picture, plus and minus
+/// zoom about the middle, and 0 or Home fits the whole of it. From anything on
+/// the picture (a node), Ctrl with an arrow moves it, plus and minus zoom and
+/// Ctrl+0 fits. A node reached from the keyboard is brought into view, since
+/// Tab otherwise stopped on nodes the clip had hidden. Only a key press does
+/// (<see cref="KeyPress"/>): a click, and the focus WPF gives back to a node
+/// when the window is activated again, bring nothing into view, so the view
+/// stays where the mouse left it and the picture keeps fitting itself as it
+/// grows. Clicking a node half out of sight leaves the view
+/// where it was, as it always did.
+/// </para>
+/// <para>
+/// To UI Automation it is a pane with the Scroll pattern, which is what
+/// panning is, and the Invoke pattern, which fits the whole picture as a
+/// double-click does; the picture inside names itself (the graph's own peer).
+/// </para>
+/// </remarks>
 public sealed class PanZoomHost : Decorator
 {
     private const double Smallest = 0.2;
+    private const double Step = 60;
+    private const double ZoomStep = 1.25;
+    private const double Breathing = 24;
     private const double Largest = 3;
     private const double Dust = 0.03;
     private const double DefaultSmallestFit = 0.5;
@@ -67,10 +93,14 @@ public sealed class PanZoomHost : Decorator
         typeof(PanZoomHost),
         new PropertyMetadata(DefaultSmallestFit));
 
+    static PanZoomHost() => KeyPress.Watch();
+
     public PanZoomHost()
     {
         ClipToBounds = true;
-        Focusable = false;
+        Focusable = true;
+        SetResourceReference(FocusVisualStyleProperty, "FocusRingStyle");
+        AddHandler(RequestBringIntoViewEvent, new RequestBringIntoViewEventHandler(OnBringIntoView));
 
         _view.Children.Add(_zoom);
         _view.Children.Add(_pan);
@@ -461,6 +491,165 @@ public sealed class PanZoomHost : Decorator
         }
     }
 
+    /// <summary>
+    /// Moves the view by the keyboard: see the remarks on the class.
+    /// </summary>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        base.OnKeyDown(e);
+
+        if (e.Handled)
+        {
+            return;
+        }
+
+        bool own = ReferenceEquals(e.OriginalSource, this);
+        ModifierKeys held = Keyboard.Modifiers;
+        bool plain = held == ModifierKeys.None;
+        bool control = held == ModifierKeys.Control;
+        bool moves = (own && plain) || control;
+
+        switch (e.Key)
+        {
+            case Key.Left when moves:
+                PanBy(Step, 0);
+                break;
+            case Key.Right when moves:
+                PanBy(-Step, 0);
+                break;
+            case Key.Up when moves:
+                PanBy(0, Step);
+                break;
+            case Key.Down when moves:
+                PanBy(0, -Step);
+                break;
+            case Key.Add or Key.OemPlus when !held.HasFlag(ModifierKeys.Alt):
+                ZoomBy(ZoomStep);
+                break;
+            case Key.Subtract or Key.OemMinus when !held.HasFlag(ModifierKeys.Alt):
+                ZoomBy(1 / ZoomStep);
+                break;
+            case Key.D0 or Key.NumPad0 when moves:
+            case Key.Home when own && plain:
+                FitAll();
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>Moves the picture by so many pixels on screen.</summary>
+    public void PanBy(double across, double down)
+    {
+        Aim(_zoom.ScaleX, new Point(_pan.X + across, _pan.Y + down), at: true);
+        _touched = true;
+        ViewChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Zooms about the middle of the view.</summary>
+    public void ZoomBy(double factor)
+    {
+        double was = _zoom.ScaleX;
+        double now = Math.Clamp(was * factor, Math.Min(Smallest, _wantScale), Largest);
+
+        if (Math.Abs(now - was) < 0.0001)
+        {
+            return;
+        }
+
+        Point at = new(ActualWidth / 2, ActualHeight / 2);
+
+        Aim(
+            now,
+            new Point(
+                at.X - ((at.X - _pan.X) * (now / was)),
+                at.Y - ((at.Y - _pan.Y) * (now / was))),
+            at: true);
+
+        _touched = true;
+        ViewChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Brings a node the keyboard reached into view, moving the picture the
+    /// least it can: nodes outside the clip used to take the focus unseen.
+    /// </summary>
+    private void OnBringIntoView(object sender, RequestBringIntoViewEventArgs e)
+    {
+        if (ReferenceEquals(e.TargetObject, this)
+            || Child is not { } child
+            || e.TargetObject is not Visual target
+            || !child.IsAncestorOf(target)
+            || !KeyPress.IsBeingHandled
+            || Mouse.LeftButton == MouseButtonState.Pressed
+            || ActualWidth <= 0
+            || ActualHeight <= 0)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        Rect box = !e.TargetRect.IsEmpty
+            ? e.TargetRect
+            : target is UIElement element ? new Rect(element.RenderSize) : Rect.Empty;
+
+        if (box.IsEmpty)
+        {
+            return;
+        }
+
+        Rect seen;
+
+        try
+        {
+            seen = target.TransformToAncestor(this).TransformBounds(box);
+        }
+        catch (InvalidOperationException)
+        {
+            return;
+        }
+
+        Thickness inset = Inset;
+        Rect room = new(
+            inset.Left,
+            inset.Top,
+            Math.Max(1, ActualWidth - inset.Left - inset.Right),
+            Math.Max(1, ActualHeight - inset.Top - inset.Bottom));
+
+        double across = Shift(seen.Left, seen.Right, room.Left, room.Right);
+        double down = Shift(seen.Top, seen.Bottom, room.Top, room.Bottom);
+
+        if (across != 0 || down != 0)
+        {
+            PanBy(across, down);
+        }
+    }
+
+    /// <summary>How far to move a span so it sits inside the room, with a margin.</summary>
+    private static double Shift(double start, double end, double roomStart, double roomEnd)
+    {
+        double margin = Math.Min(Breathing, Math.Max(0, ((roomEnd - roomStart) - (end - start)) / 2));
+
+        if (end - start > roomEnd - roomStart - (2 * margin))
+        {
+            return ((roomStart + roomEnd) / 2) - ((start + end) / 2);
+        }
+
+        if (start < roomStart + margin)
+        {
+            return roomStart + margin - start;
+        }
+
+        return end > roomEnd - margin ? roomEnd - margin - end : 0;
+    }
+
+    /// <summary>A pane that scrolls: the view, to UI Automation.</summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new ViewPeer(this);
+
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
@@ -489,5 +678,123 @@ public sealed class PanZoomHost : Decorator
 
         e.Handled = true;
         ViewChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// The view to UI Automation: a pane, named by the page (or "Pan and zoom"),
+    /// telling its keys in its help text, and scrolling as the keys pan it.
+    /// </summary>
+    private sealed class ViewPeer(PanZoomHost owner) : FrameworkElementAutomationPeer(owner), IScrollProvider, IInvokeProvider
+    {
+        private const string Keys =
+            "Arrow keys move the view, plus and minus zoom, 0 fits all of it. Tab goes on to what is on it; from there Control with an arrow key moves the view.";
+
+        private PanZoomHost Host => (PanZoomHost)Owner;
+
+        public bool HorizontallyScrollable => Extent(horizontal: true) > 0;
+
+        public bool VerticallyScrollable => Extent(horizontal: false) > 0;
+
+        public double HorizontalViewSize => ViewSize(horizontal: true);
+
+        public double VerticalViewSize => ViewSize(horizontal: false);
+
+        public double HorizontalScrollPercent => Percent(horizontal: true);
+
+        public double VerticalScrollPercent => Percent(horizontal: false);
+
+        public void Scroll(ScrollAmount horizontalAmount, ScrollAmount verticalAmount) =>
+            Host.PanBy(-Amount(horizontalAmount, Host.ActualWidth), -Amount(verticalAmount, Host.ActualHeight));
+
+        public void SetScrollPercent(double horizontalPercent, double verticalPercent)
+        {
+            double across = horizontalPercent < 0 ? 0 : To(horizontalPercent, horizontal: true);
+            double down = verticalPercent < 0 ? 0 : To(verticalPercent, horizontal: false);
+
+            Host.PanBy(across, down);
+        }
+
+        /// <summary>Fits the whole picture, as a double-click on it does.</summary>
+        public void Invoke() => Host.FitAll();
+
+        public override object? GetPattern(PatternInterface patternInterface) =>
+            patternInterface is PatternInterface.Scroll or PatternInterface.Invoke ? this : base.GetPattern(patternInterface);
+
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Pane;
+
+        protected override string GetClassNameCore() => nameof(PanZoomHost);
+
+        protected override string GetNameCore()
+        {
+            string given = base.GetNameCore();
+
+            return string.IsNullOrEmpty(given) ? "Pan and zoom" : given;
+        }
+
+        protected override string GetHelpTextCore()
+        {
+            string given = base.GetHelpTextCore();
+
+            return string.IsNullOrEmpty(given) ? Keys : string.Concat(given, " ", Keys);
+        }
+
+        private static double Amount(ScrollAmount amount, double page) => amount switch
+        {
+            ScrollAmount.SmallIncrement => Step,
+            ScrollAmount.SmallDecrement => -Step,
+            ScrollAmount.LargeIncrement => page * 0.8,
+            ScrollAmount.LargeDecrement => -page * 0.8,
+            _ => 0,
+        };
+
+        /// <summary>How much more of the picture there is than the view shows, on screen.</summary>
+        private double Extent(bool horizontal)
+        {
+            if (Host.Child is not { } child)
+            {
+                return 0;
+            }
+
+            double content = (horizontal ? child.DesiredSize.Width : child.DesiredSize.Height) * Host.Zoom;
+            double view = horizontal ? Host.ActualWidth : Host.ActualHeight;
+
+            return Math.Max(0, content - view);
+        }
+
+        private double ViewSize(bool horizontal)
+        {
+            if (Host.Child is not { } child)
+            {
+                return 100;
+            }
+
+            double content = (horizontal ? child.DesiredSize.Width : child.DesiredSize.Height) * Host.Zoom;
+            double view = horizontal ? Host.ActualWidth : Host.ActualHeight;
+
+            return content <= 0 ? 100 : Math.Clamp(view / content * 100, 0, 100);
+        }
+
+        private double Percent(bool horizontal)
+        {
+            double extent = Extent(horizontal);
+
+            if (extent <= 0)
+            {
+                return ScrollPatternIdentifiers.NoScroll;
+            }
+
+            double offset = -(horizontal ? Host._pan.X : Host._pan.Y);
+
+            return Math.Clamp(offset / extent * 100, 0, 100);
+        }
+
+        /// <summary>How far to pan, on screen, for the view to stand at a percentage.</summary>
+        private double To(double percent, bool horizontal)
+        {
+            double extent = Extent(horizontal);
+            double now = -(horizontal ? Host._pan.X : Host._pan.Y);
+
+            return extent <= 0 ? 0 : now - (Math.Clamp(percent, 0, 100) / 100 * extent);
+        }
     }
 }

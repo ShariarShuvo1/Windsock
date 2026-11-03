@@ -33,10 +33,12 @@ public sealed partial class AppMinuteRecorder : BackgroundService
     private readonly WindsockSettings _settings;
     private readonly TimeProvider _clock;
     private readonly ILogger<AppMinuteRecorder> _logger;
+    private readonly WriteFailureLog _failures = new();
     private readonly AppMinuteTally _tally;
     private readonly Dictionary<int, ProcessTraffic> _running = [];
     private readonly List<DepartedTraffic> _departed = [];
     private DateTimeOffset _compactedAt = DateTimeOffset.MinValue;
+    private bool _announced;
 
     public AppMinuteRecorder(
         IProcessTrafficLedger ledger,
@@ -78,8 +80,6 @@ public sealed partial class AppMinuteRecorder : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        LogStarted();
-
         try
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -100,6 +100,14 @@ public sealed partial class AppMinuteRecorder : BackgroundService
         DateTimeOffset now = _clock.GetUtcNow();
         _ledger.Take(_running, _departed);
 
+        // Said once the trace is actually counting, not at every start: an
+        // unelevated full edition runs no trace and records nothing here.
+        if (!_announced && _ledger.CanAttribute)
+        {
+            _announced = true;
+            LogStarted();
+        }
+
         MeasuredMinute? finished = _tally.Observe(now, _ledger.CanAttribute && _recording(), _running, _departed);
 
         try
@@ -114,7 +122,10 @@ public sealed partial class AppMinuteRecorder : BackgroundService
         }
         catch (Exception ex) when (HistoryFailure.IsStorage(ex))
         {
-            LogStoreFailed(ex);
+            if (_failures.ShouldLog(ex))
+            {
+                LogStoreFailed(ex);
+            }
         }
     }
 
@@ -153,7 +164,7 @@ public sealed partial class AppMinuteRecorder : BackgroundService
         return AppMinuteTally.CountedAs(processId, family, native, _ledger.ImageOf(processId));
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Per-app minutes are recorded while the trace runs")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "The trace is running, so per-app minutes are being recorded")]
     private partial void LogStarted();
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not keep a measured minute")]

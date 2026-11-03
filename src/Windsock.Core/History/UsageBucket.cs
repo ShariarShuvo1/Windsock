@@ -40,6 +40,21 @@ public readonly record struct UsageBucket(
 
     /// <summary>Whether any of the bucket comes from Windows rather than Windsock.</summary>
     public bool HasEstimate => EstimatedMinutes > 0;
+
+    /// <summary>
+    /// Bytes received that are known to have stayed on the local network; zero
+    /// where that is not known (see <see cref="ILocalTrafficStore"/>).
+    /// </summary>
+    public long LocalDown { get; init; }
+
+    /// <summary>Bytes sent that are known to have stayed on the local network.</summary>
+    public long LocalUp { get; init; }
+
+    /// <summary>How many of the recorded minutes the local share is known for.</summary>
+    public int LocalMinutes { get; init; }
+
+    /// <summary>What Windsock recorded less what is known to have stayed local: the internet's part.</summary>
+    public long InternetTotal => Math.Max(0, BytesDown - LocalDown) + Math.Max(0, BytesUp - LocalUp);
 }
 
 /// <summary>Totals across a whole range, without breaking it into buckets.</summary>
@@ -67,4 +82,13 @@ public readonly record struct UsageSummary(
 
     /// <summary>A range with nothing recorded in it.</summary>
     public static UsageSummary Empty => default;
+
+    /// <summary>Bytes received that are known to have stayed on the local network.</summary>
+    public long LocalDown { get; init; }
+
+    /// <summary>Bytes sent that are known to have stayed on the local network.</summary>
+    public long LocalUp { get; init; }
+
+    /// <summary>How many of the recorded minutes the local share is known for.</summary>
+    public int LocalMinutes { get; init; }
 }

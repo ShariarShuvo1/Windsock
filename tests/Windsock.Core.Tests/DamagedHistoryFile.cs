@@ -1,4 +1,5 @@
-﻿using Windsock.Core.History;
+﻿using Microsoft.Data.Sqlite;
+using Windsock.Core.History;
 
 namespace Windsock.Core.Tests;
 
@@ -9,11 +10,24 @@ namespace Windsock.Core.Tests;
 /// </summary>
 internal static class DamagedHistoryFile
 {
-    // SQLite's default page size. Page one holds the header and the schema.
-    private const int PageSize = 4096;
+    // Page one holds the header and the schema. Schema 6's tables and triggers
+    // run past SQLite's default 4 KB page, so the file is made with pages big
+    // enough that the whole schema still sits on the first one, and that page
+    // alone is left whole.
+    private const int PageSize = 65536;
 
     public static void Create(string path)
     {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        using (SqliteConnection empty = new(new SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ConnectionString))
+        {
+            empty.Open();
+            using SqliteCommand size = empty.CreateCommand();
+            size.CommandText = $"PRAGMA page_size={PageSize}; VACUUM;";
+            size.ExecuteNonQuery();
+        }
+
         using (SqliteUsageHistoryStore store = new(path))
         {
             long start = EpochMinute.From(new DateTimeOffset(2026, 3, 14, 12, 0, 0, TimeSpan.Zero));
@@ -30,7 +44,7 @@ internal static class DamagedHistoryFile
         }
 
         // The first page is left whole, so the file opens and answers for its
-        // schema version; every page of both tables behind it is overwritten.
+        // schema version; every page of every table behind it is overwritten.
         using FileStream file = new(path, FileMode.Open, FileAccess.ReadWrite);
         byte[] rubbish = new byte[file.Length - PageSize];
         Array.Fill(rubbish, (byte)0xFF);

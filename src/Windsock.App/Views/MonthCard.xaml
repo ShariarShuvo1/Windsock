@@ -1,0 +1,102 @@
+<UserControl x:Class="Windsock.App.Views.MonthCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:MonthCardModel}"
+             Width="720"
+             UseLayoutRounding="True"
+             TextOptions.TextFormattingMode="Ideal">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Styles/Usage.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!--
+        A month's summary drawn to a picture, to share. Never on screen: it is
+        laid out off the window at a fixed width and rendered to a PNG. It says
+        what the month came to and nothing that identifies the machine or its
+        owner - no network names, no addresses.
+    -->
+    <Border Background="{DynamicResource SurfaceBrush}" Padding="32,28,32,24">
+        <StackPanel>
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left">
+                    <TextBlock Text="{Binding Month}" FontSize="{DynamicResource TextSize28}" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Text="{Binding Subtitle}" FontSize="{DynamicResource TextSize13}" Margin="0,2,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Ellipse Width="10" Height="10" Fill="{DynamicResource NetworkBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="Windsock" FontSize="{DynamicResource TextSize14}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </DockPanel>
+
+            <controls:FlowGrid Style="{StaticResource PlateStripStyle}" Margin="0,22,0,0">
+                <Border Style="{StaticResource PlateCellStyle}">
+                    <StackPanel>
+                        <TextBlock Text="TOGETHER" Style="{StaticResource StatLabelStyle}" />
+                        <TextBlock Text="{Binding Total}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize32}" />
+                        <TextBlock Text="{Binding Change}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource PlateCellStyle}">
+                    <StackPanel>
+                        <TextBlock Text="DOWNLOADED" Style="{StaticResource StatLabelStyle}" />
+                        <TextBlock Text="{Binding Down}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" Foreground="{DynamicResource DownloadBrush}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource PlateCellStyle}">
+                    <StackPanel>
+                        <TextBlock Text="UPLOADED" Style="{StaticResource StatLabelStyle}" />
+                        <TextBlock Text="{Binding Up}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" Foreground="{DynamicResource UploadBrush}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource PlateCellStyle}">
+                    <StackPanel>
+                        <TextBlock Text="EACH DAY" Style="{StaticResource StatLabelStyle}" />
+                        <TextBlock Text="{Binding Average}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" />
+                    </StackPanel>
+                </Border>
+            </controls:FlowGrid>
+
+            <controls:BarSeriesChart Height="150"
+                                     Margin="0,18,0,0"
+                                     Items="{Binding Days}"
+                                     PrimaryBrush="{DynamicResource DownloadBrush}"
+                                     SecondaryBrush="{DynamicResource UploadBrush}"
+                                     TrackBrush="{DynamicResource MeterTrackBrush}"
+                                     GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                     AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                     Focusable="False" />
+
+            <TextBlock Text="{Binding Busiest}" Style="{StaticResource LeadNoteStyle}" Margin="4,12,4,0" />
+
+            <ItemsControl ItemsSource="{Binding Apps}" Margin="0,14,0,0" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Rows="1" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:ShareRow}">
+                        <Border Style="{StaticResource TileStyle}" Margin="0,0,6,0">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource ListNameStyle}" />
+                                <TextBlock Text="{Binding Amount}" FontSize="{DynamicResource TextSize13}" Margin="0,2,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="{Binding Footer}" Margin="4,16,4,0" FontSize="{DynamicResource TextSize11}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+        </StackPanel>
+    </Border>
+</UserControl>

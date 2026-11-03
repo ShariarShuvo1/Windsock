@@ -1,0 +1,452 @@
+<UserControl x:Class="Windsock.App.Views.ActivityPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             xmlns:views="clr-namespace:Windsock.App.Views"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ActivityPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="900">
+
+    <UserControl.Resources>
+        <!-- A line of quiet detail under a tile's first line. -->
+        <Style x:Key="TileDetailStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="TileTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+
+        <!-- A day's country or site: its name and total on the first line, what it was on the second. -->
+        <DataTemplate x:Key="PlaceTileTemplate" DataType="{x:Type vm:PlaceRowViewModel}">
+            <Border Style="{StaticResource TileStyle}">
+                <StackPanel>
+                    <DockPanel LastChildFill="True">
+                        <TextBlock DockPanel.Dock="Right"
+                                   Text="{Binding Total}"
+                                   Margin="12,0,0,0"
+                                   Typography.NumeralAlignment="Tabular"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource TileTitleStyle}" />
+                    </DockPanel>
+                    <TextBlock Text="{Binding Detail}" Style="{StaticResource TileDetailStyle}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!--
+        Network › Activity: what on this PC waits for others to connect, and in
+        the full edition where apps connect, what they looked up, each day's
+        places and the firewall rules Windsock made. The figures lead on the
+        page; each list is a band of its own.
+    -->
+    <controls:SectionPage Title="Activity" Subtitle="{x:Static vm:ActivityPanelViewModel.Subtitle}">
+        <ScrollViewer x:Name="Body"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="{StaticResource PagePadding}">
+            <StackPanel>
+                <!-- The page's figures, on plates. -->
+                <controls:FlowGrid x:Name="Plates" Style="{StaticResource PlateStripStyle}" MinimumColumnWidth="150">
+                    <Border Style="{StaticResource PlateCellStyle}">
+                        <StackPanel>
+                            <TextBlock Text="LISTENING" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding ProgramsText}"
+                                       Style="{StaticResource StatValueStyle}"
+                                       FontSize="{DynamicResource TextSize24}"
+                                       AutomationProperties.Name="Programs waiting for connections" />
+                            <TextBlock Text="Programs waiting" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource PlateCellStyle}"
+                            ToolTip="Ports other machines can reach, as far as the firewall lets them.">
+                        <StackPanel>
+                            <TextBlock Text="REACHABLE" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding OpenPortsText}"
+                                       Style="{StaticResource StatValueStyle}"
+                                       FontSize="{DynamicResource TextSize24}"
+                                       AutomationProperties.Name="Ports open to the network" />
+                            <TextBlock Text="{Binding OpenPortsNote}" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="TimelinePlate" Style="{StaticResource PlateCellStyle}">
+                        <StackPanel>
+                            <TextBlock Text="TIMELINE TODAY" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding TimelineTodayText}"
+                                       Style="{StaticResource StatValueStyle}"
+                                       FontSize="{DynamicResource TextSize24}"
+                                       AutomationProperties.Name="Conversations kept today" />
+                            <TextBlock Text="Conversations kept" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="RulesPlate" Style="{StaticResource PlateCellStyle}">
+                        <StackPanel>
+                            <TextBlock Text="BLOCKED" Style="{StaticResource StatLabelStyle}" />
+                            <TextBlock Text="{Binding RulesText}"
+                                       Style="{StaticResource StatValueStyle}"
+                                       FontSize="{DynamicResource TextSize24}"
+                                       AutomationProperties.Name="Firewall rules Windsock made" />
+                            <TextBlock Text="Firewall rules" Style="{StaticResource StatNoteStyle}" />
+                        </StackPanel>
+                    </Border>
+                </controls:FlowGrid>
+
+                <!-- Why the trace's parts are empty, while they are; and the way to fill them. -->
+                <Border x:Name="TraceNotice"
+                        Style="{StaticResource NoticeStyle}"
+                        Margin="0,12,0,0"
+                        Visibility="{Binding TraceNote, Converter={StaticResource TextToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <fluent:SymbolIcon DockPanel.Dock="Left"
+                                           Symbol="Info"
+                                           FontSize="15"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AccentBrush}" />
+                        <controls:AdaptiveRow Breakpoint="0" Spacing="8" LeadFills="True" LeadMinimumWidth="220" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding TraceNote}"
+                                       FontSize="{DynamicResource TextSize12_5}"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding RestartElevatedCommand}"
+                                    Visibility="{Binding Source={x:Static vm:ActivityPanelViewModel.IsElevated}, Converter={StaticResource InverseBooleanToVisibility}}"
+                                    AutomationProperties.Name="Restart as administrator"
+                                    AutomationProperties.HelpText="Closes Windsock and starts it again with administrator rights, after asking Windows for consent."
+                                    ToolTip="Restart with administrator rights, so the timeline, lookups and places can be recorded">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Shield" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Restart as administrator" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </controls:AdaptiveRow>
+                    </DockPanel>
+                </Border>
+
+                <!-- ============================ Listening ============================ -->
+                <Border x:Name="ListeningBand" Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Waiting for connections" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="Programs on this PC accepting connections, and on which ports. Read from Windows' listener tables; nothing is sent."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <controls:FlowRow Margin="0,2,0,10" Spacing="8" LineSpacing="8">
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      Content="Only what other machines can reach"
+                                      IsChecked="{Binding NetworkOnly, Mode=TwoWay}"
+                                      AutomationProperties.Name="Only what other machines can reach"
+                                      ToolTip="Leave out sockets bound to this PC alone" />
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      Content="Hide outgoing UDP ports"
+                                      IsChecked="{Binding HideClientEnds, Mode=TwoWay}"
+                                      AutomationProperties.Name="Hide outgoing UDP ports"
+                                      ToolTip="UDP sockets on Windows' ports for outgoing traffic are almost always a program's own end of something it started, such as a name lookup" />
+                        </controls:FlowRow>
+
+                        <ItemsControl ItemsSource="{Binding Listening}"
+                                      Focusable="False"
+                                      AutomationProperties.Name="Programs waiting for connections">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:ListeningProgramViewModel}">
+                                    <Border Style="{StaticResource TileStyle}">
+                                        <DockPanel LastChildFill="True">
+                                            <Grid DockPanel.Dock="Left" Width="16" Height="16" Margin="0,2,12,0" VerticalAlignment="Top">
+                                                <fluent:SymbolIcon Symbol="Apps" FontSize="15" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                <controls:IconImage Source="{Binding Icon}" Width="16" Height="16" RenderOptions.BitmapScalingMode="HighQuality" />
+                                            </Grid>
+
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource TileTitleStyle}" ToolTip="{Binding Path}" />
+                                                <TextBlock Text="{Binding Ports}" Style="{StaticResource TileDetailStyle}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <TextBlock Text="{Binding Detail}" Style="{StaticResource TileDetailStyle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                    Visibility="{Binding IsListeningEmpty, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Text="{Binding ListeningEmptyTitle}" Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="A program that accepts connections - a file share, a game server, a remote desktop - appears here with its ports."
+                                       Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============================ Timeline ============================ -->
+                <Border x:Name="TimelineBand" Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Connection timeline" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="Which app connected where, when, and how much moved, from the kernel trace. Kept on this PC only, for the days you choose, and erased with your history."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <controls:FlowRow Margin="0,2,0,10" Spacing="8" LineSpacing="8">
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      Content="Keep a timeline"
+                                      IsChecked="{Binding KeepTimeline, Mode=TwoWay}"
+                                      AutomationProperties.Name="Keep a connection timeline"
+                                      ToolTip="Record which app connected where and when. It holds the names of the places apps reached, close to a browsing history, so it starts off." />
+
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Keep for"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"
+                                           FontSize="{DynamicResource TextSize12_5}"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="100"
+                                                 ItemsSource="{Binding KeptChoices}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Days"
+                                                 SelectedValue="{Binding KeptDays, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Keep the timeline for"
+                                                 ToolTip="Older conversations are deleted within the hour" />
+                            </StackPanel>
+
+                            <controls:FlowRow controls:FlowRow.Trailing="True" Spacing="8" LineSpacing="8">
+                                <TextBox Style="{StaticResource SearchBoxStyle}"
+                                         MinWidth="180"
+                                         MaxWidth="300"
+                                         controls:FlowRow.Fill="True"
+                                         Text="{Binding TimelineSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                         AutomationProperties.Name="Search the timeline"
+                                         ToolTip="Matches the app, the address, the name, the country or who runs the network" />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="128"
+                                                 ItemsSource="{Binding TimelinePeriods}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Period"
+                                                 SelectedValue="{Binding SelectedTimelinePeriod, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Timeline period" />
+                            </controls:FlowRow>
+                        </controls:FlowRow>
+
+                        <ItemsControl ItemsSource="{Binding TimelineRows}"
+                                      Focusable="False"
+                                      AutomationProperties.Name="Connection timeline">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate d:DataType="{x:Type vm:TimelineRowViewModel}">
+                                    <Border Style="{StaticResource TileStyle}">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="True">
+                                                <TextBlock DockPanel.Dock="Right"
+                                                           Text="{Binding When}"
+                                                           Margin="12,0,0,0"
+                                                           FontSize="{DynamicResource TextSize12}"
+                                                           Typography.NumeralAlignment="Tabular"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock Style="{StaticResource TileTitleStyle}">
+                                                    <Run Text="{Binding App, Mode=OneWay}" />
+                                                    <Run Text="  →  " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    <Run Text="{Binding Where, Mode=OneWay}" FontWeight="Normal" />
+                                                </TextBlock>
+                                            </DockPanel>
+                                            <TextBlock Text="{Binding Facts}" Style="{StaticResource TileDetailStyle}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                    Visibility="{Binding IsTimelineEmpty, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Text="{Binding TimelineEmptyTitle}" Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="{Binding TimelineEmptyNote}" Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
+
+                        <views:PagerBar Margin="4,10,4,2" DataContext="{Binding TimelinePager}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ============================= Places ============================= -->
+                <Border x:Name="PlacesBand" Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <DockPanel LastChildFill="True" Margin="0,0,0,8">
+                            <controls:Picker DockPanel.Dock="Right"
+                                             Style="{StaticResource PickerStyle}"
+                                             MinWidth="120"
+                                             Margin="12,0,0,0"
+                                             VerticalAlignment="Top"
+                                             ItemsSource="{Binding PlaceDays}"
+                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                             SelectedValuePath="Day"
+                                             SelectedValue="{Binding SelectedPlaceDay, Mode=TwoWay}"
+                                             AutomationProperties.Name="Day of places" />
+                            <StackPanel>
+                                <TextBlock Text="Countries and places" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                                <TextBlock Text="Where the day's traffic went, by country and by site, from the timeline. Places are found on this PC with the tables shipped with Windsock."
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <controls:AdaptiveRow Breakpoint="640" Spacing="16" Visibility="{Binding IsPlacesEmpty, Converter={StaticResource InverseBooleanToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="Countries" Style="{StaticResource StatLabelStyle}" Margin="2,0,0,6" />
+                                <ItemsControl ItemsSource="{Binding Countries}"
+                                              Focusable="False"
+                                              ItemTemplate="{StaticResource PlaceTileTemplate}"
+                                              AutomationProperties.Name="Countries" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Sites" Style="{StaticResource StatLabelStyle}" Margin="2,0,0,6" />
+                                <ItemsControl ItemsSource="{Binding Sites}"
+                                              Focusable="False"
+                                              ItemTemplate="{StaticResource PlaceTileTemplate}"
+                                              AutomationProperties.Name="Sites" />
+                            </StackPanel>
+                        </controls:AdaptiveRow>
+
+                        <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                    Visibility="{Binding IsPlacesEmpty, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Text="No places for this day" Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="{Binding PlacesEmptyNote}" Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============================= Lookups ============================ -->
+                <Border x:Name="LookupsBand" Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Names looked up" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="Which names each app asked the DNS client for, from its own events. Kept in memory for two hours, never written to disk, gone when Windsock closes."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <TextBox Style="{StaticResource SearchBoxStyle}"
+                                 MinWidth="180"
+                                 MaxWidth="300"
+                                 HorizontalAlignment="Left"
+                                 Margin="0,2,0,10"
+                                 Text="{Binding LookupSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                 AutomationProperties.Name="Search names looked up"
+                                 ToolTip="Matches the app or the name" />
+
+                        <ItemsControl ItemsSource="{Binding Lookups}"
+                                      Focusable="False"
+                                      AutomationProperties.Name="Names looked up">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:LookupRowViewModel}">
+                                    <Border Style="{StaticResource TileStyle}">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource TileTitleStyle}">
+                                                <Run Text="{Binding Name, Mode=OneWay}" />
+                                                <Run Text="  ·  " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                <Run Text="{Binding App, Mode=OneWay}" FontWeight="Normal" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Detail}" Style="{StaticResource TileDetailStyle}" />
+                                            <TextBlock Text="{Binding Addresses}"
+                                                       Style="{StaticResource TileDetailStyle}"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       Visibility="{Binding Addresses, Converter={StaticResource TextToVisibility}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                    Visibility="{Binding IsLookupsEmpty, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Text="No names yet" Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="{Binding LookupsEmptyTitle}" Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============================ Firewall ============================ -->
+                <Border x:Name="FirewallBand" Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <DockPanel LastChildFill="True" Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right"
+                                    Style="{StaticResource ToolbarButtonStyle}"
+                                    Margin="12,0,0,0"
+                                    VerticalAlignment="Top"
+                                    Command="{Binding RemoveAllRulesCommand}"
+                                    Visibility="{Binding HasRules, Converter={StaticResource BooleanToVisibility}}"
+                                    AutomationProperties.Name="Remove all of Windsock's firewall rules"
+                                    ToolTip="Take out every rule Windsock made. Do this before uninstalling: the uninstaller cannot.">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Delete" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Remove all" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <StackPanel>
+                                <TextBlock Text="Blocked in Windows Firewall" Style="{StaticResource CardTitleStyle}" AutomationProperties.HeadingLevel="Level2" />
+                                <TextBlock Text="The outbound rules Windsock made, all in the group Windsock. They stay in force whether or not Windsock runs. Uninstalling cannot remove them - it has no administrator rights - so remove them here first."
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <TextBlock Text="{Binding RulesNote}"
+                                   Margin="2,0,0,8"
+                                   TextWrapping="Wrap"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   Foreground="{DynamicResource HotBrush}"
+                                   Visibility="{Binding RulesNote, Converter={StaticResource TextToVisibility}}" />
+
+                        <ItemsControl ItemsSource="{Binding Rules}"
+                                      Focusable="False"
+                                      AutomationProperties.Name="Windsock's firewall rules">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate d:DataType="{x:Type vm:FirewallRuleRowViewModel}">
+                                    <Border Style="{StaticResource TileStyle}">
+                                        <DockPanel LastChildFill="True">
+                                            <Button DockPanel.Dock="Right"
+                                                    Style="{StaticResource ToolbarButtonStyle}"
+                                                    Margin="12,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Content="Remove"
+                                                    Command="{Binding DataContext.RemoveRuleCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    AutomationProperties.Name="{Binding Name, StringFormat='Remove {0}'}"
+                                                    ToolTip="Remove this rule, so the program can use the network again" />
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource TileTitleStyle}" />
+                                                <TextBlock Text="{Binding Detail}" Style="{StaticResource TileDetailStyle}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                    Visibility="{Binding IsRulesEmpty, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Text="Windsock has not blocked anything" Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="Block a program from its row menu on the Apps page, or a service from its own window. Each block is a Windows Firewall rule, listed here until you remove it."
+                                       Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </controls:SectionPage>
+</UserControl>

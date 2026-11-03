@@ -46,10 +46,22 @@
     <SolidColorBrush x:Key="CardHoverBrush" Color="#FFF7F9FB" />
     <!-- The shapes a page shows in place of what it is still waiting for. -->
     <SolidColorBrush x:Key="BoneBrush" Color="#FFE1E5EA" />
-    <!-- A figure set on its own ground, a shade off the page, where a rule would otherwise part it from its neighbours. -->
-    <SolidColorBrush x:Key="PlateBrush" Color="#FFE9ECF0" />
+    <!-- A figure set on its own ground, a shade off the page, where a rule would
+         otherwise part it from its neighbours. White on the grey page: plates
+         lift, the same as bands do. -->
+    <SolidColorBrush x:Key="PlateBrush" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="CardStrokeBrush" Color="#1A0E2231" />
     <SolidColorBrush x:Key="CanvasGroundBrush" Color="#FFF4F6F9" />
+
+    <!-- The tone ladder; see the dark palette. A band is white on the grey page. -->
+    <SolidColorBrush x:Key="SectionBrush" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="InsetBrush" Color="#FFF1F3F6" />
+    <SolidColorBrush x:Key="HoverBrush" Color="#FFE7EBF0" />
+
+    <!-- Quiet controls: navy at a few percent, one step down on white and grey alike. -->
+    <SolidColorBrush x:Key="QuietFillBrush" Color="#0F0E2231" />
+    <SolidColorBrush x:Key="QuietHoverBrush" Color="#1C0E2231" />
+    <SolidColorBrush x:Key="QuietPressedBrush" Color="#290E2231" />
 
     <SolidColorBrush x:Key="PopupBrush" Color="#FFFFFFFF" />
 
@@ -73,17 +85,27 @@
     <Color x:Key="GraphicsColor">#FF1E8A4C</Color>
     <Color x:Key="MemoryColor">#FF7B3FC4</Color>
     <Color x:Key="StorageColor">#FFC2185B</Color>
+    <!-- The battery, a part only some machines have: lime, away from upload's amber. -->
+    <Color x:Key="BatteryColor">#FF7A8800</Color>
 
     <SolidColorBrush x:Key="NetworkBrush" Color="{StaticResource NetworkColor}" />
     <SolidColorBrush x:Key="ProcessorBrush" Color="{StaticResource ProcessorColor}" />
     <SolidColorBrush x:Key="GraphicsBrush" Color="{StaticResource GraphicsColor}" />
     <SolidColorBrush x:Key="MemoryBrush" Color="{StaticResource MemoryColor}" />
     <SolidColorBrush x:Key="StorageBrush" Color="{StaticResource StorageColor}" />
+    <SolidColorBrush x:Key="BatteryBrush" Color="{StaticResource BatteryColor}" />
 
     <SolidColorBrush x:Key="MeterTrackBrush" Color="#170E2231" />
 
     <SolidColorBrush x:Key="HotBrush" Color="#FFD84315" />
 
     <SolidColorBrush x:Key="GoodBrush" Color="#FF1E8A4C" />
+
+    <!-- The router's line on the response-time chart: see the dark palette. -->
+    <Color x:Key="RouterColor">#FF4A5560</Color>
+    <SolidColorBrush x:Key="RouterBrush" Color="{StaticResource RouterColor}" />
+
+    <!-- Clear except under a contrast theme: see the dark palette. -->
+    <SolidColorBrush x:Key="ToneStrokeBrush" Color="#00000000" />
 
 </ResourceDictionary>

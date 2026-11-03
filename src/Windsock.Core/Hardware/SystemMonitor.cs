@@ -1,6 +1,8 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using System.Diagnostics;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Windsock.Core.Power;
 
 namespace Windsock.Core.Hardware;
 
@@ -15,6 +17,19 @@ public sealed class SystemMonitorOptions
     /// Defaults to every fifth.
     /// </summary>
     public int RescanEvery { get; set; } = 5;
+
+    /// <summary>
+    /// Where the battery's figures come from. Nothing, the default, is the
+    /// machine's own battery driver; a harness on a desktop can hand in a
+    /// made-up battery to see the pages that only a laptop shows.
+    /// </summary>
+    public Func<IBatterySource>? BatterySource { get; set; }
+
+    /// <summary>
+    /// Opens the counter query; nothing, the default, is the real one. Tests
+    /// hand in one that fails, to see the monitor retry it and nothing else.
+    /// </summary>
+    internal Func<PerformanceQuery?>? QueryOpener { get; set; }
 }
 
 /// <summary>
@@ -28,14 +43,32 @@ public sealed partial class SystemMonitor : BackgroundService
     private readonly ThermalZone _thermal = new();
     private readonly GraphicsProbe _graphics = new();
     private readonly StorageProbe _storage = new();
+    private readonly BusiestTally _busiest = new();
     private readonly Lock _gate = new();
+
+    /// <summary>
+    /// Held for the whole of a reading, and by <see cref="Dispose"/> before it
+    /// frees anything a reading uses: the host's stop has one budget for every
+    /// service, so the sampling thread can still be inside a reading - walking
+    /// the native process table, collecting counters - when the host disposes.
+    /// </summary>
+    private readonly Lock _readGate = new();
 
     private PerformanceQuery? _query;
 #if !STORE
     private CpuThermalProbe? _cpuThermal;
 #endif
+    private BatteryProbe? _battery;
+    private PowerModeWatch? _powerMode;
+    private IReadOnlyList<NpuFacts> _npus = [];
+    private SystemProcessTable? _processes;
     private int _watchers;
     private int _quietWatchers;
+    private int _busiestWatchers;
+    private bool _busiestFresh;
+    private bool _begun;
+    private bool _disposed;
+    private bool _saidNoCounters;
     private long _tick;
     private long _beats;
 
@@ -79,12 +112,22 @@ public sealed partial class SystemMonitor : BackgroundService
 #pragma warning disable CA1822 // An instance member in the full edition; the Store edition has nothing to read.
     public (PawnIoState State, string? Detail, string? Explanation) CpuTemperature =>
         (PawnIoState.Stopped, null, null);
+
+    /// <summary>Whether the processor package's power is being read. Never, in the Store edition.</summary>
+    public bool ReadsProcessorPower => false;
 #pragma warning restore CA1822
 #else
     public (PawnIoState State, string? Detail, string? Explanation) CpuTemperature =>
         _cpuThermal is { } probe
             ? (probe.State, probe.Detail, probe.Explanation)
             : (PawnIoState.Stopped, null, null);
+
+    /// <summary>
+    /// Whether the processor package's power is being read: PawnIO is running
+    /// and the chip's energy counter answered. When it is not,
+    /// <see cref="CpuTemperature"/> says why.
+    /// </summary>
+    public bool ReadsProcessorPower => _cpuThermal?.ReadsPower ?? false;
 #endif
 
     /// <summary>
@@ -97,7 +140,7 @@ public sealed partial class SystemMonitor : BackgroundService
             _watchers++;
         }
 
-        return new Watcher(this, quiet: false);
+        return new Watcher(this, Kind.Full);
     }
 
     /// <summary>
@@ -112,20 +155,52 @@ public sealed partial class SystemMonitor : BackgroundService
             _quietWatchers++;
         }
 
-        return new Watcher(this, quiet: true);
+        return new Watcher(this, Kind.Quiet);
     }
 
-    private void Release(bool quiet)
+    /// <summary>
+    /// Asks for readings at the full rate with the busiest processes in them
+    /// (<see cref="SystemSnapshot.Busiest"/>), until the token is let go.
+    /// </summary>
+    /// <remarks>
+    /// The process table is a single system call covering every process, but
+    /// it is a large one, so it is read only while a page that shows it is
+    /// on screen. The first reading after asking has memory only: processor
+    /// and file figures are differences, and need a second reading.
+    /// </remarks>
+    public IDisposable WatchBusiest()
     {
         lock (_gate)
         {
-            if (quiet)
+            _watchers++;
+
+            if (_busiestWatchers++ == 0)
             {
-                _quietWatchers = Math.Max(0, _quietWatchers - 1);
+                _busiestFresh = true;
             }
-            else
+        }
+
+        return new Watcher(this, Kind.Busiest);
+    }
+
+    private void Release(Kind kind)
+    {
+        lock (_gate)
+        {
+            switch (kind)
             {
-                _watchers = Math.Max(0, _watchers - 1);
+                case Kind.Quiet:
+                    _quietWatchers = Math.Max(0, _quietWatchers - 1);
+                    break;
+
+                case Kind.Busiest:
+                    _busiestWatchers = Math.Max(0, _busiestWatchers - 1);
+                    _watchers = Math.Max(0, _watchers - 1);
+                    break;
+
+                default:
+                    _watchers = Math.Max(0, _watchers - 1);
+                    break;
             }
         }
     }
@@ -163,6 +238,16 @@ public sealed partial class SystemMonitor : BackgroundService
         catch (OperationCanceledException)
         {
         }
+        finally
+        {
+            // The process table is native memory; let it go on the thread that
+            // walks it, now that no reading follows.
+            lock (_readGate)
+            {
+                _processes?.Dispose();
+                _processes = null;
+            }
+        }
     }
 
     private async Task Sample(PeriodicTimer timer, CancellationToken stoppingToken)
@@ -170,15 +255,22 @@ public sealed partial class SystemMonitor : BackgroundService
         while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
         {
             bool quietTurn = _beats++ % QuietEvery == 0;
+            bool watched = IsWatched;
 
-            if (!IsWatched && !(quietTurn && IsQuietlyWatched))
+            if (!watched && !(quietTurn && IsQuietlyWatched))
             {
                 continue;
             }
 
             try
             {
-                Read();
+                lock (_readGate)
+                {
+                    if (!_disposed)
+                    {
+                        Read(watched);
+                    }
+                }
             }
 #pragma warning disable CA1031 // Any failure here is one tile going quiet, not a reason to stop reading.
             catch (Exception error)
@@ -189,12 +281,27 @@ public sealed partial class SystemMonitor : BackgroundService
         }
     }
 
-    private void Read()
+    /// <summary>Takes a reading. Called with the read gate held.</summary>
+    /// <param name="watched">
+    /// Whether something on screen asked for it, rather than only history: the
+    /// battery is read for the first and not the second, since history keeps
+    /// nothing of it, and asking a battery's controller every five seconds
+    /// around the clock for nobody is a laptop's worth of wake-ups.
+    /// </param>
+    private void Read(bool watched)
     {
-        if (_query is null)
+        // Identification and the probes happen once, whatever becomes of them;
+        // only the counter query is tried again, a reading at a time, until it
+        // opens. Until 2026-10-05 the whole of Begin ran again on every reading
+        // while the query would not open, and each run left a battery probe, a
+        // power-mode registration and a PawnIO handle behind it.
+        if (!_begun)
         {
+            _begun = true;
             Begin();
         }
+
+        _query ??= OpenQuery();
 
         if (_query is not { } query)
         {
@@ -210,39 +317,113 @@ public sealed partial class SystemMonitor : BackgroundService
         SystemCounts counts = SystemInformation.Read();
         bool rescan = _options.RescanEvery <= 1 || _tick % _options.RescanEvery == 1;
 
+#if STORE
+        ProcessorReading processor = _processor.Read(query, counts);
+#else
+        ProcessorReading processor = _processor.Read(query, counts, _cpuThermal?.Read(), _cpuThermal?.ReadWatts());
+#endif
+        IReadOnlyList<GraphicsReading> graphics = _graphics.Read(query);
+        BatteryReading? battery = watched ? _battery?.Read(TimeSpan.FromMilliseconds(Environment.TickCount64)) : null;
+
         SystemSnapshot snapshot = new(
             DateTimeOffset.Now,
-#if STORE
-            _processor.Read(query, counts, null),
-#else
-            _processor.Read(query, counts, _cpuThermal?.Read()),
-#endif
-            _graphics.Read(query),
+            processor,
+            graphics,
             Memory(counts),
             _storage.Read(query, rescan),
-            _thermal.Read(query));
+            _thermal.Read(query))
+        {
+            Battery = battery,
+            Power = _battery is { } power ? PowerReading.From(power.System, _powerMode?.Current) : PowerReading.Unknown,
+            Npus = NpuProbe.Read(_npus, _graphics.Tally),
+            Busiest = Busiest(),
+        };
 
         Latest = snapshot;
         Sampled?.Invoke(this, snapshot);
+    }
+
+    /// <summary>The busiest processes, while asked for; otherwise the table is let go.</summary>
+    private BusiestProcesses? Busiest()
+    {
+        bool wanted;
+        bool fresh;
+
+        lock (_gate)
+        {
+            wanted = _busiestWatchers > 0;
+            fresh = _busiestFresh;
+            _busiestFresh = false;
+        }
+
+        if (!wanted || !SystemProcessTable.IsSupported)
+        {
+            if (_processes is not null)
+            {
+                _processes.Dispose();
+                _processes = null;
+                _busiest.Reset();
+            }
+
+            return null;
+        }
+
+        if (fresh)
+        {
+            _busiest.Reset();
+        }
+
+        _processes ??= new SystemProcessTable();
+        // The machine's logical processors, as Task Manager divides by: the
+        // runtime's count shrinks under an affinity mask or a job object.
+        int processors = Machine.Processor.Threads > 0 ? Machine.Processor.Threads : Environment.ProcessorCount;
+        _busiest.Begin(Stopwatch.GetTimestamp(), processors);
+
+        foreach (ProcessEntry entry in _processes.Read())
+        {
+            _busiest.Add(entry);
+        }
+
+        return _busiest.End();
     }
 
     private void Begin()
     {
         IReadOnlyList<GraphicsFacts> graphics = _graphics.ReadFacts();
 
-        Machine = MachineProbe.Read(graphics);
+        _battery = new BatteryProbe(_options.BatterySource?.Invoke() ?? new WindowsBatterySource());
+        _npus = NpuProbe.Find();
+        _powerMode = PowerModeWatch.Start();
+
+        Machine = MachineProbe.Read(graphics) with
+        {
+            HasBattery = _battery.Read(TimeSpan.FromMilliseconds(Environment.TickCount64)) is not null,
+            Npus = _npus,
+        };
+
         IsIdentified = true;
         Identified?.Invoke(this, EventArgs.Empty);
 #if !STORE
         _cpuThermal = new CpuThermalProbe();
 #endif
 
-        PerformanceQuery? query = PerformanceQuery.Open();
+        LogStarted(Machine.Processor.Name, graphics.Count);
+    }
+
+    /// <summary>Opens the counter query and adds every probe's counters, or answers nothing.</summary>
+    private PerformanceQuery? OpenQuery()
+    {
+        PerformanceQuery? query = _options.QueryOpener is { } opener ? opener() : PerformanceQuery.Open();
 
         if (query is null)
         {
-            LogNoCounters();
-            return;
+            if (!_saidNoCounters)
+            {
+                _saidNoCounters = true;
+                LogNoCounters();
+            }
+
+            return null;
         }
 
         _processor.Register(query, Machine.Processor);
@@ -250,9 +431,12 @@ public sealed partial class SystemMonitor : BackgroundService
         GraphicsProbe.Register(query);
         StorageProbe.Register(query);
 
-        _query = query;
+        if (_npus.Count > 0)
+        {
+            GraphicsProbe.RegisterShared(query);
+        }
 
-        LogStarted(Machine.Processor.Name, graphics.Count);
+        return query;
     }
 
     private static MemoryReading Memory(SystemCounts counts) => new(
@@ -268,6 +452,31 @@ public sealed partial class SystemMonitor : BackgroundService
     {
         base.Dispose();
 
+        // Wait for a reading under way to finish before freeing what it uses.
+        // One stuck in a driver call past the wait keeps its resources: they
+        // go with the process, which is exiting, rather than from under it.
+        bool held = _readGate.TryEnter(TimeSpan.FromSeconds(2));
+
+        try
+        {
+            _disposed = true;
+
+            if (held)
+            {
+                Release();
+            }
+        }
+        finally
+        {
+            if (held)
+            {
+                _readGate.Exit();
+            }
+        }
+    }
+
+    private void Release()
+    {
         _query?.Dispose();
         _query = null;
 #if !STORE
@@ -275,15 +484,30 @@ public sealed partial class SystemMonitor : BackgroundService
         _cpuThermal = null;
 #endif
         _graphics.Dispose();
+        _battery?.Dispose();
+        _battery = null;
+        _powerMode?.Dispose();
+        _powerMode = null;
+        _processes?.Dispose();
+        _processes = null;
     }
 
-    private sealed class Watcher(SystemMonitor monitor, bool quiet) : IDisposable
+    private enum Kind
+    {
+        Full,
+
+        Quiet,
+
+        Busiest,
+    }
+
+    private sealed class Watcher(SystemMonitor monitor, Kind kind) : IDisposable
     {
         private SystemMonitor? _monitor = monitor;
 
         public void Dispose()
         {
-            _monitor?.Release(quiet);
+            _monitor?.Release(kind);
             _monitor = null;
         }
     }

@@ -6,7 +6,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Windsock.App.Services;
 using Windsock.App.Theming;
+using Windsock.Core.Docking;
 using Windsock.Core.Formatting;
+using Windsock.Core.Hardware;
 using Windsock.Core.Settings;
 
 namespace Windsock.App.ViewModels;
@@ -21,18 +23,30 @@ public sealed record MeterOption<T>(T Value, string Label)
     public override string ToString() => Label;
 }
 
-/// <summary>
-/// The colour of one part of one cell, and every way of choosing it.
-/// </summary>
+/// <summary>A colour offered as a swatch: how it is written down, and what it is called.</summary>
+/// <param name="Hex">The colour as it is written down, #rrggbb.</param>
+/// <param name="Name">What it is called, for anyone who cannot see the swatch.</param>
+public sealed record NamedColour(string Hex, string Name)
+{
+    /// <summary>The name and the colour as written, for the swatch's tooltip.</summary>
+    public string Tip => string.Concat(Name, " (", Hex, ")");
+
+    /// <summary>
+    /// Returns the name. A record's generated ToString prints every member,
+    /// which is what UI Automation would otherwise announce for the item.
+    /// </summary>
+    public override string ToString() => Name;
+}
+
 /// <summary>
 /// The ground painted behind the whole meter, and how it is chosen.
 /// </summary>
 public sealed partial class MeterGroundViewModel : ObservableObject
 {
-    private static readonly string[] Palette =
+    private static readonly NamedColour[] Palette =
     [
-        "#000000", "#FFFFFF", "#0E2231", "#1F2933",
-        "#243B53", "#2A2438", "#1E3231", "#3A2618",
+        new("#000000", "Black"), new("#FFFFFF", "White"), new("#0E2231", "Dark navy"), new("#1F2933", "Charcoal"),
+        new("#243B53", "Slate blue"), new("#2A2438", "Dark plum"), new("#1E3231", "Dark teal"), new("#3A2618", "Dark brown"),
     ];
 
     private readonly Func<string?> _read;
@@ -46,7 +60,7 @@ public sealed partial class MeterGroundViewModel : ObservableObject
     }
 
     /// <summary>The grounds offered without mixing one.</summary>
-    public IReadOnlyList<string> Grounds { get; } = Palette;
+    public IReadOnlyList<NamedColour> Grounds { get; } = Palette;
 
     /// <summary>What the settings say, as it is written down.</summary>
     public string? Chosen => _read();
@@ -169,17 +183,7 @@ public sealed partial class MeterGroundViewModel : ObservableObject
         Told();
     }
 
-    private static Color? Read(string fill)
-    {
-        try
-        {
-            return ColorConverter.ConvertFromString(fill) is Color found ? found : null;
-        }
-        catch (FormatException)
-        {
-            return null;
-        }
-    }
+    private static Color? Read(string fill) => HexColour.TryParse(fill, out Color found) ? found : null;
 
     private static SolidColorBrush Frozen(Color colour)
     {
@@ -189,12 +193,15 @@ public sealed partial class MeterGroundViewModel : ObservableObject
     }
 }
 
+/// <summary>
+/// The colour of one part of one cell, and every way of choosing it.
+/// </summary>
 public sealed partial class InkChoiceViewModel : ObservableObject
 {
-    private static readonly string[] Palette =
+    private static readonly NamedColour[] Palette =
     [
-        "#4C9AFF", "#4CD97A", "#FF9F43", "#FF6B6B",
-        "#C77DFF", "#4ECDC4", "#FFD93D", "#FFFFFF",
+        new("#4C9AFF", "Blue"), new("#4CD97A", "Green"), new("#FF9F43", "Orange"), new("#FF6B6B", "Coral"),
+        new("#C77DFF", "Violet"), new("#4ECDC4", "Teal"), new("#FFD93D", "Yellow"), new("#FFFFFF", "White"),
     ];
 
     private readonly Func<string?> _read;
@@ -216,7 +223,7 @@ public sealed partial class InkChoiceViewModel : ObservableObject
     }
 
     /// <summary>The colours offered without mixing one.</summary>
-    public IReadOnlyList<string> Inks { get; } = Palette;
+    public IReadOnlyList<NamedColour> Inks { get; } = Palette;
 
     /// <summary>What the cell says, as it is written down.</summary>
     public string? Chosen => _read();
@@ -297,17 +304,7 @@ public sealed partial class InkChoiceViewModel : ObservableObject
     private void Mix(byte red, byte green, byte blue) => Paint(string.Format(
         CultureInfo.InvariantCulture, "#{0:X2}{1:X2}{2:X2}", red, green, blue));
 
-    private static Color? Read(string ink)
-    {
-        try
-        {
-            return ColorConverter.ConvertFromString(ink) is Color found ? found : null;
-        }
-        catch (FormatException)
-        {
-            return null;
-        }
-    }
+    private static Color? Read(string ink) => HexColour.TryParse(ink, out Color found) ? found : null;
 
     private static SolidColorBrush Frozen(Color colour)
     {
@@ -325,22 +322,32 @@ public sealed partial class MeterSlotChoiceViewModel : ObservableObject
 {
     private readonly Action<MeterSlotChoiceViewModel> _changed;
     private readonly TaskbarSettings _meter;
-    private readonly Func<bool> _dark;
+    private readonly MeterSlotContext _context;
 
     public MeterSlotChoiceViewModel(
         int row,
         int column,
         MeterSlot cell,
         TaskbarSettings meter,
-        Func<bool> dark,
+        MeterSlotContext context,
         Action<MeterSlotChoiceViewModel> changed)
     {
+        ArgumentNullException.ThrowIfNull(cell);
+        ArgumentNullException.ThrowIfNull(context);
+
         Row = row;
         Column = column;
         Cell = cell;
         _meter = meter;
-        _dark = dark;
+        _context = context;
         _changed = changed;
+
+        Fields =
+        [
+            .. Enum.GetValues<MeterField>()
+                .Where(field => field != MeterField.Empty && (field == cell.Field || context.Offered(field)))
+                .Select(field => new MeterOption<MeterField>(field, MeterReadout.Name(field))),
+        ];
 
         MarkInk = new InkChoiceViewModel(
             () => Cell.LabelColour, ink => Set(() => Cell.LabelColour = ink), Own, Plain);
@@ -350,6 +357,8 @@ public sealed partial class MeterSlotChoiceViewModel : ObservableObject
 
         UnitInk = new InkChoiceViewModel(
             () => Cell.UnitColour, ink => Set(() => Cell.UnitColour = ink), Own, Support);
+
+        ReadMore();
     }
 
     /// <summary>The colour of the mark, and every way of choosing it.</summary>
@@ -389,11 +398,57 @@ public sealed partial class MeterSlotChoiceViewModel : ObservableObject
         Row + 1,
         Column + 1);
 
+    /// <summary>
+    /// Where the slot is and what it shows, as a screen reader names the cell:
+    /// "Row 1, column 1: Download rate".
+    /// </summary>
+    public override string ToString() => string.Format(
+        CultureInfo.CurrentCulture,
+        "Row {0}, column {1}: {2}",
+        Row + 1,
+        Column + 1,
+        IsFilled ? ValueText : "empty");
+
     /// <summary>What this slot shows.</summary>
     public MeterField Field
     {
         get => Cell.Field;
-        set => Set(() => Cell.Field = value);
+        set
+        {
+            if (value == Cell.Field)
+            {
+                return;
+            }
+
+            Set(() =>
+            {
+                Cell.Field = value;
+
+                // Levels and a card belong to the reading they were set for;
+                // a feed's address is kept only by a slot that still reads one.
+                Cell.Levels = null;
+                Cell.Card = null;
+                Cell.Rotate = Cell.Rotate?.Where(each => each != value).ToList() is { Count: > 0 } left ? left : null;
+
+                if (value == MeterField.Feed)
+                {
+                    Cell.Feed ??= new MeterFeed();
+                    Cell.Rotate = null;
+                }
+                else
+                {
+                    Cell.Feed = null;
+                }
+
+                if (value == MeterField.Pacer)
+                {
+                    Cell.Rotate = null;
+                    Cell.Graph = MeterGraph.None;
+                }
+            });
+
+            ReadMore();
+        }
     }
 
     /// <summary>Whether anything is in this slot.</summary>
@@ -412,7 +467,7 @@ public sealed partial class MeterSlotChoiceViewModel : ObservableObject
     }
 
     /// <summary>The mark in letters, as the meter would write it.</summary>
-    public string LabelText => MeterReadout.Label(Field);
+    public string LabelText => MeterReadout.Label(Field, Cell);
 
     /// <summary>Which part of the machine this reading is about.</summary>
     public MeterMark Mark => MeterReadout.MarkOf(Field);
@@ -484,7 +539,11 @@ public sealed partial class MeterSlotChoiceViewModel : ObservableObject
     private void ValueOnTheRight() => Set(() => Cell.ValueSide = MeterSide.Right);
 
     [RelayCommand(CanExecute = nameof(ValueIsChanged))]
-    private void ResetValue() => Set(Cell.PlainValue);
+    private void ResetValue()
+    {
+        Set(Cell.PlainValue);
+        ReadMore();
+    }
 
     /// <summary>Whether anything about the figure was chosen.</summary>
     public bool ValueIsChanged => Cell.ValueIsChanged;
@@ -499,7 +558,9 @@ public sealed partial class MeterSlotChoiceViewModel : ObservableObject
     }
 
     /// <summary>The unit itself, in this cell's own units.</summary>
-    public string UnitText => MeterReadout.Unit(Field, Family, Scale);
+    public string UnitText => Field == MeterField.Feed
+        ? Cell.Feed?.Unit ?? string.Empty
+        : MeterReadout.Unit(Field, Family, Scale, _context.Temperature());
 
     /// <summary>Which end of the place the unit sits at.</summary>
     public MeterSide UnitSide => Cell.UnitSide;
@@ -521,28 +582,31 @@ public sealed partial class MeterSlotChoiceViewModel : ObservableObject
     /// <summary>Whether anything about the unit was chosen.</summary>
     public bool UnitIsChanged => Cell.UnitIsChanged;
 
-    private Color Own() => Ink(MeterPalette.Own(Field, MeterReadout.GroupOf(Field), _dark()));
+    private Color Own() => Ink(MeterPalette.Own(Field, MeterReadout.GroupOf(Field), _context.Dark()));
 
-    private Color Plain() => Ink(MeterPalette.Plain(_dark()));
+    private Color Plain() => Ink(MeterPalette.Plain(_context.Dark()));
 
-    private Color Support() => Ink(MeterPalette.Support(_dark()));
+    private Color Support() => Ink(MeterPalette.Support(_context.Dark()));
 
     private static Color Ink(Brush brush) =>
         brush is SolidColorBrush solid ? solid.Color : Colors.White;
 
-    /// <summary>Every reading this cell could show.</summary>
-    public IReadOnlyList<MeterOption<MeterField>> Fields { get; } =
-    [
-        .. Enum.GetValues<MeterField>()
-            .Where(IsOffered)
-            .Select(field => new MeterOption<MeterField>(field, MeterReadout.Name(field))),
-    ];
+    /// <summary>
+    /// Every reading this cell could show on this machine, and the one it
+    /// shows even where it is no longer offered, so the picker still says so.
+    /// </summary>
+    public IReadOnlyList<MeterOption<MeterField>> Fields { get; }
 
+    /// <summary>
+    /// Whether this edition has a reading at all. The Store edition has no
+    /// processor temperature or processor power: both need a driver in the
+    /// kernel, which a Store app may not install.
+    /// </summary>
     internal static bool IsOffered(MeterField field) => field switch
     {
         MeterField.Empty => false,
 #if STORE
-        MeterField.ProcessorTemperature => false,
+        MeterField.ProcessorTemperature or MeterField.ProcessorPower => false,
 #endif
         _ => true,
     };
@@ -620,6 +684,9 @@ public sealed class MeterGridAddViewModel
 
     /// <summary>Puts a reading in this place.</summary>
     public IRelayCommand Add { get; }
+
+    /// <summary>Returns <see cref="Name"/>, which is what a screen reader names the place by.</summary>
+    public override string ToString() => Name;
 }
 
 /// <summary>
@@ -637,18 +704,24 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _save;
     private readonly bool _loaded;
+    private readonly MeterSlotContext _slotContext;
     private bool _disposed;
+    private bool _listing;
 
     public TaskbarPanelViewModel(
         ISettingsStore store,
         WindsockSettings settings,
         TaskbarMeter meter,
         ThemeManager theme,
+        SystemMonitor system,
+        HotkeyService hotkeys,
         Dispatcher dispatcher)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(meter);
         ArgumentNullException.ThrowIfNull(theme);
+        ArgumentNullException.ThrowIfNull(system);
+        ArgumentNullException.ThrowIfNull(hotkeys);
 
         _store = store;
         _settings = settings;
@@ -670,10 +743,16 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
             new MeterOption<MeterPlacement>(MeterPlacement.Floating, "Above the taskbar"),
         ];
 
-        Clicks =
+        FullScreens =
         [
-            new MeterOption<MeterClick>(MeterClick.Open, "Open Windsock"),
-            new MeterOption<MeterClick>(MeterClick.Nothing, "Nothing"),
+            new MeterOption<MeterFullScreen>(MeterFullScreen.Hide, "Hide the meter"),
+            new MeterOption<MeterFullScreen>(MeterFullScreen.Stay, "Keep showing it"),
+        ];
+
+        Remotes =
+        [
+            new MeterOption<MeterRemote>(MeterRemote.Name, "Show it, naming the computer"),
+            new MeterOption<MeterRemote>(MeterRemote.Hide, "Hide the meter"),
         ];
 
         TaskbarSettings meterSettings = settings.Taskbar;
@@ -684,19 +763,193 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
         FitToContents = meterSettings.FitToContents;
         Width = meterSettings.Width;
         Corner = meterSettings.Corner;
+        SteadyWidth = meterSettings.SteadyWidth;
+        FullScreen = meterSettings.FullScreen;
+        Remote = meterSettings.Remote;
+        Shadow = meterSettings.Shadow;
+        Locked = meterSettings.Locked;
+
+        BuildDisplays();
+        MonitorChoice = ChoiceOf(meterSettings);
+
+        _slotContext = new MeterSlotContext(
+            () => _theme.IsDark,
+            Offered,
+            CardNames,
+            () => _settings.Temperature,
+            () => _settings.Taskbar.Feeds,
+            allowed => Feeds = allowed);
+        ReadMore(system, hotkeys);
 
         _loaded = true;
 
         BuildSlots();
         _meter.StatusChanged += OnStatusChanged;
+        _meter.DisplaysChanged += OnDisplaysChanged;
         Describe();
     }
 
+    /// <summary>
+    /// Which taskbars get a meter: the main one, every one, or one display's.
+    /// Written as the key the picker selects by - "main", "every", or the
+    /// display's own name.
+    /// </summary>
+    public ObservableCollection<MeterOption<string>> Monitors { get; } = [];
+
+    /// <summary>The picker's key for the main taskbar alone.</summary>
+    private const string MainKey = "main";
+
+    /// <summary>The picker's key for every taskbar.</summary>
+    private const string EveryKey = "every";
+
+    /// <summary>Which taskbars get a meter, as the picker selects it.</summary>
+    [ObservableProperty]
+    public partial string MonitorChoice { get; set; } = MainKey;
+
+    /// <summary>What the meter does while something runs full screen.</summary>
+    public IReadOnlyList<MeterOption<MeterFullScreen>> FullScreens { get; }
+
+    /// <summary>What the meter does in a remote session.</summary>
+    public IReadOnlyList<MeterOption<MeterRemote>> Remotes { get; }
+
+    /// <summary>Whether a meter fitted to its readings holds its width still.</summary>
+    [ObservableProperty]
+    public partial bool SteadyWidth { get; set; }
+
+    /// <summary>What the meter does while something runs full screen.</summary>
+    [ObservableProperty]
+    public partial MeterFullScreen FullScreen { get; set; }
+
+    /// <summary>What the meter does in a remote session.</summary>
+    [ObservableProperty]
+    public partial MeterRemote Remote { get; set; }
+
+    /// <summary>Whether the figures carry a soft outline.</summary>
+    [ObservableProperty]
+    public partial bool Shadow { get; set; }
+
+    /// <summary>Whether a floating meter ignores drags.</summary>
+    [ObservableProperty]
+    public partial bool Locked { get; set; }
+
+    /// <summary>Whether the meter floats in a window of its own, which is when it can be dragged.</summary>
+    public bool IsFloating => Placement == MeterPlacement.Floating;
+
+    /// <summary>Whether any floating meter was dragged somewhere of its own.</summary>
+    public bool HasSpots => _settings.Taskbar.Spots.Count > 0;
+
+    /// <summary>Sends every dragged floating meter back to its taskbar.</summary>
+    [RelayCommand(CanExecute = nameof(HasSpots))]
+    private void ForgetSpots() => Change(meter => meter.Spots = []);
+
+    partial void OnMonitorChoiceChanged(string value)
+    {
+        // Emptying the list empties the picker, which writes that back; it is
+        // not a choice anybody made.
+        if (_listing)
+        {
+            return;
+        }
+
+        Pick(value);
+    }
+
+    private void Pick(string value) => Change(meter =>
+    {
+        switch (value)
+        {
+            case EveryKey:
+                meter.Monitors = MeterMonitors.Every;
+                meter.ChosenMonitor = null;
+                break;
+
+            case { Length: > 0 } name when name != MainKey:
+                meter.Monitors = MeterMonitors.Chosen;
+                meter.ChosenMonitor = name;
+                break;
+
+            default:
+                meter.Monitors = MeterMonitors.Main;
+                meter.ChosenMonitor = null;
+                break;
+        }
+    });
+
+    partial void OnSteadyWidthChanged(bool value) => Change(meter => meter.SteadyWidth = value);
+
+    partial void OnFullScreenChanged(MeterFullScreen value) => Change(meter => meter.FullScreen = value);
+
+    partial void OnRemoteChanged(MeterRemote value) => Change(meter => meter.Remote = value);
+
+    partial void OnShadowChanged(bool value) => Change(meter => meter.Shadow = value);
+
+    partial void OnLockedChanged(bool value) => Change(meter => meter.Locked = value);
+
+    private static string ChoiceOf(TaskbarSettings settings) => settings.Monitors switch
+    {
+        MeterMonitors.Every => EveryKey,
+        MeterMonitors.Chosen when settings.ChosenMonitor is { Length: > 0 } name => name,
+        _ => MainKey,
+    };
+
+    /// <summary>
+    /// Lists the choices of taskbar: the main one, every one, and each display
+    /// by name - the picked one included when it is not connected, so the
+    /// picker still says what was picked.
+    /// </summary>
+    private void BuildDisplays()
+    {
+        List<MeterOption<string>> options =
+        [
+            new(MainKey, "The main taskbar"),
+            new(EveryKey, "Every taskbar"),
+        ];
+
+        foreach (DisplayChoice display in _meter.Displays)
+        {
+            options.Add(new MeterOption<string>(display.Name, display.HasTaskbar
+                ? display.Label
+                : string.Concat(display.Label, ", no taskbar")));
+        }
+
+        if (_settings.Taskbar is { Monitors: MeterMonitors.Chosen, ChosenMonitor: { Length: > 0 } chosen }
+            && !options.Exists(option => string.Equals(option.Value, chosen, StringComparison.OrdinalIgnoreCase)))
+        {
+            options.Add(new MeterOption<string>(chosen, string.Concat(MeterWords.DisplayName(chosen), ", not connected")));
+        }
+
+        if (options.SequenceEqual(Monitors))
+        {
+            return;
+        }
+
+        string keep = MonitorChoice;
+
+        _listing = true;
+
+        try
+        {
+            Monitors.Clear();
+
+            foreach (MeterOption<string> option in options)
+            {
+                Monitors.Add(option);
+            }
+
+            // Clearing the list cleared the picker's choice with it.
+            MonitorChoice = keep;
+        }
+        finally
+        {
+            _listing = false;
+        }
+    }
+
+    private void OnDisplaysChanged(object? sender, EventArgs e) =>
+        _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(BuildDisplays));
+
     /// <summary>Whether the meter sits in the taskbar or above it.</summary>
     public IReadOnlyList<MeterOption<MeterPlacement>> Placements { get; }
-
-    /// <summary>What a click on the meter does.</summary>
-    public IReadOnlyList<MeterOption<MeterClick>> Clicks { get; }
 
     /// <summary>Every slot on the meter, row by row.</summary>
     public ObservableCollection<MeterSlotChoiceViewModel> SlotChoices { get; } = [];
@@ -706,6 +959,14 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
     /// and the gaps around them.
     /// </summary>
     public ObservableCollection<object> GridCells { get; } = [];
+
+    /// <summary>
+    /// What the board shows in a narrow window, where the grid would not fit:
+    /// the meter's own places in reading order, an empty one as a place to add
+    /// a reading, and nothing beyond them - adding a row or a column is a
+    /// button under the list.
+    /// </summary>
+    public ObservableCollection<object> ListCells { get; } = [];
 
     /// <summary>How many rows of places the editor draws.</summary>
     public static int GridRows => TaskbarSettings.MaximumRows;
@@ -795,12 +1056,23 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
 
         Placement = meter.Placement;
         Click = meter.Click;
+        DoubleClick = meter.DoubleClick;
+        MiddleClick = meter.MiddleClick;
+        TrayFigures = meter.TrayFigures;
         FitToContents = meter.FitToContents;
         Width = meter.Width;
         Corner = meter.Corner;
+        SteadyWidth = meter.SteadyWidth;
+        FullScreen = meter.FullScreen;
+        Remote = meter.Remote;
+        Shadow = meter.Shadow;
+        Locked = meter.Locked;
+        MonitorChoice = ChoiceOf(meter);
 
         Ground.Told();
         BuildSlots();
+        ReadKeys();
+        ReadProblems();
     }
 
     [RelayCommand(CanExecute = nameof(WidthIsChanged))]
@@ -834,7 +1106,9 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
         _save.Stop();
         _save.Tick -= OnSaveDue;
         _meter.StatusChanged -= OnStatusChanged;
+        _meter.DisplaysChanged -= OnDisplaysChanged;
         _theme.Changed -= OnThemeChanged;
+        ForgetMore();
         if (pending)
         {
             _store.Save(_settings);
@@ -845,11 +1119,14 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
     {
         TaskbarSettings settings = _settings.Taskbar;
 
+        _builtFrom = settings.Slots;
+
         Rows = settings.Rows;
         Columns = settings.Columns;
 
         SlotChoices.Clear();
         GridCells.Clear();
+        ListCells.Clear();
 
         for (int row = 0; row < settings.Rows; row++)
         {
@@ -860,7 +1137,7 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
                     column,
                     settings.Reach(row, column) ?? MeterSlot.Empty(),
                     settings,
-                    () => _theme.IsDark,
+                    _slotContext,
                     OnSlotChanged));
             }
         }
@@ -868,11 +1145,34 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
         {
             for (int column = 0; column < GridColumns; column++)
             {
-                GridCells.Add(Cell(settings, row, column));
+                object cell = Cell(settings, row, column);
+                GridCells.Add(cell);
+
+                if (row < settings.Rows && column < settings.Columns)
+                {
+                    ListCells.Add(cell);
+                }
             }
         }
 
+        PresetChoice.Mark(Presets, settings);
+        AddRowCommand.NotifyCanExecuteChanged();
+        AddColumnCommand.NotifyCanExecuteChanged();
     }
+
+    /// <summary>Whether the meter can take another row.</summary>
+    public bool CanAddRow => _settings.Taskbar.Rows < TaskbarSettings.MaximumRows;
+
+    /// <summary>Whether the meter can take another column.</summary>
+    public bool CanAddColumn => _settings.Taskbar.Columns < TaskbarSettings.MaximumColumns;
+
+    /// <summary>A reading at the start of a new row, for the list the board becomes in a narrow window.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddRow))]
+    private void AddRow() => Fill(_settings.Taskbar.Rows, 0);
+
+    /// <summary>A reading at the top of a new column.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddColumn))]
+    private void AddColumn() => Fill(0, _settings.Taskbar.Columns);
 
     private object Cell(TaskbarSettings settings, int row, int column)
     {
@@ -896,11 +1196,19 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
         BuildSlots();
     }
 
-    private static MeterField Fresh(TaskbarSettings settings)
+    /// <summary>The first reading this machine offers that the meter does not show yet.</summary>
+    private MeterField Fresh(TaskbarSettings settings)
     {
         foreach (MeterField field in Enum.GetValues<MeterField>())
         {
-            if (MeterSlotChoiceViewModel.IsOffered(field) && !settings.Slots.Any(each => each.Field == field))
+            // Nothing that reaches beyond this PC arrives on its own: the
+            // public address and a feed are chosen, never handed out.
+            if (field is MeterField.PublicAddress or MeterField.Feed or MeterField.Pacer)
+            {
+                continue;
+            }
+
+            if (Offered(field) && !settings.Slots.Any(each => each.Field == field))
             {
                 return field;
             }
@@ -921,9 +1229,19 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
         BuildSlots();
     }
 
-    partial void OnIsEnabledChanged(bool value) => Change(settings => settings.Enabled = value);
+    partial void OnIsEnabledChanged(bool value)
+    {
+        if (!_mirroring)
+        {
+            Change(settings => settings.Enabled = value);
+        }
+    }
 
-    partial void OnPlacementChanged(MeterPlacement value) => Change(settings => settings.Placement = value);
+    partial void OnPlacementChanged(MeterPlacement value)
+    {
+        Change(settings => settings.Placement = value);
+        OnPropertyChanged(nameof(IsFloating));
+    }
 
     partial void OnClickChanged(MeterClick value) => Change(settings => settings.Click = value);
 
@@ -933,20 +1251,33 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
 
     private void Change(Action<TaskbarSettings> edit)
     {
-        if (!_loaded)
+        // Reading the settings back into the page is not a change of them.
+        if (!_loaded || _mirroring)
         {
             return;
         }
 
         edit(_settings.Taskbar);
 
-        _meter.Apply();
+        _changing = true;
+
+        try
+        {
+            _meter.Apply();
+        }
+        finally
+        {
+            _changing = false;
+        }
+
         Describe();
         OnPropertyChanged(nameof(IsChanged));
         OnPropertyChanged(nameof(WidthIsChanged));
         OnPropertyChanged(nameof(GroundIsChanged));
         OnPropertyChanged(nameof(CornerIsChanged));
+        OnPropertyChanged(nameof(HasSpots));
         ResetAllCommand.NotifyCanExecuteChanged();
+        ForgetSpotsCommand.NotifyCanExecuteChanged();
         ResetWidthCommand.NotifyCanExecuteChanged();
         ResetGroundCommand.NotifyCanExecuteChanged();
         ResetCornerCommand.NotifyCanExecuteChanged();
@@ -961,7 +1292,15 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
     }
 
     private void OnStatusChanged(object? sender, EventArgs e) =>
-        _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(Describe));
+        _dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            // A floating meter dragged somewhere is a choice made off the page.
+            OnPropertyChanged(nameof(IsChanged));
+            OnPropertyChanged(nameof(HasSpots));
+            ResetAllCommand.NotifyCanExecuteChanged();
+            ForgetSpotsCommand.NotifyCanExecuteChanged();
+            Describe();
+        }));
 
     private void OnThemeChanged(object? sender, EventArgs e)
     {
@@ -971,18 +1310,6 @@ public sealed partial class TaskbarPanelViewModel : ObservableObject, IDisposabl
         }
     }
 
-    private void Describe()
-    {
-        (Status, IsWarning) = _meter.Status switch
-        {
-            MeterStatus.Docked => ("Showing in the taskbar, beside the notification area.", false),
-            MeterStatus.Floating => ("Showing in its own window, above the taskbar.", false),
-            MeterStatus.Unavailable => (
-                "The taskbar could not be found, so there is nowhere to dock. "
-                + "Switch the position to \"Above the taskbar\" to show the meter anyway.",
-                true),
-            _ => ("The meter is off. Nothing is added to the taskbar.", false),
-        };
-    }
+    private void Describe() => (Status, IsWarning) = MeterWords.Describe(_meter.Situation);
 
 }

@@ -76,8 +76,12 @@ jobs:
           dotnet test Windsock.slnx --configuration Release
           dotnet test Windsock.slnx --configuration Release -p:StoreBuild=true
 
+      # Pinned to the Velopack library's own version. Unpinned, the next
+      # release would get vpk 1.2.158 or later, which removed --msiBanner and
+      # --msiLogo (now --msiDialogBackground and --msiTopBanner) and fails the
+      # pack step below. Bump the two together and rename those flags then.
       - name: Install the packaging tool
-        run: dotnet tool install --global vpk
+        run: dotnet tool install --global vpk --version 1.2.0
 
       # ------------------------------------------------ the full edition
       - name: Publish full
@@ -135,6 +139,23 @@ jobs:
           -p:PublishDocumentationFiles=false
           -p:PublishReferencesDocumentationFiles=false
           --output publish/store
+
+      # The command line (Windsock.Cli.exe, and Windsock.com so that typing
+      # `windsock` finds it before Windsock.exe) and the AI tools
+      # (Windsock.Mcp.exe) come in through the app's project references and its
+      # copy target, not a publish of their own. Nothing else would notice if
+      # either stopped arriving, so check before anything is packed or uploaded.
+      - name: Check the command line ships
+        shell: pwsh
+        run: |
+          foreach ($edition in "full", "store") {
+            foreach ($file in "Windsock.exe", "Windsock.Cli.exe", "Windsock.com", "Windsock.Mcp.exe",
+                              "Windsock.Cli.runtimeconfig.json", "Windsock.Mcp.runtimeconfig.json", "Data/makers.oui") {
+              if (-not (Test-Path "publish/$edition/$file")) { throw "$file is missing from the $edition edition" }
+            }
+            & "publish/$edition/Windsock.com" --version
+            if ($LASTEXITCODE -ne 0) { throw "Windsock.com --version failed in the $edition edition" }
+          }
 
       - name: Zip the store edition
         shell: pwsh

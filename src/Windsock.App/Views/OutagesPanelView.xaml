@@ -1,0 +1,197 @@
+<UserControl x:Class="Windsock.App.Views.OutagesPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             xmlns:views="clr-namespace:Windsock.App.Views"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:OutagesPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="700">
+
+    <!--
+        Connection › Outages: every time the internet went away, a period at a
+        time. The period, the export and the clear are the page's own actions,
+        in its heading; the log is one band, each outage on a tile of its own
+        with a strip of the band between them, and the pager at its foot.
+    -->
+    <controls:SectionPage Title="Outages" Subtitle="{Binding LogSummary}">
+        <controls:SectionPage.Actions>
+            <controls:FlowRow Spacing="8" LineSpacing="8">
+                <controls:Picker Style="{StaticResource PickerStyle}"
+                                 MinWidth="132"
+                                 ItemsSource="{Binding Ranges}"
+                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                 SelectedValuePath="Range"
+                                 SelectedValue="{Binding SelectedRange, Mode=TwoWay}"
+                                 AutomationProperties.Name="Outage period"
+                                 ToolTip="Which stretch of the log to show" />
+
+                <controls:FlowRow Spacing="8" LineSpacing="8">
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            Command="{Binding ExportCommand}"
+                            AutomationProperties.Name="Export outages"
+                            ToolTip="Write the outages in this period to a CSV file">
+                        <StackPanel Orientation="Horizontal">
+                            <fluent:SymbolIcon Symbol="ArrowDownload" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Export" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Asks once, in place, rather than in a dialog. -->
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            Command="{Binding AskClearCommand}"
+                            Visibility="{Binding IsConfirmingClear, Converter={StaticResource InverseBooleanToVisibility}}"
+                            AutomationProperties.Name="Clear the outage log"
+                            ToolTip="Forget every outage Windsock has logged. You will be asked first.">
+                        <StackPanel Orientation="Horizontal">
+                            <fluent:SymbolIcon Symbol="Delete" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Clear log" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding IsConfirmingClear, Converter={StaticResource BooleanToVisibility}}">
+                        <TextBlock Text="Forget every outage?"
+                                   VerticalAlignment="Center"
+                                   FontSize="{DynamicResource TextSize12}"
+                                   Margin="0,0,8,0"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <Button Style="{StaticResource PrimaryButtonStyle}"
+                                Command="{Binding ClearCommand}"
+                                Content="Clear"
+                                Margin="0,0,6,0"
+                                AutomationProperties.Name="Confirm clearing the outage log" />
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding CancelClearCommand}"
+                                Content="Keep"
+                                AutomationProperties.Name="Keep the outage log" />
+                    </StackPanel>
+                </controls:FlowRow>
+            </controls:FlowRow>
+        </controls:SectionPage.Actions>
+
+        <ScrollViewer x:Name="Body"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="{StaticResource PagePadding}">
+            <StackPanel>
+                <!-- What an export or a clear just did, or why the log could not be read. -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Visibility="{Binding LogNotice, Converter={StaticResource TextToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <fluent:SymbolIcon DockPanel.Dock="Left"
+                                           Symbol="Info"
+                                           FontSize="15"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="{Binding LogNotice}"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </DockPanel>
+                </Border>
+
+                <Border Style="{StaticResource BandStyle}" Padding="12,12,12,12">
+                    <StackPanel>
+                        <!--
+                            Two lines an outage rather than columns, so a narrow
+                            window wraps nothing and truncates nothing that
+                            matters: when and for how long on the first, why and
+                            where on the second.
+                        -->
+                        <ItemsControl ItemsSource="{Binding Rows}"
+                                      Focusable="False"
+                                      Visibility="{Binding HasRows, Converter={StaticResource BooleanToVisibility}}"
+                                      AutomationProperties.Name="Outages">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:OutageRowViewModel}">
+                                    <Border Style="{StaticResource TileStyle}">
+                                        <DockPanel LastChildFill="True">
+                                            <Border DockPanel.Dock="Left"
+                                                    Width="32"
+                                                    Height="32"
+                                                    CornerRadius="8"
+                                                    Margin="0,0,12,0"
+                                                    VerticalAlignment="Top"
+                                                    Background="{DynamicResource QuietFillBrush}">
+                                                <fluent:SymbolIcon Symbol="PlugDisconnected"
+                                                                   FontSize="16"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center">
+                                                    <fluent:SymbolIcon.Style>
+                                                        <Style TargetType="fluent:SymbolIcon">
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsOngoing}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </fluent:SymbolIcon.Style>
+                                                </fluent:SymbolIcon>
+                                            </Border>
+
+                                            <StackPanel VerticalAlignment="Center">
+                                                <DockPanel LastChildFill="True">
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="{Binding Duration}"
+                                                               Margin="12,0,0,0"
+                                                               FontWeight="SemiBold"
+                                                               Typography.NumeralAlignment="Tabular">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsOngoing}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+
+                                                    <TextBlock Text="{Binding When}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </DockPanel>
+
+                                                <TextBlock Text="{Binding Details}"
+                                                           Margin="0,2,0,0"
+                                                           FontSize="{DynamicResource TextSize12}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- What the log will hold, why it holds nothing, and what to do. -->
+                        <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                    Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}">
+                            <fluent:SymbolIcon Symbol="PlugConnected"
+                                               FontSize="22"
+                                               Margin="0,0,0,8"
+                                               HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource GoodBrush}" />
+                            <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="{Binding EmptyNote}" Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
+
+                        <!-- One page of the log at a time; see PagedView. -->
+                        <views:PagerBar Margin="8,10,4,2" DataContext="{Binding LogPager}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </controls:SectionPage>
+</UserControl>

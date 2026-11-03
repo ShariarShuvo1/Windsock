@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
              xmlns:vm="clr-namespace:Windsock.App.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:SystemPanelViewModel}"
@@ -11,18 +12,177 @@
              d:DesignHeight="700">
 
     <!--
-        One part of the machine, chosen in the sidebar, with no heading over it:
-        its chart is the first thing on the page, from its very top.
+        No rules between the parts of a page: the room around each part parts
+        it from the next, as on every other page. Kept as ruled panels so the
+        spacing they give stays where it was.
+    -->
+    <UserControl.Resources>
+        <Style TargetType="{x:Type controls:RuledPanel}">
+            <Setter Property="DividerBrush" Value="{x:Null}" />
+        </Style>
+
+        <!-- The bars of a busiest list and of a part's history take the part's own hue. -->
+        <Style x:Key="PartBarStyle" TargetType="{x:Type controls:MeterBar}">
+            <Setter Property="Height" Value="8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Track" Value="{DynamicResource MeterTrackBrush}" />
+            <Setter Property="Fill" Value="{DynamicResource ProcessorBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Part}" Value="Memory">
+                    <Setter Property="Fill" Value="{DynamicResource MemoryBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Part}" Value="Storage">
+                    <Setter Property="Fill" Value="{DynamicResource StorageBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="PartHistoryChartStyle" TargetType="{x:Type controls:PartHistoryChart}">
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
+            <Setter Property="BarBrush" Value="{DynamicResource ProcessorBrush}" />
+            <!--
+                The temperature line is the text colour, not the warm accent:
+                orange over the graphics card's green is 12 apart for protan
+                vision where a shared chart needs 20 (PaletteColourTests), and a
+                neutral line parts from every part's hue by lightness alone.
+            -->
+            <Setter Property="HeatBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="GridBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
+            <Setter Property="AxisBrush" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+            <Setter Property="HighlightBrush" Value="{DynamicResource HoverBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Part}" Value="Graphics">
+                    <Setter Property="BarBrush" Value="{DynamicResource GraphicsBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Part}" Value="Memory">
+                    <Setter Property="BarBrush" Value="{DynamicResource MemoryBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Part}" Value="Storage">
+                    <Setter Property="BarBrush" Value="{DynamicResource StorageBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+            One process in a busiest list: its name, a bar, and the figure. The
+            name and figure columns are shared across the list so the bars line
+            up; the whole row is one sentence to a screen reader, which is the
+            row's own ToString (a name set here, on a Grid, was never read).
+        -->
+        <DataTemplate x:Key="BusyProcessTemplate">
+            <Grid Margin="0,0,0,6"
+                  Background="Transparent"
+                  ToolTip="{Binding Detail}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="BusyName" />
+                    <ColumnDefinition Width="*" MinWidth="40" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="BusyValue" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="{Binding Name}"
+                           FontSize="{DynamicResource TextSize12}"
+                           MaxWidth="200"
+                           Margin="0,0,12,0"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                <controls:MeterBar Grid.Column="1"
+                                   Style="{StaticResource PartBarStyle}"
+                                   Fraction="{Binding Fraction}" />
+
+                <TextBlock Grid.Column="2"
+                           Text="{Binding Value}"
+                           FontSize="{DynamicResource TextSize12}"
+                           MinWidth="56"
+                           Margin="10,0,0,0"
+                           TextAlignment="Right"
+                           VerticalAlignment="Center"
+                           Typography.NumeralAlignment="Tabular"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- A run of logical processors under its kind of core. -->
+        <DataTemplate x:Key="CoreGroupTemplate">
+            <StackPanel Margin="0,0,0,10">
+                <StackPanel Margin="0,4,0,8"
+                            Visibility="{Binding Title, Converter={StaticResource TextToVisibility}}">
+                    <TextBlock Text="{Binding Title}"
+                               FontSize="{DynamicResource TextSize12_5}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Text="{Binding Note}"
+                               FontSize="{DynamicResource TextSize11_5}"
+                               Margin="0,1,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                </StackPanel>
+
+                <ItemsControl ItemsSource="{Binding Rows}"
+                              Focusable="False"
+                              ItemTemplate="{StaticResource CoreMeterTemplate}"
+                              AutomationProperties.Name="{Binding Title}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <controls:FlowGrid MinimumColumnWidth="200" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!--
+        One part of the machine, chosen in the sidebar, under the same page
+        frame as every other page: the part's name, one line about it, and - for
+        the network, the one part that pauses - its Pause, in the heading where
+        every live page keeps it. Its chart is the first thing under that.
 
         Under the chart, for the network, what that chart adds up to; under
         that, everything the machine will say about the part, and a line naming
-        the machine at the foot. The two groups have neither fill nor outline,
-        only the rules inside them, so they sit on the page rather than on boxes
-        of their own.
+        the machine at the foot. Nothing here has a fill or an outline of its
+        own beyond the plates: this is the look the other pages follow.
+    -->
+    <controls:SectionPage Title="{Binding PageTitle}" Subtitle="{Binding PageSubtitle}">
+        <controls:SectionPage.Actions>
+            <Grid Visibility="{Binding IsNetworkShowing, Converter={StaticResource BooleanToVisibility}}">
+            <Button Style="{StaticResource ToolbarButtonStyle}"
+                    DataContext="{Binding Rates}"
+                    Command="{Binding ToggleLiveCommand}"
+                    AutomationProperties.Name="{Binding LiveLabel}"
+                    ToolTip="Hold the chart and its figures still so they can be read. Nothing stops being measured while they are paused.">
+                <StackPanel Orientation="Horizontal">
+                    <fluent:SymbolIcon FontSize="{DynamicResource TextSize14}" VerticalAlignment="Center" Margin="0,0,7,0">
+                        <fluent:SymbolIcon.Style>
+                            <Style TargetType="fluent:SymbolIcon">
+                                <Setter Property="Symbol" Value="PauseCircle" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLive}" Value="False">
+                                        <Setter Property="Symbol" Value="PlayCircle" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </fluent:SymbolIcon.Style>
+                    </fluent:SymbolIcon>
+
+                    <TextBlock Text="{Binding LiveLabel}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            </Grid>
+        </controls:SectionPage.Actions>
+
+    <!--
+        The page's edges line up under its title, as on every other page:
+        plates and bands start where the heading does, and what is written in
+        them 20 in from there. (Until 2026-10-05 the System pages kept an
+        8 px padding of their own, and their plates stood 16 px out past the
+        title.)
     -->
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
-                  Padding="8,4,8,16">
+                  Padding="{StaticResource PagePadding}">
         <Grid>
             <StackPanel>
                 <!-- ===================== The live picture ===================== -->
@@ -50,7 +210,7 @@
                                     <StackPanel VerticalAlignment="Top">
                                         <StackPanel Orientation="Horizontal" Height="46" Margin="0,0,0,14">
                                             <TextBlock Text="{Binding Value}"
-                                                       FontSize="40"
+                                                       FontSize="{DynamicResource TextSize40}"
                                                        FontWeight="SemiBold"
                                                        VerticalAlignment="Bottom"
                                                        LineHeight="44"
@@ -58,7 +218,7 @@
                                                        Typography.NumeralAlignment="Tabular"
                                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                             <TextBlock Text="{Binding Unit}"
-                                                       FontSize="15"
+                                                       FontSize="{DynamicResource TextSize15}"
                                                        FontWeight="SemiBold"
                                                        Margin="4,0,0,7"
                                                        VerticalAlignment="Bottom"
@@ -88,14 +248,14 @@
                         -->
                         <controls:FlowGrid Style="{StaticResource PlateStripStyle}"
                                            controls:RuledPanel.RuleAbove="False"
-                                           MinimumColumnWidth="180"
+                                           MinimumColumnWidth="150"
                                            Visibility="{Binding IsNetworkShowing, Converter={StaticResource BooleanToVisibility}}">
                             <Border Style="{StaticResource PlateCellStyle}"
                                     ToolTip="Downloaded since midnight, as the history recorded it">
                                 <StackPanel>
                                     <ContentControl Content="DOWNLOADED TODAY" Style="{StaticResource DirectionLabelStyle}" />
                                     <TextBlock Text="{Binding TodayDownload}" Style="{StaticResource StatValueStyle}" />
-                                    <TextBlock Text="{Binding TodayNote}" Style="{StaticResource StatNoteStyle}" />
+                                    <TextBlock Text="{Binding TodayNote}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
 
@@ -104,7 +264,7 @@
                                 <StackPanel>
                                     <ContentControl Content="UPLOADED TODAY" Style="{StaticResource UploadLabelStyle}" />
                                     <TextBlock Text="{Binding TodayUpload}" Style="{StaticResource StatValueStyle}" />
-                                    <TextBlock Text="{Binding TodayNote}" Style="{StaticResource StatNoteStyle}" />
+                                    <TextBlock Text="{Binding TodayNote}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
 
@@ -139,6 +299,36 @@
                                     <TextBlock Text="{Binding Rates.StatsSpan}" Style="{StaticResource StatNoteStyle}" />
                                 </StackPanel>
                             </Border>
+
+                            <!--
+                                The whole household, from the router's own
+                                counters: only while that is switched on, and
+                                the router is asked only while a plate is on
+                                screen (WhileVisible).
+                            -->
+                            <Border Style="{StaticResource PlateCellStyle}"
+                                    DataContext="{Binding Household}"
+                                    controls:WhileVisible.Follows="True"
+                                    Visibility="{Binding IsShown, Converter={StaticResource BooleanToVisibility}}"
+                                    ToolTip="What every device at home is receiving together, as your router counts it">
+                                <StackPanel>
+                                    <ContentControl Content="HOUSEHOLD DOWN" Style="{StaticResource DirectionLabelStyle}" />
+                                    <TextBlock Text="{Binding Download}" Style="{StaticResource StatValueStyle}" AutomationProperties.Name="Household download" />
+                                    <TextBlock Text="{Binding Note}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource PlateCellStyle}"
+                                    DataContext="{Binding Household}"
+                                    controls:WhileVisible.Follows="True"
+                                    Visibility="{Binding IsShown, Converter={StaticResource BooleanToVisibility}}"
+                                    ToolTip="What every device at home is sending together, as your router counts it">
+                                <StackPanel>
+                                    <ContentControl Content="HOUSEHOLD UP" Style="{StaticResource UploadLabelStyle}" />
+                                    <TextBlock Text="{Binding Upload}" Style="{StaticResource StatValueStyle}" AutomationProperties.Name="Household upload" />
+                                    <TextBlock Text="{Binding Note}" Style="{StaticResource StatNoteStyle}" />
+                                </StackPanel>
+                            </Border>
                         </controls:FlowGrid>
                     </controls:RuledPanel>
                 </Border>
@@ -150,111 +340,156 @@
                         <Border Style="{StaticResource SectionStyle}"
                                 Padding="20,16,20,8"
                                 Visibility="{Binding IsNetworkShowing, Converter={StaticResource BooleanToVisibility}}">
-                            <StackPanel>
-                                <TextBlock Text="Adapters" Style="{StaticResource CardTitleStyle}" />
-                                <TextBlock Text="The network connections carrying traffic, fastest link first"
-                                           Style="{StaticResource CardNoteStyle}" />
-
-                                <StackPanel Margin="0,6,0,0" Grid.IsSharedSizeScope="True">
-                                    <ItemsControl ItemsSource="{Binding Adapters}"
-                                                  ItemTemplate="{StaticResource AdapterRowTemplate}"
-                                                  Focusable="False"
-                                                  AutomationProperties.Name="Network adapters">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <controls:RuledPanel />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                    </ItemsControl>
-
-                                    <TextBlock Text="No adapter is connected."
-                                               Style="{StaticResource DetailNoteStyle}"
-                                               Margin="0,10,0,10"
-                                               Visibility="{Binding Adapters.Count, Converter={StaticResource EmptyToVisibility}}" />
+                            <!--
+                                The adapters list moved to Network › Adapters and Wi-Fi
+                                (0.2.0 step 4), which has room for addresses, DNS, the
+                                router, Wi-Fi and VPN; this points there.
+                            -->
+                            <controls:AdaptiveRow Breakpoint="520" Spacing="12" LeadFills="True" Margin="0,0,0,8">
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Adapters" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Every adapter with its addresses, router, DNS servers and metered state, and Wi-Fi in detail, are on a page of their own."
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CardNoteStyle}" />
                                 </StackPanel>
-                            </StackPanel>
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        controls:PageLink.To="adapters"
+                                        AutomationProperties.Name="Open Adapters and Wi-Fi">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="WiFi1" FontSize="{DynamicResource TextSize14}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Adapters and Wi-Fi" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </controls:AdaptiveRow>
                         </Border>
 
-                        <!-- Processor -->
-                        <controls:RuledPanel Visibility="{Binding IsProcessorShowing, Converter={StaticResource BooleanToVisibility}}">
-                            <Border Style="{StaticResource SectionStyle}">
-                                <controls:AdaptiveRow Breakpoint="560" Spacing="16" LeadFills="True">
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding ProcessorName}"
-                                                   FontSize="15"
-                                                   FontWeight="SemiBold"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <!--
+                            Processor: what it is, then its second figures on
+                            plates - Utility, the two kinds of core, the
+                            temperature and the package's power - and its
+                            logical processors in a band of their own.
+                        -->
+                        <StackPanel Visibility="{Binding IsProcessorShowing, Converter={StaticResource BooleanToVisibility}}">
+                            <Border Style="{StaticResource SectionStyle}" Padding="20,16,20,12">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ProcessorName}"
+                                               FontSize="{DynamicResource TextSize15}"
+                                               FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
-                                        <TextBlock Text="{Binding ProcessorCores}"
-                                                   FontSize="12"
-                                                   Margin="0,3,0,0"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{Binding ProcessorCores}"
+                                               FontSize="{DynamicResource TextSize12}"
+                                               Margin="0,3,0,0"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-                                        <TextBlock Text="{Binding ProcessorSilicon}"
-                                                   FontSize="12"
-                                                   Margin="0,2,0,0"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    <TextBlock Text="{Binding ProcessorSilicon}"
+                                               FontSize="{DynamicResource TextSize12}"
+                                               Margin="0,2,0,0"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
 
-                                        <TextBlock Text="{Binding ProcessorThreads}"
-                                                   FontSize="12"
-                                                   Margin="0,2,0,0"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    <TextBlock Text="{Binding ProcessorThreads}"
+                                               FontSize="{DynamicResource TextSize12}"
+                                               Margin="0,2,0,0"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!--
+                                The headline above is the time busy, as Task
+                                Manager shows it. Utility is the figure Task
+                                Manager showed before 2025: the same time scaled
+                                by the clock, so it passes 100% under boost.
+                                Temperature and power collapse where empty, which
+                                is the Store edition: it ships without them.
+                            -->
+                            <controls:FlowGrid Style="{StaticResource PlateStripStyle}" MinimumColumnWidth="150">
+                                <controls:Plate Style="{StaticResource PlateCellStyle}"
+                                        AutomationProperties.Name="Utility"
+                                        ToolTip="Windows' Processor Utility: the time busy scaled by the clock against the base clock. Task Manager showed this before 2025, and its Details tab still offers it as CPU Utility. It passes 100% while the chip boosts, so it is not the headline.">
+                                    <StackPanel>
+                                        <TextBlock Text="UTILITY" Style="{StaticResource StatLabelStyle}" />
+                                        <TextBlock Text="{Binding ProcessorUtility}" Style="{StaticResource StatValueStyle}" />
+                                        <TextBlock Text="Busy time, scaled by clock" Style="{StaticResource StatNoteStyle}" />
                                     </StackPanel>
+                                </controls:Plate>
 
-                                    <!--
-                                        Collapses entirely where the value is
-                                        empty, which is the Store edition: that
-                                        build ships without the feature rather
-                                        than with a figure that can never fill.
+                                <controls:Plate Style="{StaticResource PlateCellStyle}"
+                                        Visibility="{Binding IsHybrid, Converter={StaticResource BooleanToVisibility}}"
+                                        AutomationProperties.Name="Performance cores"
+                                        ToolTip="The average load of the logical processors on the fast cores">
+                                    <StackPanel>
+                                        <TextBlock Text="PERFORMANCE CORES" Style="{StaticResource StatLabelStyle}" />
+                                        <TextBlock Text="{Binding PerformanceLoad}" Style="{StaticResource StatValueStyle}" />
+                                        <TextBlock Text="{Binding PerformanceNote}" Style="{StaticResource StatNoteStyle}" />
+                                    </StackPanel>
+                                </controls:Plate>
 
-                                        Elsewhere it is always here, dash and
-                                        all. The note under it carries the
-                                        reason - no PawnIO, or no elevation -
-                                        and is itself absent while degrees are
-                                        arriving.
-                                    -->
-                                    <StackPanel MinWidth="150"
-                                                VerticalAlignment="Center"
-                                                Visibility="{Binding ProcessorTemperature, Converter={StaticResource TextToVisibility}}">
+                                <controls:Plate Style="{StaticResource PlateCellStyle}"
+                                        Visibility="{Binding IsHybrid, Converter={StaticResource BooleanToVisibility}}"
+                                        AutomationProperties.Name="Efficiency cores"
+                                        ToolTip="The average load of the logical processors on the efficient cores">
+                                    <StackPanel>
+                                        <TextBlock Text="EFFICIENCY CORES" Style="{StaticResource StatLabelStyle}" />
+                                        <TextBlock Text="{Binding EfficiencyLoad}" Style="{StaticResource StatValueStyle}" />
+                                        <TextBlock Text="{Binding EfficiencyNote}" Style="{StaticResource StatNoteStyle}" />
+                                    </StackPanel>
+                                </controls:Plate>
+
+                                <Border Style="{StaticResource PlateCellStyle}"
+                                        Visibility="{Binding ProcessorTemperature, Converter={StaticResource TextToVisibility}}"
+                                        ToolTip="{Binding ProcessorTemperatureHint}">
+                                    <StackPanel>
                                         <TextBlock Text="TEMPERATURE" Style="{StaticResource StatLabelStyle}" />
                                         <TextBlock Text="{Binding ProcessorTemperature}" Style="{StaticResource StatValueStyle}" />
                                         <TextBlock Text="{Binding ProcessorTemperatureNote}"
                                                    Style="{StaticResource StatNoteStyle}"
-                                                   ToolTip="{Binding ProcessorTemperatureHint}"
                                                    Visibility="{Binding ProcessorTemperatureNote, Converter={StaticResource TextToVisibility}}" />
                                     </StackPanel>
-                                </controls:AdaptiveRow>
-                            </Border>
+                                </Border>
+
+                                <controls:Plate Style="{StaticResource PlateCellStyle}"
+                                        Visibility="{Binding ProcessorPower, Converter={StaticResource TextToVisibility}}"
+                                        AutomationProperties.Name="Package power"
+                                        ToolTip="{Binding ProcessorPowerHint}">
+                                    <StackPanel>
+                                        <TextBlock Text="PACKAGE POWER" Style="{StaticResource StatLabelStyle}" />
+                                        <TextBlock Text="{Binding ProcessorPower}" Style="{StaticResource StatValueStyle}" />
+                                        <TextBlock Text="{Binding ProcessorPowerNote}"
+                                                   Style="{StaticResource StatNoteStyle}"
+                                                   Visibility="{Binding ProcessorPowerNote, Converter={StaticResource TextToVisibility}}" />
+                                    </StackPanel>
+                                </controls:Plate>
+                            </controls:FlowGrid>
 
                             <!--
-                                One bar per logical processor. Columns rather
-                                than one long list, because sixteen bars in a
-                                column is a scroll and sixteen in four is a
-                                picture.
+                                One bar per logical processor, under its kind of
+                                core on a hybrid chip. Columns rather than one
+                                long list, because sixteen bars in a column is a
+                                scroll and sixteen in four is a picture.
                             -->
-                            <Border Style="{StaticResource SectionStyle}">
+                            <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
                                 <StackPanel>
-                                    <TextBlock Text="Logical processors" Style="{StaticResource CardTitleStyle}" />
-                                    <TextBlock Text="How busy each thread of execution is right now"
-                                               Style="{StaticResource CardNoteStyle}" />
+                                    <StackPanel Style="{StaticResource BandHeadStyle}">
+                                        <TextBlock Text="Logical processors" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="How busy each thread of execution is right now"
+                                                   TextWrapping="Wrap"
+                                                   Style="{StaticResource CardNoteStyle}" />
+                                    </StackPanel>
 
-                                    <ItemsControl ItemsSource="{Binding Cores}"
-                                                  Margin="0,12,0,0"
-                                                  ItemTemplate="{StaticResource CoreMeterTemplate}"
-                                                  AutomationProperties.Name="Logical processors">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <controls:FlowGrid MinimumColumnWidth="200" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                    </ItemsControl>
+                                    <ItemsControl ItemsSource="{Binding CoreGroups}"
+                                                  Margin="0,4,0,0"
+                                                  Focusable="False"
+                                                  ItemTemplate="{StaticResource CoreGroupTemplate}"
+                                                  AutomationProperties.Name="Logical processors" />
                                 </StackPanel>
                             </Border>
-                        </controls:RuledPanel>
+                        </StackPanel>
 
                         <!-- Graphics: one run of parts per adapter, ruled off from the next -->
                         <ItemsControl ItemsSource="{Binding Cards}"
@@ -272,14 +507,14 @@
                                         <Border Style="{StaticResource SectionStyle}">
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Name}"
-                                                           FontSize="15"
+                                                           FontSize="{DynamicResource TextSize15}"
                                                            FontWeight="SemiBold"
                                                            TextTrimming="CharacterEllipsis"
                                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
                                                 <!-- Only where the adapter's own library will say. -->
                                                 <TextBlock Margin="0,3,0,0"
-                                                           FontSize="12"
+                                                           FontSize="{DynamicResource TextSize12}"
                                                            Visibility="{Binding Driver, Converter={StaticResource TextToVisibility}}">
                                                     <Run Text="Driver " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                     <Run Text="{Binding Driver, Mode=OneWay}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -300,7 +535,7 @@
 
                                                     <TextBlock Grid.Row="0" Grid.Column="0"
                                                                Text="Load"
-                                                               FontSize="12"
+                                                               FontSize="{DynamicResource TextSize12}"
                                                                Margin="0,0,14,0"
                                                                VerticalAlignment="Center"
                                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -320,7 +555,7 @@
 
                                                     <TextBlock Grid.Row="2" Grid.Column="0"
                                                                Text="Memory"
-                                                               FontSize="12"
+                                                               FontSize="{DynamicResource TextSize12}"
                                                                Margin="0,0,14,0"
                                                                VerticalAlignment="Center"
                                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -335,7 +570,7 @@
 
                                                     <TextBlock Grid.Row="2" Grid.Column="2"
                                                                Text="{Binding Memory}"
-                                                               FontSize="12"
+                                                               FontSize="{DynamicResource TextSize12}"
                                                                VerticalAlignment="Center"
                                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                 </Grid>
@@ -373,7 +608,7 @@
                                                     <TextBlock Style="{StaticResource StatValueStyle}">
                                                         <Run Text="{Binding Clock, Mode=OneWay}" />
                                                         <Run Text="{Binding MemoryClock, Mode=OneWay}"
-                                                             FontSize="13"
+                                                             FontSize="{DynamicResource TextSize13}"
                                                              FontWeight="Normal"
                                                              Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                     </TextBlock>
@@ -381,15 +616,17 @@
                                             </Border>
                                         </controls:FlowGrid>
 
-                                        <controls:FlowGrid controls:RuledPanel.RuleAbove="False" MinimumColumnWidth="300" DividerBrush="{DynamicResource CardStrokeBrush}">
+                                        <controls:FlowGrid controls:RuledPanel.RuleAbove="False" MinimumColumnWidth="300">
                                             <Border Style="{StaticResource SectionStyle}">
                                                 <StackPanel>
                                                     <TextBlock Text="Engines" Style="{StaticResource CardTitleStyle}" />
 
                                                     <ItemsControl ItemsSource="{Binding Engines}"
                                                                   Margin="0,10,0,0"
+                                                                  Focusable="False"
                                                                   Grid.IsSharedSizeScope="True"
-                                                                  ItemTemplate="{StaticResource EngineMeterTemplate}" />
+                                                                  ItemTemplate="{StaticResource EngineMeterTemplate}"
+                                                                  AutomationProperties.Name="{Binding Name, StringFormat='Engines of {0}'}" />
 
                                                     <TextBlock Text="Idle"
                                                                Style="{StaticResource DetailNoteStyle}"
@@ -404,8 +641,10 @@
 
                                                     <ItemsControl ItemsSource="{Binding Processes}"
                                                                   Margin="0,10,0,0"
+                                                                  Focusable="False"
                                                                   Grid.IsSharedSizeScope="True"
-                                                                  ItemTemplate="{StaticResource EngineMeterTemplate}" />
+                                                                  ItemTemplate="{StaticResource EngineMeterTemplate}"
+                                                                  AutomationProperties.Name="{Binding Name, StringFormat='Processes using {0}'}" />
 
                                                     <TextBlock Text="Nothing is using it"
                                                                Style="{StaticResource DetailNoteStyle}"
@@ -421,13 +660,13 @@
 
                         <!-- Memory -->
                         <controls:RuledPanel Visibility="{Binding IsMemoryShowing, Converter={StaticResource BooleanToVisibility}}">
-                            <controls:FlowGrid MinimumColumnWidth="300" DividerBrush="{DynamicResource CardStrokeBrush}">
+                            <controls:FlowGrid MinimumColumnWidth="300">
                                 <Border Style="{StaticResource SectionStyle}">
                                     <StackPanel>
                                         <DockPanel LastChildFill="True">
                                             <TextBlock DockPanel.Dock="Right"
                                                        Text="{Binding MemoryAvailable}"
-                                                       FontSize="12"
+                                                       FontSize="{DynamicResource TextSize12}"
                                                        VerticalAlignment="Center"
                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="In use" Style="{StaticResource CardTitleStyle}" />
@@ -492,6 +731,7 @@
 
                                     <ItemsControl ItemsSource="{Binding Modules}"
                                                   Margin="0,12,0,0"
+                                                  Focusable="False"
                                                   Grid.IsSharedSizeScope="True"
                                                   ItemTemplate="{StaticResource MemoryModuleTemplate}"
                                                   AutomationProperties.Name="Memory modules" />
@@ -504,20 +744,15 @@
                             </Border>
                         </controls:RuledPanel>
 
-                        <!-- Storage: one part per drive, ruled off from the next -->
+                        <!-- Storage: one band per drive, the page's tone between them -->
                         <ItemsControl ItemsSource="{Binding Drives}"
                                       Focusable="False"
                                       Grid.IsSharedSizeScope="True"
                                       Visibility="{Binding IsStorageShowing, Converter={StaticResource BooleanToVisibility}}"
                                       AutomationProperties.Name="Drives">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <controls:RuledPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource SectionStyle}">
+                                    <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
                                         <StackPanel>
                                             <DockPanel LastChildFill="True">
                                                 <StackPanel DockPanel.Dock="Right"
@@ -528,7 +763,7 @@
                                                             Margin="0,0,6,0"
                                                             Visibility="{Binding Life, Converter={StaticResource TextToVisibility}}">
                                                         <TextBlock Text="{Binding Life}"
-                                                                   FontSize="10.5"
+                                                                   FontSize="{DynamicResource TextSize10_5}"
                                                                    FontWeight="SemiBold">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
@@ -548,7 +783,7 @@
                                                     <Border Style="{StaticResource TileBadgeStyle}"
                                                             Visibility="{Binding Temperature, Converter={StaticResource TextToVisibility}}">
                                                         <TextBlock Text="{Binding Temperature}"
-                                                                   FontSize="10.5"
+                                                                   FontSize="{DynamicResource TextSize10_5}"
                                                                    FontWeight="SemiBold">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
@@ -568,13 +803,13 @@
 
                                                 <StackPanel>
                                                     <TextBlock Text="{Binding Model}"
-                                                               FontSize="14"
+                                                               FontSize="{DynamicResource TextSize14}"
                                                                FontWeight="SemiBold"
                                                                TextTrimming="CharacterEllipsis"
                                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
                                                     <TextBlock Text="{Binding Description}"
-                                                               FontSize="12"
+                                                               FontSize="{DynamicResource TextSize12}"
                                                                Margin="0,2,0,0"
                                                                TextTrimming="CharacterEllipsis"
                                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -598,24 +833,24 @@
 
                                                 <TextBlock Grid.Column="1"
                                                            Text="{Binding Capacity}"
-                                                           FontSize="12"
+                                                           FontSize="{DynamicResource TextSize12}"
                                                            VerticalAlignment="Center"
                                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             </Grid>
 
                                             <!-- What it is doing. -->
                                             <WrapPanel Margin="0,10,0,0">
-                                                <TextBlock FontSize="12" Margin="0,0,18,2">
+                                                <TextBlock FontSize="{DynamicResource TextSize12}" Margin="0,0,18,2">
                                                     <Run Text="Read " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                     <Run Text="{Binding Reading, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 </TextBlock>
 
-                                                <TextBlock FontSize="12" Margin="0,0,18,2">
+                                                <TextBlock FontSize="{DynamicResource TextSize12}" Margin="0,0,18,2">
                                                     <Run Text="Write " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                     <Run Text="{Binding Writing, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 </TextBlock>
 
-                                                <TextBlock FontSize="12" Margin="0,0,0,2">
+                                                <TextBlock FontSize="{DynamicResource TextSize12}" Margin="0,0,0,2">
                                                     <Run Text="Active " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                     <Run Text="{Binding Busy, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 </TextBlock>
@@ -623,7 +858,9 @@
 
                                             <ItemsControl ItemsSource="{Binding Volumes}"
                                                           Margin="0,4,0,0"
-                                                          ItemTemplate="{StaticResource VolumeTemplate}" />
+                                                          Focusable="False"
+                                                          ItemTemplate="{StaticResource VolumeTemplate}"
+                                                          AutomationProperties.Name="Volumes" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -631,6 +868,349 @@
                         </ItemsControl>
                     </Grid>
                 </Border>
+
+                <!-- ===================== Battery ===================== -->
+                <StackPanel Visibility="{Binding IsBatteryShowing, Converter={StaticResource BooleanToVisibility}}">
+                    <Border Style="{StaticResource NoticeStyle}"
+                            Margin="0,0,0,8"
+                            Visibility="{Binding BatteryDetail.Detail, Converter={StaticResource TextToVisibility}}">
+                        <TextBlock Text="{Binding BatteryDetail.Detail}"
+                                   TextWrapping="Wrap"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </Border>
+
+                    <controls:FlowGrid Style="{StaticResource PlateStripStyle}" MinimumColumnWidth="150">
+                        <Border Style="{StaticResource PlateCellStyle}">
+                            <StackPanel>
+                                <TextBlock Text="HOLDING" Style="{StaticResource StatLabelStyle}" />
+                                <TextBlock Text="{Binding BatteryDetail.Capacity}" Style="{StaticResource StatValueStyle}" />
+                                <TextBlock Text="{Binding BatteryDetail.CapacityNote}" Style="{StaticResource StatNoteStyle}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource PlateCellStyle}">
+                            <StackPanel>
+                                <TextBlock Text="RATE" Style="{StaticResource StatLabelStyle}" />
+                                <TextBlock Text="{Binding BatteryDetail.Rate}" Style="{StaticResource StatValueStyle}" />
+                                <TextBlock Text="{Binding BatteryDetail.RateNote}" Style="{StaticResource StatNoteStyle}" />
+                            </StackPanel>
+                        </Border>
+
+                        <controls:Plate Style="{StaticResource PlateCellStyle}" AutomationProperties.Name="Time left">
+                            <StackPanel>
+                                <TextBlock Text="TIME" Style="{StaticResource StatLabelStyle}" />
+                                <TextBlock Text="{Binding BatteryDetail.Time}" Style="{StaticResource StatValueStyle}" />
+                                <TextBlock Text="{Binding BatteryDetail.TimeNote}" Style="{StaticResource StatNoteStyle}" />
+                            </StackPanel>
+                        </controls:Plate>
+
+                        <controls:Plate Style="{StaticResource PlateCellStyle}" AutomationProperties.Name="Battery health">
+                            <StackPanel>
+                                <TextBlock Text="HEALTH" Style="{StaticResource StatLabelStyle}" />
+                                <TextBlock Text="{Binding BatteryDetail.Health}" Style="{StaticResource StatValueStyle}" />
+                                <TextBlock Text="{Binding BatteryDetail.HealthNote}" Style="{StaticResource StatNoteStyle}" />
+                            </StackPanel>
+                        </controls:Plate>
+
+                        <controls:Plate Style="{StaticResource PlateCellStyle}" AutomationProperties.Name="Charge cycles">
+                            <StackPanel>
+                                <TextBlock Text="CYCLES" Style="{StaticResource StatLabelStyle}" />
+                                <TextBlock Text="{Binding BatteryDetail.Cycles}" Style="{StaticResource StatValueStyle}" />
+                                <TextBlock Text="{Binding BatteryDetail.CyclesNote}" Style="{StaticResource StatNoteStyle}" />
+                            </StackPanel>
+                        </controls:Plate>
+                    </controls:FlowGrid>
+
+                    <!-- Each battery: most laptops have one, some two; a PC on a UPS has that. -->
+                    <Border Style="{StaticResource BandStyle}"
+                            Margin="{StaticResource BandGap}"
+                            Visibility="{Binding BatteryDetail.HasUnits, Converter={StaticResource BooleanToVisibility}}">
+                        <StackPanel>
+                            <StackPanel Style="{StaticResource BandHeadStyle}">
+                                <TextBlock Text="The battery itself" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="What its own controller reports: its make, how much of its first capacity it keeps, and how many charges it has been through."
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding BatteryDetail.Units}"
+                                          Focusable="False"
+                                          AutomationProperties.Name="Batteries">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <!-- Named by the item's ToString: a name on the Border is never read. -->
+                                        <Border Style="{StaticResource TileStyle}">
+                                            <StackPanel>
+                                                <DockPanel LastChildFill="True">
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="{Binding Charge}"
+                                                               FontSize="{DynamicResource TextSize13}"
+                                                               FontWeight="SemiBold"
+                                                               Margin="12,0,0,0"
+                                                               Typography.NumeralAlignment="Tabular"
+                                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontSize="{DynamicResource TextSize13}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                </DockPanel>
+
+                                                <TextBlock Text="{Binding Description}"
+                                                           FontSize="{DynamicResource TextSize11_5}"
+                                                           Margin="0,2,0,0"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                           Visibility="{Binding Description, Converter={StaticResource TextToVisibility}}" />
+
+                                                <controls:MeterBar Height="8"
+                                                                   Margin="0,10,0,6"
+                                                                   Fraction="{Binding HealthFraction}"
+                                                                   Fill="{DynamicResource BatteryBrush}"
+                                                                   Track="{DynamicResource MeterTrackBrush}"
+                                                                   Visibility="{Binding HasHealth, Converter={StaticResource BooleanToVisibility}}" />
+
+                                                <TextBlock Text="{Binding Health}"
+                                                           FontSize="{DynamicResource TextSize12}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                                                <TextBlock Text="{Binding Reading}"
+                                                           FontSize="{DynamicResource TextSize12}"
+                                                           Margin="0,2,0,0"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- The machine's power: mains or battery, the power mode and battery saver. -->
+                    <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                        <StackPanel>
+                            <StackPanel Style="{StaticResource BandHeadStyle}">
+                                <TextBlock Text="Power" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="As Windows has it set. They are changed in Windows' own power settings."
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+
+                            <controls:FlowGrid Style="{StaticResource PlateStripStyle}" MinimumColumnWidth="150">
+                                <Border Style="{StaticResource InsetPlateCellStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="SOURCE" Style="{StaticResource StatLabelStyle}" />
+                                        <TextBlock Text="{Binding BatteryDetail.Source}" Style="{StaticResource StatValueStyle}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <controls:Plate Style="{StaticResource InsetPlateCellStyle}" AutomationProperties.Name="Power mode">
+                                    <StackPanel>
+                                        <TextBlock Text="POWER MODE" Style="{StaticResource StatLabelStyle}" />
+                                        <TextBlock Text="{Binding BatteryDetail.Mode}" Style="{StaticResource StatValueStyle}" />
+                                    </StackPanel>
+                                </controls:Plate>
+
+                                <Border Style="{StaticResource InsetPlateCellStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding BatteryDetail.SaverLabel}" Style="{StaticResource StatLabelStyle}" />
+                                        <TextBlock Text="{Binding BatteryDetail.Saver}" Style="{StaticResource StatValueStyle}" />
+                                    </StackPanel>
+                                </Border>
+                            </controls:FlowGrid>
+
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,12,0,0"
+                                    Click="OnPowerSettings"
+                                    AutomationProperties.Name="Open Windows' power settings"
+                                    ToolTip="Opens Settings, System, Power and battery">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Open" FontSize="{DynamicResource TextSize14}" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Power settings" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- ===================== Neural processors, on the Graphics page ===================== -->
+                <ItemsControl ItemsSource="{Binding Npus}"
+                              Focusable="False"
+                              Visibility="{Binding IsGraphicsShowing, Converter={StaticResource BooleanToVisibility}}"
+                              AutomationProperties.Name="Neural processors">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource BandStyle}"
+                                    Margin="{StaticResource BandGap}">
+                                <StackPanel>
+                                    <StackPanel Style="{StaticResource BandHeadStyle}">
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="Neural processor: machine-learning work Windows sends to it. Its load is its busiest engine, as Task Manager draws it."
+                                                   TextWrapping="Wrap"
+                                                   Style="{StaticResource CardNoteStyle}" />
+                                    </StackPanel>
+
+                                    <Grid Margin="0,4,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Load"
+                                                   FontSize="{DynamicResource TextSize12}"
+                                                   Margin="0,0,14,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <controls:MeterBar Grid.Column="1"
+                                                           Height="8"
+                                                           Margin="0,0,14,0"
+                                                           VerticalAlignment="Center"
+                                                           Fraction="{Binding BusyFraction}"
+                                                           Fill="{DynamicResource GraphicsBrush}"
+                                                           Track="{DynamicResource MeterTrackBrush}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding Busy}"
+                                                   Style="{StaticResource DetailValueStyle}"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <TextBlock FontSize="{DynamicResource TextSize12}" Margin="0,0,0,8">
+                                        <Run Text="Memory " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <Run Text="{Binding Memory, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    </TextBlock>
+
+                                    <controls:FlowGrid MinimumColumnWidth="260">
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="Engines" Style="{StaticResource DetailCaptionStyle}" />
+                                            <ItemsControl ItemsSource="{Binding Engines}"
+                                                          Grid.IsSharedSizeScope="True"
+                                                          Focusable="False"
+                                                          ItemTemplate="{StaticResource EngineMeterTemplate}" />
+                                            <TextBlock Text="Idle"
+                                                       Style="{StaticResource DetailNoteStyle}"
+                                                       Visibility="{Binding Engines.Count, Converter={StaticResource EmptyToVisibility}}" />
+                                        </StackPanel>
+
+                                        <StackPanel>
+                                            <TextBlock Text="Busiest processes" Style="{StaticResource DetailCaptionStyle}" />
+                                            <ItemsControl ItemsSource="{Binding Processes}"
+                                                          Grid.IsSharedSizeScope="True"
+                                                          Focusable="False"
+                                                          ItemTemplate="{StaticResource EngineMeterTemplate}" />
+                                            <TextBlock Text="Nothing is using it"
+                                                       Style="{StaticResource DetailNoteStyle}"
+                                                       Visibility="{Binding Processes.Count, Converter={StaticResource EmptyToVisibility}}" />
+                                        </StackPanel>
+                                    </controls:FlowGrid>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- ===================== Busiest processes ===================== -->
+                <Grid Margin="{StaticResource BandGap}"
+                      Visibility="{Binding ShowsBusiest, Converter={StaticResource BooleanToVisibility}}">
+                    <Border Style="{StaticResource BandStyle}" DataContext="{Binding BusiestProcesses}">
+                        <StackPanel>
+                            <StackPanel Style="{StaticResource BandHeadStyle}">
+                                <TextBlock Text="{Binding Title}" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="{Binding Note}" TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding Rows}"
+                                          Margin="0,4,0,0"
+                                          Grid.IsSharedSizeScope="True"
+                                          Focusable="False"
+                                          ItemTemplate="{StaticResource BusyProcessTemplate}"
+                                          AutomationProperties.Name="{Binding Title}"
+                                          Visibility="{Binding HasRows, Converter={StaticResource BooleanToVisibility}}" />
+
+                            <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                        Margin="16,10,16,12"
+                                        Visibility="{Binding HasRows, Converter={StaticResource InverseBooleanToVisibility}}">
+                                <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitleStyle}" />
+                                <TextBlock Text="{Binding EmptyNote}" Style="{StaticResource EmptyNoteStyle}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- ===================== The part's last day or week ===================== -->
+                <Grid Margin="{StaticResource BandGap}"
+                      Visibility="{Binding ShowsPartHistory, Converter={StaticResource BooleanToVisibility}}">
+                    <Border Style="{StaticResource BandStyle}" DataContext="{Binding PartHistory}">
+                        <StackPanel>
+                            <controls:AdaptiveRow Breakpoint="520" Spacing="12" LeadFills="True">
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="History" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="{Binding Note}" TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+
+                                <controls:Picker HorizontalAlignment="Left"
+                                                 VerticalAlignment="Top"
+                                                 Style="{StaticResource PickerStyle}"
+                                                 MinWidth="150"
+                                                 ItemsSource="{Binding Spans}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Span"
+                                                 SelectedValue="{Binding SelectedSpan, Mode=TwoWay}"
+                                                 AutomationProperties.Name="History span"
+                                                 ToolTip="How far back the chart goes" />
+                            </controls:AdaptiveRow>
+
+                            <Grid MinHeight="190" Margin="0,8,0,0">
+                                <controls:PartHistoryChart x:Name="PartChart"
+                                                           Style="{StaticResource PartHistoryChartStyle}"
+                                                           Steps="{Binding Steps}"
+                                                           TopLabel="{Binding TopLabel}"
+                                                           MiddleLabel="{Binding MiddleLabel}"
+                                                           HeatTopLabel="{Binding HeatTopLabel}"
+                                                           HeatBottomLabel="{Binding HeatBottomLabel}"
+                                                           AutomationProperties.Name="History chart"
+                                                           ToolTip="Point at a step, or use the arrow keys, to read it below"
+                                                           Visibility="{Binding HasData, Converter={StaticResource BooleanToVisibility}}" />
+
+                                <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                            Visibility="{Binding HasData, Converter={StaticResource InverseBooleanToVisibility}}">
+                                    <TextBlock Text="{Binding EmptyTitle}" Style="{StaticResource EmptyTitleStyle}" />
+                                    <TextBlock Text="{Binding EmptyNote}" Style="{StaticResource EmptyNoteStyle}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- The step under the pointer or the keyboard, else the whole span in a line; read out as the arrows move. -->
+                            <TextBlock Margin="0,8,0,0"
+                                       TextWrapping="Wrap"
+                                       FontSize="{DynamicResource TextSize12}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       controls:LiveRegion.Speaks="True"
+                                       Text="{Binding SelectedDetail, ElementName=PartChart}"
+                                       Visibility="{Binding SelectedDetail, ElementName=PartChart, Converter={StaticResource TextToVisibility}}" />
+
+                            <TextBlock Margin="0,8,0,0"
+                                       TextWrapping="Wrap"
+                                       FontSize="{DynamicResource TextSize12}"
+                                       Text="{Binding Summary}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedDetail, ElementName=PartChart}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
                 <!-- The machine itself: what the page heading used to say. -->
                 <TextBlock Text="{Binding MachineLine}"
@@ -743,7 +1323,7 @@
                                         <ContentControl Style="{StaticResource StatBoneStyle}" />
                                     </controls:FlowGrid>
 
-                                    <controls:FlowGrid controls:RuledPanel.RuleAbove="False" MinimumColumnWidth="300" DividerBrush="{DynamicResource CardStrokeBrush}">
+                                    <controls:FlowGrid controls:RuledPanel.RuleAbove="False" MinimumColumnWidth="300">
                                         <ContentControl Style="{StaticResource ListBoneStyle}" />
                                         <ContentControl Style="{StaticResource ListBoneStyle}" />
                                     </controls:FlowGrid>
@@ -755,7 +1335,7 @@
                     <!-- Memory -->
                     <controls:RuledPanel Margin="{StaticResource BlockGap}"
                                          Visibility="{Binding IsMemoryShowing, Converter={StaticResource BooleanToVisibility}}">
-                        <controls:FlowGrid MinimumColumnWidth="300" DividerBrush="{DynamicResource CardStrokeBrush}">
+                        <controls:FlowGrid MinimumColumnWidth="300">
                             <ContentControl Style="{StaticResource GaugeBoneStyle}" />
                             <ContentControl Style="{StaticResource GaugeBoneStyle}" />
                         </controls:FlowGrid>
@@ -808,4 +1388,5 @@
             </Border>
         </Grid>
     </ScrollViewer>
+    </controls:SectionPage>
 </UserControl>

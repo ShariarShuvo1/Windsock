@@ -12,7 +12,7 @@ namespace Windsock.App.Views;
 
 /// <summary>
 /// Opens and keeps track of the details windows - one per app or process - and
-/// builds the network map for the Apps page.
+/// builds the network map for the Map page.
 /// </summary>
 public sealed class ProcessMonitorLauncher
 {
@@ -21,6 +21,7 @@ public sealed class ProcessMonitorLauncher
     private readonly IProcessConnectionDetailSource _details;
     private readonly IProcessEndpointSource _endpoints;
     private readonly NetworkRouteCache _routes;
+    private readonly OutsideContacts _contacts;
     private readonly IProcessIdentityResolver _identities;
     private readonly HostNameCache _hosts;
     private readonly ProcessIconCache _icons;
@@ -28,6 +29,7 @@ public sealed class ProcessMonitorLauncher
     private readonly AppNames _names;
     private readonly RecentAppFigures _figures;
     private readonly ThroughputOverviewViewModel _overview;
+    private readonly AppFacts _facts;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<string, ProcessMonitorWindow> _open = new(RunningApps.KeyComparer);
     private IpLocations? _addresses;
@@ -40,6 +42,7 @@ public sealed class ProcessMonitorLauncher
         IProcessConnectionDetailSource details,
         IProcessEndpointSource endpoints,
         NetworkRouteCache routes,
+        OutsideContacts contacts,
         IProcessIdentityResolver identities,
         HostNameCache hosts,
         ProcessIconCache icons,
@@ -47,12 +50,14 @@ public sealed class ProcessMonitorLauncher
         AppNames names,
         RecentAppFigures figures,
         ThroughputOverviewViewModel overview,
+        AppFacts facts,
         Dispatcher dispatcher)
     {
         _monitor = monitor;
         _details = details;
         _endpoints = endpoints;
         _routes = routes;
+        _contacts = contacts;
         _identities = identities;
         _hosts = hosts;
         _icons = icons;
@@ -60,6 +65,7 @@ public sealed class ProcessMonitorLauncher
         _names = names;
         _figures = figures;
         _overview = overview;
+        _facts = facts;
         _dispatcher = dispatcher;
     }
 
@@ -75,6 +81,7 @@ public sealed class ProcessMonitorLauncher
             _details,
             _endpoints,
             _routes,
+            _contacts,
             _hosts,
             _icons,
             _appIcons,
@@ -119,13 +126,19 @@ public sealed class ProcessMonitorLauncher
                 _details,
                 _endpoints,
                 _routes,
+                _contacts,
                 _hosts,
                 _figures,
                 _addresses,
                 _world,
                 _overview.SelectedFamily,
                 _overview.SelectedScale,
-                _dispatcher));
+                _dispatcher),
+            window => _facts.Create(
+                identity.Name,
+                identity.FilePath,
+                () => ProcessOf(processId, identity),
+                window.Connections));
     }
 
     /// <summary>
@@ -177,16 +190,49 @@ public sealed class ProcessMonitorLauncher
                 _details,
                 _endpoints,
                 _routes,
+                _contacts,
                 _hosts,
                 _figures,
                 _addresses,
                 _world,
                 _overview.SelectedFamily,
                 _overview.SelectedScale,
-                _dispatcher));
+                _dispatcher),
+            window => _facts.Create(
+                name,
+                found.FilePath,
+                () => AppProcesses(appKey),
+                window.Connections));
     }
 
-    private void Open(string key, Func<ProcessMonitorViewModel> build)
+    /// <summary>
+    /// One process as the monitor last read it, or as it was when its window
+    /// opened: a process holding no socket is not in the monitor's reading,
+    /// and its window still names who started it and what it runs.
+    /// </summary>
+    private List<ProcessUsage> ProcessOf(int processId, ProcessIdentity identity)
+    {
+        // Filtered by the start time the window opened with: a process that
+        // now holds the same id is someone else. Without a reading, the
+        // process as it was when the window opened, start time and all, so
+        // ending it checks that start time against whoever holds the id.
+        List<ProcessUsage> found = [.. _monitor.Latest.Where(usage => usage.ProcessId == processId
+            && ProcessMonitorViewModel.IsSameProcess(usage.Identity.StartedAt, identity.StartedAt))];
+
+        return found.Count > 0
+            ? [.. found.Select(usage => usage with { Identity = usage.Identity with { StartedAt = identity.StartedAt ?? usage.Identity.StartedAt } })]
+            : [new ProcessUsage(processId, identity, 0, 0, 0, 0, 0, default)];
+    }
+
+    /// <summary>The processes of an app in the monitor's latest reading.</summary>
+    private List<ProcessUsage> AppProcesses(string appKey)
+    {
+        IReadOnlyList<ProcessUsage> latest = _monitor.Latest;
+        Dictionary<int, string> keys = RunningApps.KeysFor(latest);
+        return [.. latest.Where(usage => RunningApps.KeyComparer.Equals(keys[usage.ProcessId], appKey))];
+    }
+
+    private void Open(string key, Func<ProcessMonitorViewModel> build, Func<ProcessMonitorViewModel, AppFactsViewModel> facts)
     {
         if (_open.TryGetValue(key, out ProcessMonitorWindow? existing))
         {
@@ -201,7 +247,8 @@ public sealed class ProcessMonitorLauncher
 
         Look();
 
-        ProcessMonitorWindow window = new(build());
+        ProcessMonitorViewModel model = build();
+        ProcessMonitorWindow window = new(model, facts(model));
         int step = _opened++ % 6;
         window.Left += step * Cascade;
         window.Top += step * Cascade;

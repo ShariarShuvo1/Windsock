@@ -2,7 +2,8 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:controls="clr-namespace:Windsock.App.Controls"
                     xmlns:converters="clr-namespace:Windsock.App.Converters"
-                    xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf">
+                    xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
     <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibility" />
@@ -17,6 +18,48 @@
     <converters:BoolToWeightConverter x:Key="BoolToWeight" />
     <converters:MarkToSymbolConverter x:Key="MarkToSymbol" />
     <converters:WeightToVariantConverter x:Key="WeightToVariant" />
+
+    <!--
+        Density. These are the comfortable values; ThemeManager writes the
+        compact ones over them in the application's own resources when Settings
+        › Appearance asks, and grows the heights that hold a line of text with
+        Windows' Text size. Styles take them with DynamicResource, so a change
+        reaches every page without reopening it. A control that holds text
+        takes a MinHeight, never a Height, so larger text makes it taller
+        rather than clipped.
+    -->
+    <sys:Double x:Key="ControlHeight">30</sys:Double>
+    <sys:Double x:Key="TableRowHeight">30</sys:Double>
+    <sys:Double x:Key="TableHeaderHeight">36</sys:Double>
+    <Thickness x:Key="PlatePadding">19,13,15,14</Thickness>
+    <Thickness x:Key="InsetPlatePadding">15,11,13,12</Thickness>
+    <Thickness x:Key="BandPadding">19,15,19,17</Thickness>
+    <Thickness x:Key="BandRowPadding">0,10</Thickness>
+    <sys:Double x:Key="BandRowMinHeight">52</sys:Double>
+    <Thickness x:Key="TilePadding">13,10,13,11</Thickness>
+
+    <!--
+        The ring keyboard focus draws, for every button, switch, tab and tile
+        that takes focus. A focus visual rather than an IsKeyboardFocused
+        trigger: WPF draws it only when focus came from the keyboard, where the
+        trigger also fired on a click and left a ring wherever somebody pressed.
+        Two pixels in the text colour, just outside the control, so it reads on
+        the page, a band and a flyout alike, and under a contrast theme takes
+        the theme's own text colour.
+    -->
+    <Style x:Key="FocusRingStyle">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border Margin="-3"
+                            CornerRadius="8"
+                            BorderThickness="2"
+                            BorderBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                            SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <!--
         Row template for pickers whose items expose a Label.
@@ -93,7 +136,9 @@
 
     <!-- One figure in a strip of them: the strip's rules are its edges. -->
     <Style x:Key="StatCellStyle" TargetType="Border">
-        <Setter Property="Padding" Value="20,14,16,15" />
+        <Setter Property="Padding" Value="{DynamicResource PlatePadding}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ToneStrokeBrush}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
@@ -118,6 +163,184 @@
         <Setter Property="Background" Value="{DynamicResource PlateBrush}" />
     </Style>
 
+    <!--
+        A plate inside a band. The band is already one step off the page, so a
+        figure in it steps once more, to the inset tone, rather than taking the
+        page's plate tone, which would be the band's own colour and vanish.
+    -->
+    <Style x:Key="InsetPlateCellStyle" TargetType="Border" BasedOn="{StaticResource StatCellStyle}">
+        <Setter Property="Background" Value="{DynamicResource InsetBrush}" />
+        <Setter Property="Padding" Value="{DynamicResource InsetPlatePadding}" />
+    </Style>
+
+    <!--
+        A band: a part of a page with a subject of its own - a table, the outage
+        log, a group of settings - on a ground one step off the page, with no
+        outline. Bands lift; neighbouring bands are told apart by the page tone
+        showing between them. Its heading is text at its top left, not a bar.
+        Twenty pixels from its edge to anything written in it, like every card
+        before it.
+
+        The lead of a page - its main chart and headline figures - stays on the
+        page itself, so a page always has one obvious place to start.
+    -->
+    <Style x:Key="BandStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource SectionBrush}" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="{DynamicResource BandPadding}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ToneStrokeBrush}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- A band whose content runs to its edges, such as a table that insets its own rows. -->
+    <Style x:Key="FlushBandStyle" TargetType="Border" BasedOn="{StaticResource BandStyle}">
+        <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <!-- The space between one band and the next: the page tone showing between them. -->
+    <Thickness x:Key="BandGap">0,12,0,0</Thickness>
+
+    <!-- The heading inside a band: its title and one line saying what it holds. -->
+    <Style x:Key="BandHeadStyle" TargetType="StackPanel">
+        <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+
+    <!--
+        One setting inside a band: its name on the left and the control on the
+        right, the control dropping under the name in a narrow window. No rule
+        between rows - the room around each one parts it from the next.
+    -->
+    <Style x:Key="BandRowStyle" TargetType="Border">
+        <Setter Property="Padding" Value="{DynamicResource BandRowPadding}" />
+        <Setter Property="MinHeight" Value="{DynamicResource BandRowMinHeight}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--
+        One item of a list of richer things - an outage, an alert - on a tile of
+        its own one step up from the band, with a strip of the band showing
+        between tiles, so items never run together. Hover lifts it a step more.
+    -->
+    <Style x:Key="TileStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource InsetBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="{DynamicResource TilePadding}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ToneStrokeBrush}" />
+        <Setter Property="Margin" Value="0,0,0,2" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--
+        What a list or a chart says while it has nothing to show: what will
+        appear here, why there is nothing yet, and what to do about it.
+    -->
+    <Style x:Key="EmptyStateStyle" TargetType="StackPanel">
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="MaxWidth" Value="440" />
+        <Setter Property="Margin" Value="16,22,16,24" />
+    </Style>
+
+    <Style x:Key="EmptyTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource TextSize13_5}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="EmptyNoteStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!--
+        A notice across the top of a page: something true about all of it, such
+        as why the rates are what they are. A soft accent ground, no outline.
+    -->
+    <Style x:Key="NoticeStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="14,9,10,9" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--
+        The pages inside one sidebar entry - Settings' General, Appearance and
+        the rest - as a row of quiet tabs under the heading. The chosen one takes
+        the accent; the rest are filled one step off the page. They wrap as a
+        row in a narrow window.
+    -->
+    <Style x:Key="PageTabStyle" TargetType="ListBoxItem">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Root"
+                            Height="30"
+                            Padding="13,0"
+                            CornerRadius="15"
+                            BorderThickness="1"
+                            BorderBrush="Transparent"
+                            Background="{DynamicResource QuietFillBrush}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource QuietHoverBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PageTabsStyle" TargetType="ListBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource PageTabStyle}" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="KeyboardNavigation.DirectionalNavigation" Value="Cycle" />
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <controls:FlowRow Spacing="6" LineSpacing="6" />
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBox">
+                    <ItemsPresenter />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- The gap between one card and the next. -->
     <Thickness x:Key="BlockGap">0,16,0,0</Thickness>
 
@@ -126,7 +349,7 @@
 
     <!-- The name at the head of a card, and the line that qualifies it. -->
     <Style x:Key="CardTitleStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize14}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -134,7 +357,7 @@
     </Style>
 
     <Style x:Key="CardNoteStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
         <Setter Property="Margin" Value="0,2,0,0" />
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -153,14 +376,14 @@
     </Style>
 
     <Style x:Key="StatLabelStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize11}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
     </Style>
 
     <Style x:Key="StatValueStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize20}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Margin" Value="0,5,0,0" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -169,7 +392,7 @@
     </Style>
 
     <Style x:Key="StatNoteStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize11_5}" />
         <Setter Property="Margin" Value="0,3,0,0" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -224,7 +447,7 @@
                                               LeadMinimumWidth="240">
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="{TemplateBinding Title}"
-                                           FontSize="22"
+                                           FontSize="{DynamicResource TextSize22}"
                                            FontWeight="SemiBold"
                                            TextTrimming="CharacterEllipsis"
                                            AutomationProperties.HeadingLevel="Level1"
@@ -233,7 +456,7 @@
                                 <TextBlock x:Name="SubtitleText"
                                            Text="{TemplateBinding Subtitle}"
                                            Margin="0,3,0,0"
-                                           FontSize="12.5"
+                                           FontSize="{DynamicResource TextSize12_5}"
                                            TextTrimming="CharacterEllipsis"
                                            ToolTip="{TemplateBinding Subtitle}"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -295,7 +518,7 @@
                     -->
                     <TextBlock VerticalAlignment="Center"
                                TextWrapping="Wrap"
-                               FontSize="13"
+                               FontSize="{DynamicResource TextSize13}"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextFillColorPrimaryBrush}">
                         <Run Text="{Binding Text, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}" />
@@ -305,16 +528,16 @@
                                 Height="18"
                                 Margin="4,0,0,-3"
                                 Cursor="Help"
-                                FocusVisualStyle="{x:Null}"
+                                FocusVisualStyle="{StaticResource FocusRingStyle}"
                                 VerticalAlignment="Center"
                                 Visibility="{TemplateBinding Hint, Converter={StaticResource TextToVisibility}}"
-                                AutomationProperties.Name="What this does"
+                                AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource TemplatedParent}, StringFormat=About {0}}"
                                 AutomationProperties.HelpText="{TemplateBinding Hint}">
                             <ToolTipService.ToolTip>
                                 <ToolTip MaxWidth="320"
                                          Placement="Right"
                                          HorizontalOffset="4"
-                                         FontSize="12.5"
+                                         FontSize="{DynamicResource TextSize12_5}"
                                          FontWeight="Normal">
                                     <StackPanel>
                                         <TextBlock Text="{TemplateBinding Hint}"
@@ -358,14 +581,6 @@
                                                     Value="{DynamicResource TextFillColorPrimaryBrush}" />
                                         </Trigger>
 
-                                        <Trigger Property="IsKeyboardFocused" Value="True">
-                                            <Setter TargetName="Face"
-                                                    Property="Background"
-                                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                                            <Setter TargetName="Glyph"
-                                                    Property="Foreground"
-                                                    Value="{DynamicResource TextFillColorPrimaryBrush}" />
-                                        </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Button.Template>
@@ -384,12 +599,12 @@
         nobody made is one more thing to read.
     -->
     <Style x:Key="ResetStyle" TargetType="Button">
-        <Setter Property="Height" Value="24" />
+        <Setter Property="MinHeight" Value="24" />
         <Setter Property="Padding" Value="9,0" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize11_5}" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -511,14 +726,16 @@
              happened to be sitting in. -->
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-        <!-- The same hairline the buttons beside it carry. A fill alone used to
-             be enough against a grey card; against a white one the light theme's
-             control fill is the card's own colour, and the picker vanished. -->
-        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <!-- A quiet control: filled one step off whatever it sits on, with no
+             outline. The fill is translucent, so it is a step up on the page, in
+             a band and in a flyout alike; the light theme's own control fill was
+             the white band's colour, and the picker vanished. The outline comes
+             back only for keyboard focus. -->
+        <Setter Property="Background" Value="{DynamicResource QuietFillBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="Height" Value="30" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlHeight}" />
         <Setter Property="Padding" Value="11,0,6,0" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -595,13 +812,13 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root"
                                     Property="Background"
-                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                    Value="{DynamicResource QuietHoverBrush}" />
                         </Trigger>
 
                         <Trigger Property="IsDropDownOpen" Value="True">
                             <Setter TargetName="Root"
                                     Property="Background"
-                                    Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                                    Value="{DynamicResource QuietPressedBrush}" />
 
                             <!-- Rotated rather than swapped so opening reads as
                                  one motion instead of a glyph change. -->
@@ -657,7 +874,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="MinWidth" Value="0" />
-        <Setter Property="Height" Value="28" />
+        <Setter Property="MinHeight" Value="28" />
         <Setter Property="Padding" Value="7,0,4,0" />
     </Style>
 
@@ -692,6 +909,7 @@
         is still being recorded, only hidden from the plot.
     -->
     <Style x:Key="SeriesToggleStyle" TargetType="ToggleButton">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="7,5,9,6" />
@@ -717,11 +935,6 @@
                         <Trigger Property="IsChecked" Value="False">
                             <Setter TargetName="Body" Property="Opacity" Value="0.35" />
                         </Trigger>
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Root"
-                                    Property="Background"
-                                    Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
-                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -737,6 +950,7 @@
         go, not where it is.
     -->
     <Style x:Key="SectionCollapseStyle" TargetType="ToggleButton">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Width" Value="28" />
         <Setter Property="Height" Value="28" />
         <Setter Property="Background" Value="Transparent" />
@@ -769,11 +983,6 @@
                             <Setter TargetName="Root"
                                     Property="Background"
                                     Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-                        </Trigger>
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Root"
-                                    Property="Background"
-                                    Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
                         </Trigger>
 
                         <Trigger Property="IsChecked" Value="False">
@@ -821,6 +1030,7 @@
         stand in, and folding the sidebar moves none of them.
     -->
     <Style x:Key="NavigationToggleStyle" TargetType="ToggleButton">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Height" Value="40" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         <Setter Property="Cursor" Value="Hand" />
@@ -888,7 +1098,7 @@
                                            VerticalAlignment="Center"
                                            TextWrapping="NoWrap"
                                            TextTrimming="CharacterEllipsis"
-                                           FontSize="14"
+                                           FontSize="{DynamicResource TextSize14}"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             </DockPanel>
@@ -950,10 +1160,12 @@
     </Style>
 
     <!--
-        The ring round a group reached by the keyboard. A section needs none -
-        selection follows focus, so its pill already shows where the keyboard is -
-        but a group takes focus without being chosen, and would otherwise give no
-        sign of it. A focus visual, so a click never leaves one behind.
+        The ring round a sidebar entry reached by the keyboard. Every entry wears
+        it: the arrows move the keyboard without choosing, as Windows' own
+        navigation does (Enter or Space chooses), so the pill shows the page and
+        the ring shows where the keyboard is, and the two can differ. A focus
+        visual, so a click never leaves one behind. Drawn on the entry's own
+        bounds rather than outside them, since the entries sit 4 px apart.
     -->
     <Style x:Key="NavigationFocusStyle">
         <Setter Property="Control.Template">
@@ -992,7 +1204,7 @@
     -->
     <Style x:Key="NavigationItemStyle" TargetType="{x:Type controls:NavigationItem}">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize13_5}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Margin" Value="0,0,0,4" />
         <!-- A dock panel lines items up to the left unless told otherwise. -->
@@ -1000,7 +1212,7 @@
         <Setter Property="ToolTip" Value="{Binding Header, RelativeSource={RelativeSource Self}}" />
         <Setter Property="ToolTipService.Placement" Value="Right" />
         <Setter Property="ToolTipService.HorizontalOffset" Value="6" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource NavigationFocusStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type controls:NavigationItem}">
@@ -1009,7 +1221,7 @@
                          included, and a hand set on the item answered for the
                          whole panel. -->
                     <Grid x:Name="Shell"
-                          Height="40"
+                          MinHeight="40"
                           Background="Transparent"
                           Cursor="Hand"
                           SnapsToDevicePixels="True">
@@ -1024,25 +1236,57 @@
                                 Background="{DynamicResource AccentBrush}"
                                 Opacity="0" />
 
+                        <!--
+                            The name takes what it needs and the figure what is
+                            left, cut short with an ellipsis rather than the name:
+                            a group's figure can run long - the meter's two rates,
+                            Online and a time - and the name is what the entry is.
+                        -->
                         <Grid x:Name="Columns">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="40" />
-                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <fluent:SymbolIcon x:Name="Glyph"
-                                               Symbol="{Binding (controls:NavigationPane.Icon), RelativeSource={RelativeSource TemplatedParent}}"
+                                               Symbol="{TemplateBinding controls:NavigationPane.Icon}"
                                                FontSize="18"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
                                                Foreground="{TemplateBinding Foreground}" />
 
+                            <!--
+                                A count on the icon (NavigationPane.Badge) - the
+                                alerts not yet read - so it shows with the names
+                                folded away too. The accent, the one thing in the
+                                column asking to be looked at.
+                            -->
+                            <Border x:Name="Badge"
+                                    MinWidth="16"
+                                    MinHeight="16"
+                                    Padding="4,0"
+                                    CornerRadius="8"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Margin="18,-16,0,0"
+                                    IsHitTestVisible="False"
+                                    Background="{DynamicResource AccentBrush}">
+                                <TextBlock x:Name="BadgeText"
+                                           Text="{TemplateBinding controls:NavigationPane.Badge}"
+                                           FontSize="{DynamicResource TextSize10}"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Typography.NumeralAlignment="Tabular"
+                                           Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                            </Border>
+
                             <ContentPresenter x:Name="Label"
                                               Grid.Column="1"
                                               ContentSource="Header"
-                                              Margin="2,0,10,1"
+                                              Margin="2,0,8,1"
                                               VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}"
                                               TextElement.FontWeight="{TemplateBinding FontWeight}"
@@ -1051,10 +1295,13 @@
 
                             <TextBlock x:Name="Reading"
                                        Grid.Column="2"
-                                       Text="{Binding (controls:NavigationPane.Reading), RelativeSource={RelativeSource TemplatedParent}}"
-                                       Margin="0,0,10,1"
+                                       Text="{TemplateBinding controls:NavigationPane.Reading}"
+                                       Margin="0,0,8,1"
+                                       HorizontalAlignment="Right"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
                                        VerticalAlignment="Center"
-                                       FontSize="11.5"
+                                       FontSize="{DynamicResource TextSize11_5}"
                                        FontWeight="Normal"
                                        Typography.NumeralAlignment="Tabular"
                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
@@ -1064,7 +1311,7 @@
                                                Grid.Column="3"
                                                Symbol="ChevronDown"
                                                FontSize="12"
-                                               Margin="0,1,12,0"
+                                               Margin="0,1,10,0"
                                                VerticalAlignment="Center"
                                                Visibility="Collapsed"
                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
@@ -1077,6 +1324,10 @@
                             <Setter TargetName="Reading" Property="Visibility" Value="Collapsed" />
                         </Trigger>
 
+                        <Trigger SourceName="BadgeText" Property="Text" Value="">
+                            <Setter TargetName="Badge" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+
                         <Trigger Property="HasChildren" Value="True">
                             <Setter TargetName="Chevron" Property="Visibility" Value="Visible" />
                         </Trigger>
@@ -1087,11 +1338,11 @@
 
                         <!-- A section inside a group: shorter, lighter, its icon smaller and set in. -->
                         <Trigger Property="IsChild" Value="True">
-                            <Setter TargetName="Shell" Property="Height" Value="34" />
+                            <Setter TargetName="Shell" Property="MinHeight" Value="34" />
                             <Setter TargetName="Columns" Property="Margin" Value="14,0,0,0" />
                             <Setter TargetName="Glyph" Property="FontSize" Value="16" />
                             <Setter TargetName="Label" Property="Margin" Value="0,0,10,1" />
-                            <Setter Property="FontSize" Value="13" />
+                            <Setter Property="FontSize" Value="{DynamicResource TextSize13}" />
                             <Setter Property="FontWeight" Value="Normal" />
                             <Setter Property="Margin" Value="0,0,0,2" />
                         </Trigger>
@@ -1161,9 +1412,6 @@
                          Value="True">
                 <Setter Property="ToolTipService.IsEnabled" Value="False" />
             </DataTrigger>
-            <Trigger Property="HasChildren" Value="True">
-                <Setter Property="FocusVisualStyle" Value="{StaticResource NavigationFocusStyle}" />
-            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -1188,12 +1436,25 @@
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="6" />
         <Setter Property="CompactPaneWidth" Value="54" />
-        <Setter Property="OpenPaneWidth" Value="220" />
+        <!-- Wide enough for a group's name, its figure and its chevron:
+             "Connection", "Online · 12 ms" and the arrow. -->
+        <Setter Property="OpenPaneWidth" Value="248" />
         <Setter Property="ItemContainerStyle" Value="{StaticResource NavigationItemStyle}" />
         <Setter Property="ItemsPanel">
             <Setter.Value>
                 <!-- A section docked to the bottom sits there, away from the
-                     rest: where a settings entry is expected to be. -->
+                     rest: where a settings entry is expected to be.
+
+                     One Tab stop for the whole list, the arrows inside it: only
+                     one entry is a stop at a time (NavigationPane.KeepTabStop),
+                     so Tab enters at the page showing and the next Tab goes on
+                     to the page. Every entry being a stop, and choosing itself
+                     as it took focus, turned the page twenty times on the way
+                     through. The panel stays an ordinary part of the window's
+                     Tab order on purpose: made a group of its own (Local, Once)
+                     WPF enters it through the last entry focused, and when that
+                     entry was a section since folded away, Tab skipped the
+                     list altogether. -->
                 <ItemsPanelTemplate>
                     <DockPanel LastChildFill="False"
                                KeyboardNavigation.DirectionalNavigation="Cycle" />
@@ -1246,6 +1507,12 @@
                                               Margin="0,0,0,10"
                                               Style="{StaticResource NavigationToggleStyle}"
                                               IsChecked="{Binding IsPaneShown, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" />
+
+                                <!-- The search box: a box while the column names things, a button while it shows icons. -->
+                                <ContentPresenter x:Name="PART_Search"
+                                                  DockPanel.Dock="Top"
+                                                  Margin="0,0,0,10"
+                                                  Content="{TemplateBinding Search}" />
 
                                 <!--
                                     Scrolls when the window is shorter than the

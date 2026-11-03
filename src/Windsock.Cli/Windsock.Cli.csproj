@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The windsock command line: a console program beside the GUI.
+
+    Windsock.exe is a Windows-subsystem program, and a GUI program makes a poor
+    command: the shell does not wait for it, its exit code is lost, and
+    attaching it to the parent's console can swap a redirected stdout for the
+    console (measured: `app.exe > file` left the file empty). So the command
+    line is its own console program, Windsock.Cli.exe, which also ships as
+    Windsock.com: PATHEXT lists .COM before .EXE, so typing `windsock` in a
+    console runs this rather than the GUI, the devenv.com pattern. It is the
+    same .NET apphost under another name; the host finds its app by the name
+    baked into it, not by its own file name.
+
+    It reads the running app through the local feed, and history and the home
+    device list straight from their files, read-only, so exports work whether
+    Windsock is running or not.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Windsock.Cli</RootNamespace>
+    <AssemblyName>Windsock.Cli</AssemblyName>
+    <ApplicationIcon>..\Windsock.App\Assets\Windsock.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Windsock.Core\Windsock.Core.csproj" />
+  </ItemGroup>
+
+  <!-- The same apphost again, as Windsock.com, wherever this is built or
+       published. The app's project does the same for its own output. -->
+  <Target Name="CopyCommandHost" AfterTargets="Build" Condition="Exists('$(OutDir)$(AssemblyName).exe')">
+    <Copy SourceFiles="$(OutDir)$(AssemblyName).exe" DestinationFiles="$(OutDir)Windsock.com" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="PublishCommandHost" AfterTargets="Publish" Condition="Exists('$(PublishDir)$(AssemblyName).exe')">
+    <Copy SourceFiles="$(PublishDir)$(AssemblyName).exe" DestinationFiles="$(PublishDir)Windsock.com" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

@@ -271,8 +271,8 @@ public sealed partial class HistoryPanelViewModel
         MachineHoverLabel = string.Format(
             CultureInfo.CurrentCulture,
             "{0} – {1}",
-            start.ToString(_shown == UsageGranularity.Day ? "ddd d MMM yyyy" : "ddd d MMM, h:mm tt", CultureInfo.CurrentCulture),
-            end.ToString(_shown == UsageGranularity.Day ? "ddd d MMM yyyy" : "h:mm tt", CultureInfo.CurrentCulture));
+            start.ToString(_shown == UsageGranularity.Day ? "ddd d MMM yyyy" : ClockFormat.Current.DayAndTime, ClockFormat.Current.Format),
+            end.ToString(_shown == UsageGranularity.Day ? "ddd d MMM yyyy" : ClockFormat.Current.ShortTime, ClockFormat.Current.Format));
 
         if (_systemAt.TryGetValue(start, out SystemBucket system))
         {

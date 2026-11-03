@@ -59,6 +59,16 @@ internal sealed partial class ToastChannel : IDisposable
                 };
             }
 
+            // A copy on a moved data root is a build being checked. Registering
+            // would point the notification centre's clicks, for the installed
+            // Windsock too, at this copy's exe until the installed one started
+            // again: seen on 2026-10-05, a scratch build's path left in the key.
+            if (WindsockPaths.IsOverridden)
+            {
+                LogNotRegistered(logger);
+                return null;
+            }
+
             string program = Environment.ProcessPath
                 ?? throw new InvalidOperationException("The path of the running program is unknown.");
 
@@ -195,6 +205,9 @@ internal sealed partial class ToastChannel : IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Windows notifications are unavailable")]
     private static partial void LogOpenFailed(ILogger logger, Exception error);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Running on a moved data root, so Windsock is not registered for Windows notifications; notices use the notification area")]
+    private static partial void LogNotRegistered(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Notifications will show, but clicks from the notification centre will not reach Windsock")]
     private static partial void LogNoActivator(ILogger logger);

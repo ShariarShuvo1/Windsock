@@ -43,7 +43,7 @@
                     </Image>
 
                     <TextBlock Text="{Binding Label}"
-                               FontSize="13"
+                               FontSize="{DynamicResource TextSize13}"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
                                TextWrapping="Wrap"
@@ -52,7 +52,7 @@
 
                 <!-- Only rates; otherwise it is the socket count, said below. -->
                 <TextBlock Text="{Binding RateText}"
-                           FontSize="12"
+                           FontSize="{DynamicResource TextSize12}"
                            Margin="0,7,0,0"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}">
                     <TextBlock.Style>
@@ -80,7 +80,7 @@
         <DataTemplate DataType="{x:Type vm:PeerNodeViewModel}">
             <StackPanel MaxWidth="330">
                 <TextBlock Text="{Binding Label}"
-                           FontSize="13"
+                           FontSize="{DynamicResource TextSize13}"
                            FontWeight="SemiBold"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -91,7 +91,7 @@
                     says.
                 -->
                 <TextBlock Text="{Binding RateText}"
-                           FontSize="12"
+                           FontSize="{DynamicResource TextSize12}"
                            Margin="0,6,0,0"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}">
                     <TextBlock.Style>
@@ -148,7 +148,7 @@
                                 </Image>
 
                                 <TextBlock Text="{Binding Name}"
-                                           FontSize="11.5"
+                                           FontSize="{DynamicResource TextSize11_5}"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
@@ -165,7 +165,7 @@
                 <TextBlock Text="{Binding Title}" Style="{StaticResource CaptionTextStyle}" />
 
                 <TextBlock Text="{Binding Label}"
-                           FontSize="13"
+                           FontSize="{DynamicResource TextSize13}"
                            FontWeight="SemiBold"
                            Margin="0,5,0,0"
                            TextWrapping="Wrap"
@@ -201,7 +201,7 @@
                     </Image>
 
                     <TextBlock Text="{Binding Title}"
-                               FontSize="13"
+                               FontSize="{DynamicResource TextSize13}"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
                                TextWrapping="Wrap"
@@ -215,7 +215,7 @@
                     country with eight servers on it should say all eight.
                 -->
                 <TextBlock Text="{Binding Detail}"
-                           FontSize="11.5"
+                           FontSize="{DynamicResource TextSize11_5}"
                            Margin="0,6,0,0"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource TextFillColorTertiaryBrush}">
@@ -235,9 +235,10 @@
     </UserControl.Resources>
 
     <!--
-        No card of its own: the page it sits on gives it one, with a name over
-        it, the way every chart on every page has one. What is left is the well
-        the map is drawn in.
+        No frame of its own: the Map page gives it the page's whole height under
+        the heading, which names it. What is left is the well the map is drawn
+        in, the one ground on the page darker than the page, because a map is
+        the one picture whose background means something.
     -->
     <Grid>
         <Border>
@@ -252,7 +253,16 @@
                     of it at once is the thing this window is for; the names
                     come back as soon as the reader zooms into a corner of it.
                 -->
-                <controls:PanZoomHost x:Name="Viewport" Radius="8" Inset="0,0,0,36" SmallestFit="0.2">
+                <!--
+                    A Tab stop of its own, ringed while focused: the arrow keys
+                    move the map there, plus and minus zoom, 0 fits it (see
+                    PanZoomHost). The map inside is the list of its places.
+                -->
+                <controls:PanZoomHost x:Name="Viewport"
+                                      Radius="8"
+                                      Inset="0,0,0,36"
+                                      SmallestFit="0.2"
+                                      AutomationProperties.Name="Map view">
                     <controls:NetworkGraphView x:Name="Graph"
                                                Tree="{Binding Graph}"
                                                Caption="{Binding Caption}"
@@ -264,7 +274,7 @@
                                                ShowAllLabels="{Binding ShowAllLabels}"
                                                ShowHeat="{Binding ShowHeat}"
                                                LandBusyBrush="{DynamicResource MapBusyBrush}"
-                                               EmptyMessage="Nothing on this machine has a connection open"
+                                               EmptyMessage="Nothing on this PC has a connection open yet. Each app appears here, with the places it reaches, as soon as it opens one."
                                                PeerStyle="{StaticResource GraphPeerNodeStyle}"
                                                HopStyle="{StaticResource GraphHopNodeStyle}"
                                                ProcessStyle="{StaticResource GraphProcessNodeStyle}"
@@ -315,7 +325,7 @@
                                    AutomationProperties.Name="What the map is showing">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="FontSize" Value="12" />
+                                    <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
                                     <Setter Property="Text" Value="{Binding Summary}" />
                                     <Setter Property="Foreground"
                                             Value="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -335,7 +345,7 @@
                             program rather than per site.
                         -->
                         <TextBlock Text="{Binding RateNotice}"
-                                   FontSize="12"
+                                   FontSize="{DynamicResource TextSize12}"
                                    Margin="12,0,0,0"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
@@ -343,7 +353,7 @@
 
                         <!-- Whose map this is, while it is on screen. -->
                         <TextBlock Text="{Binding MapCredit}"
-                                   FontSize="12"
+                                   FontSize="{DynamicResource TextSize12}"
                                    Margin="12,0,0,0"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
@@ -387,7 +397,7 @@
                                 Style="{StaticResource ToolbarButtonStyle}"
                                 Margin="0,0,6,0"
                                 AutomationProperties.Name="Fit the map"
-                                ToolTip="Frame the whole thing. Press again to go back to the view you had. Drag to move it, scroll to zoom, double-click to fit." >
+                                ToolTip="Frame the whole thing. Press again to go back to the view you had. Drag to move it, scroll to zoom, double-click to fit; from the keyboard, Ctrl and the arrow keys move it, plus and minus zoom, Ctrl+0 fits." >
                                 <Button.Content>
                                     <StackPanel Orientation="Horizontal">
                                         <fluent:SymbolIcon Symbol="ZoomFit"
@@ -506,15 +516,7 @@
                                       Padding="0,0,2,0">
                             <StackPanel>
 
-                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
-                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
-                                                  Content="Live"
-                                                  IsChecked="{Binding IsLive, Mode=TwoWay}"
-                                                  AutomationProperties.Name="Live" />
-
-                                        <controls:SettingHead Hint="Keep the picture up to date as the machine talks. The Pause button above the table does the same thing, and turns this off with it." Margin="6,0,0,0" />
-                                    </StackPanel>
-
+                                    <!-- No Live switch: the page's one Pause, in its heading, holds the map still. -->
                                     <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
                                         <CheckBox Style="{StaticResource ToolbarCheckStyle}"
                                                   Content="Names"
@@ -533,13 +535,14 @@
                                         <controls:SettingHead Hint="Draw the traffic travelling each road. Off holds the picture still." Margin="6,0,0,0" />
                                     </StackPanel>
 
-                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
+                                    <!-- Taken out in the Store edition, which traces no routes; see the code behind. -->
+                                    <StackPanel x:Name="RoutesRow" Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
                                         <CheckBox Style="{StaticResource ToolbarCheckStyle}"
                                                   Content="Routes"
                                                   IsChecked="{Binding ShowRoutes, Mode=TwoWay}"
                                                   AutomationProperties.Name="Routes" />
 
-                                        <controls:SettingHead Hint="Draw the way to each far end, hop by hop. Off shows only where the traffic ends up." Margin="6,0,0,0" />
+                                        <controls:SettingHead Hint="Draw the way to each far end, hop by hop, found by sending packets towards it as tracert does. Off shows only where the traffic ends up. The same switch as in an app's window, and as Route tracing under Settings, Data and privacy." Margin="6,0,0,0" />
                                     </StackPanel>
 
                                     <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal"
@@ -561,20 +564,6 @@
                                                Style="{StaticResource GraphDrawerHeadStyle}"
                                             Visibility="{Binding HasWorld, Converter={StaticResource BooleanToVisibility}}"
                                                Margin="10,6,0,0" />
-
-                                    <!--
-                                        The table above the map asks the same
-                                        question of the same reading, so the
-                                        map answers it too unless told not to.
-                                    -->
-                                    <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal">
-                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
-                                                  Content="Follow the table"
-                                                  IsChecked="{Binding FollowTable, Mode=TwoWay}"
-                                                  AutomationProperties.Name="Follow the table" />
-
-                                        <controls:SettingHead Hint="Draw only the programs the search and filters above are showing. Off draws the whole machine whatever the table is doing." Margin="6,0,0,0" />
-                                    </StackPanel>
 
                                     <StackPanel Style="{StaticResource GraphDrawerRowStyle}" Orientation="Horizontal"
                                                 Visibility="{Binding HasWorld, Converter={StaticResource BooleanToVisibility}}">

@@ -1,0 +1,203 @@
+<UserControl x:Class="Windsock.App.Views.HistoryCareView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:HistoryCareViewModel}"
+             d:DesignWidth="800">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Styles/Usage.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- The line under a row's name that says how it stands. -->
+            <Style x:Key="CareNoteStyle" TargetType="TextBlock" BasedOn="{StaticResource QuietNoteStyle}">
+                <Setter Property="Margin" Value="0,4,0,0" />
+                <Setter Property="AutomationProperties.LiveSetting" Value="Polite" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!--
+        Settings › Data and privacy: what becomes of the history file - where it
+        is, the copies kept beside it, what is written out on a schedule and
+        the weekly digest. All of it stays on this PC; none of it is sent.
+    -->
+    <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+        <StackPanel>
+            <StackPanel Style="{StaticResource BandHeadStyle}">
+                <TextBlock Text="Copies, exports and the digest" Style="{StaticResource CardTitleStyle}" />
+                <TextBlock Text="Ways to keep history safe and to take it elsewhere. Everything here is written to this PC, never sent."
+                           TextWrapping="Wrap"
+                           Style="{StaticResource CardNoteStyle}" />
+            </StackPanel>
+
+            <!-- The file itself. -->
+            <Border Style="{StaticResource BandRowStyle}">
+                <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                    <StackPanel VerticalAlignment="Center">
+                        <controls:SettingHead HorizontalAlignment="Left"
+                                              Text="History file"
+                                              Hint="Everything History keeps is in this one file in Windsock's data folder, which an uninstall leaves alone." />
+                        <TextBlock Text="{Binding FileState}" Style="{StaticResource CareNoteStyle}" />
+                        <TextBlock Text="{Binding FilePath}" Style="{StaticResource CareNoteStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Button HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            Command="{Binding ShowFileCommand}"
+                            AutomationProperties.Name="Show the history file in Explorer">
+                        <StackPanel Orientation="Horizontal">
+                            <fluent:SymbolIcon Symbol="FolderOpen" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="Show in Explorer" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </controls:AdaptiveRow>
+            </Border>
+
+            <!-- A copy a week, beside the file. -->
+            <Border Style="{StaticResource BandRowStyle}">
+                <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                    <StackPanel VerticalAlignment="Center">
+                        <controls:SettingHead HorizontalAlignment="Left"
+                                              Text="Keep copies"
+                                              Hint="Once a week, a checked copy of the history file is made in a Backups folder beside it, and the oldest beyond the number chosen is let go. A file that is ever found damaged can be swapped for the newest copy." />
+                        <TextBlock Text="{Binding BackupNote}" Style="{StaticResource CareNoteStyle}" />
+                    </StackPanel>
+
+                    <controls:FlowRow Spacing="8" LineSpacing="8" VerticalAlignment="Center">
+                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                  VerticalAlignment="Center"
+                                  Content="Weekly"
+                                  IsChecked="{Binding BackupEnabled, Mode=TwoWay}"
+                                  AutomationProperties.Name="Keep a weekly copy of the history file" />
+                        <controls:Picker Style="{StaticResource PickerStyle}"
+                                         MinWidth="110"
+                                         ItemsSource="{Binding KeepOptions}"
+                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                         SelectedValuePath="Value"
+                                         SelectedValue="{Binding Keep, Mode=TwoWay}"
+                                         IsEnabled="{Binding BackupEnabled}"
+                                         AutomationProperties.Name="How many copies to keep" />
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding BackUpNowCommand}"
+                                AutomationProperties.Name="Make a copy now">
+                            <StackPanel Orientation="Horizontal">
+                                <fluent:SymbolIcon Symbol="Save" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="Copy now" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Padding="8,0"
+                                Command="{Binding ShowBackupsCommand}"
+                                AutomationProperties.Name="Show the copies in Explorer"
+                                ToolTip="Show the copies in Explorer">
+                            <fluent:SymbolIcon Symbol="FolderOpen" FontSize="14" />
+                        </Button>
+                    </controls:FlowRow>
+                </controls:AdaptiveRow>
+            </Border>
+
+            <!-- Each finished day or month written to a folder. -->
+            <Border Style="{StaticResource BandRowStyle}">
+                <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                    <StackPanel VerticalAlignment="Center">
+                        <controls:SettingHead HorizontalAlignment="Left"
+                                              Text="Export on a schedule"
+                                              Hint="Writes each finished day or month to a folder you choose - a synced folder or a spreadsheet's import folder, say - and catches up on any missed while the PC was off. A file already there is never overwritten. CSV holds network use a minute at a time, which History can import again; JSON holds everything History does, by the hour." />
+                        <TextBlock Text="{Binding FolderText}" Style="{StaticResource CareNoteStyle}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding ExportNote}" Style="{StaticResource CareNoteStyle}"
+                                   Visibility="{Binding ExportNote, Converter={StaticResource TextToVisibility}}" />
+                    </StackPanel>
+
+                    <controls:FlowRow Spacing="8" LineSpacing="8" VerticalAlignment="Center">
+                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                  VerticalAlignment="Center"
+                                  Content="On"
+                                  IsChecked="{Binding ExportEnabled, Mode=TwoWay}"
+                                  AutomationProperties.Name="Export on a schedule" />
+                        <controls:Picker Style="{StaticResource PickerStyle}"
+                                         MinWidth="112"
+                                         ItemsSource="{Binding EveryOptions}"
+                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                         SelectedValuePath="Value"
+                                         SelectedValue="{Binding Every, Mode=TwoWay}"
+                                         AutomationProperties.Name="How often to export" />
+                        <controls:Picker Style="{StaticResource PickerStyle}"
+                                         MinWidth="150"
+                                         ItemsSource="{Binding FormatOptions}"
+                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                         SelectedValuePath="Value"
+                                         SelectedValue="{Binding Format, Mode=TwoWay}"
+                                         AutomationProperties.Name="Export format" />
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding ChooseFolderCommand}"
+                                AutomationProperties.Name="Choose the export folder">
+                            <StackPanel Orientation="Horizontal">
+                                <fluent:SymbolIcon Symbol="Folder" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="Folder" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding ExportNowCommand}"
+                                IsEnabled="{Binding ExportEnabled}"
+                                AutomationProperties.Name="Export what is due now"
+                                ToolTip="Write what is due now rather than within the hour">
+                            <StackPanel Orientation="Horizontal">
+                                <fluent:SymbolIcon Symbol="ArrowDownload" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="Now" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Padding="8,0"
+                                Command="{Binding ShowExportsCommand}"
+                                IsEnabled="{Binding HasFolder}"
+                                AutomationProperties.Name="Show the export folder in Explorer"
+                                ToolTip="Show the folder in Explorer">
+                            <fluent:SymbolIcon Symbol="FolderOpen" FontSize="14" />
+                        </Button>
+                    </controls:FlowRow>
+                </controls:AdaptiveRow>
+            </Border>
+
+            <!-- A notification each week, which opens Reports. -->
+            <Border Style="{StaticResource BandRowStyle}">
+                <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                    <StackPanel VerticalAlignment="Center">
+                        <controls:SettingHead HorizontalAlignment="Left"
+                                              Text="Weekly digest"
+                                              Hint="A notification on the first morning of each week saying what last week came to, how it compares with the week before, and the busiest day and app. Clicking it opens Usage › Reports. The same day starts the week in Reports." />
+                        <TextBlock Text="{Binding DigestPreview}" Style="{StaticResource CareNoteStyle}"
+                                   Visibility="{Binding DigestPreview, Converter={StaticResource TextToVisibility}}" />
+                    </StackPanel>
+
+                    <controls:FlowRow Spacing="8" LineSpacing="8" VerticalAlignment="Center">
+                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                  VerticalAlignment="Center"
+                                  Content="On"
+                                  IsChecked="{Binding DigestEnabled, Mode=TwoWay}"
+                                  AutomationProperties.Name="Weekly digest" />
+                        <controls:Picker Style="{StaticResource PickerStyle}"
+                                         MinWidth="150"
+                                         ItemsSource="{Binding WeekStartOptions}"
+                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                         SelectedValuePath="Value"
+                                         SelectedValue="{Binding WeekStarts, Mode=TwoWay}"
+                                         AutomationProperties.Name="The day weeks start on" />
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding PreviewDigestCommand}"
+                                AutomationProperties.Name="Show last week's digest"
+                                Content="Last week's" />
+                    </controls:FlowRow>
+                </controls:AdaptiveRow>
+            </Border>
+        </StackPanel>
+    </Border>
+</UserControl>

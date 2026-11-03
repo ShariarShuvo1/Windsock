@@ -46,7 +46,23 @@ public sealed class FlowGrid : Panel
         typeof(FlowGrid),
         new FrameworkPropertyMetadata(int.MaxValue, FrameworkPropertyMetadataOptions.AffectsMeasure));
 
-    /// <summary>How narrow a column may become before there is one fewer.</summary>
+    /// <summary>
+    /// Windows' Text size, as ThemeManager publishes it in the "TextScale"
+    /// resource. Followed by every grid so its columns widen with the text
+    /// they hold: a column sized for a caption at 100 percent clips it at 150.
+    /// </summary>
+    private static readonly DependencyProperty TextScaleProperty = DependencyProperty.Register(
+        "TextScale",
+        typeof(double),
+        typeof(FlowGrid),
+        new FrameworkPropertyMetadata(1d, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+    public FlowGrid() => SetResourceReference(TextScaleProperty, "TextScale");
+
+    /// <summary>
+    /// How narrow a column may become before there is one fewer, at normal text
+    /// size; it widens with Windows' Text size.
+    /// </summary>
     public double MinimumColumnWidth
     {
         get => (double)GetValue(MinimumColumnWidthProperty);
@@ -241,13 +257,15 @@ public sealed class FlowGrid : Panel
 
     private int Columns(double available, int count)
     {
-        if (double.IsInfinity(available) || available <= 0 || MinimumColumnWidth <= 0)
+        double least = Least;
+
+        if (double.IsInfinity(available) || available <= 0 || least <= 0)
         {
             return 1;
         }
 
         int fits = Math.Clamp(
-            (int)((available + Spacing) / (MinimumColumnWidth + Spacing)),
+            (int)((available + Spacing) / (least + Spacing)),
             1,
             Math.Max(1, Math.Min(count, MaximumColumns)));
 
@@ -287,8 +305,11 @@ public sealed class FlowGrid : Panel
         return fits;
     }
 
+    /// <summary>The narrowest a column may be now: the minimum, grown with the text.</summary>
+    private double Least => MinimumColumnWidth * Math.Max(1, GetValue(TextScaleProperty) is double scale && double.IsFinite(scale) ? scale : 1);
+
     private double ColumnWidth(double available, int columns) =>
         double.IsInfinity(available) || available <= 0
-            ? Math.Max(MinimumColumnWidth, 1)
+            ? Math.Max(Least, 1)
             : Math.Max(0, (available - (Spacing * (columns - 1))) / columns);
 }

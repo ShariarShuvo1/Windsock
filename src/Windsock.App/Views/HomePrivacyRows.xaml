@@ -1,0 +1,82 @@
+<UserControl x:Class="Windsock.App.Views.HomePrivacyRows"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:HomeFeedSettingsViewModel}"
+             d:DesignWidth="800">
+
+    <!--
+        The home network's three switches, as rows of Settings › Data and
+        privacy's "What leaves this PC" band. Each says plainly that what it
+        sends stays on your network: devices and the router are on the home
+        network, and nothing here reaches the internet. All three start off.
+    -->
+    <StackPanel>
+        <Border Style="{StaticResource BandRowStyle}">
+            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                <StackPanel VerticalAlignment="Center">
+                    <controls:SettingHead HorizontalAlignment="Left"
+                                          Text="Find devices on my home network"
+                                          Hint="Lists what is connected at home on Network › Home devices. Windsock reads the list of neighbours Windows already keeps, which sends nothing, and asks devices for their names: a multicast DNS query to the network, a NetBIOS name question to a device, and a reverse lookup put to your router, asked not to pass it on. Only on a network Windows calls private, through a wired or Wi-Fi connection with its own router, never through a VPN and never on a public one such as a café's Wi-Fi." />
+
+                    <TextBlock Text="Stays on your network · only on a private network"
+                               Style="{StaticResource DetailNoteStyle}"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+
+                <CheckBox HorizontalAlignment="Left"
+                          Style="{StaticResource ToolbarCheckStyle}"
+                          VerticalAlignment="Center"
+                          Content="Look for devices"
+                          IsChecked="{Binding FindDevices, Mode=TwoWay}"
+                          AutomationProperties.Name="Find devices on my home network" />
+            </controls:AdaptiveRow>
+        </Border>
+
+        <Border Style="{StaticResource BandRowStyle}">
+            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                <StackPanel VerticalAlignment="Center">
+                    <controls:SettingHead HorizontalAlignment="Left"
+                                          Text="Router details"
+                                          Hint="When you press Check on Network › Home devices, and once a week, Windsock asks your router over UPnP for its maker, its model and the ports it has opened to the internet. It only asks, and only your router: it never opens, closes or changes a port." />
+
+                    <TextBlock Text="Stays on your network · your router only"
+                               Style="{StaticResource DetailNoteStyle}"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+
+                <CheckBox HorizontalAlignment="Left"
+                          Style="{StaticResource ToolbarCheckStyle}"
+                          VerticalAlignment="Center"
+                          Content="Ask the router"
+                          IsChecked="{Binding CheckRouter, Mode=TwoWay}"
+                          AutomationProperties.Name="Router details" />
+            </controls:AdaptiveRow>
+        </Border>
+
+        <Border Style="{StaticResource BandRowStyle}">
+            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                <StackPanel VerticalAlignment="Center">
+                    <controls:SettingHead HorizontalAlignment="Left"
+                                          Text="Household traffic"
+                                          Hint="While Network › Overview or the local feed is showing it, Windsock asks your router for its own traffic counters every five seconds, over UPnP, to show what every device at home is using together. A router that does not report them shows a dash." />
+
+                    <TextBlock Text="Stays on your network · your router only"
+                               Style="{StaticResource DetailNoteStyle}"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+
+                <CheckBox HorizontalAlignment="Left"
+                          Style="{StaticResource ToolbarCheckStyle}"
+                          VerticalAlignment="Center"
+                          Content="Read the router's counters"
+                          IsChecked="{Binding ReadRouterTraffic, Mode=TwoWay}"
+                          AutomationProperties.Name="Household traffic" />
+            </controls:AdaptiveRow>
+        </Border>
+    </StackPanel>
+</UserControl>

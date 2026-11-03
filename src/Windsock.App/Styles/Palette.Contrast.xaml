@@ -1,0 +1,117 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        The palette under a Windows contrast theme (Settings › Accessibility ›
+        Contrast themes: Aquatic, Desert, Dusk, Night sky, or the person's own).
+        Every key the light and dark palettes define, mapped to the system
+        colour whose role it plays, because a contrast theme is the person's
+        choice of colours and an app is meant to use them rather than its own:
+
+          Window / WindowText        surfaces and the text on them
+          Highlight / HighlightText  the accent, selection, what must stand out
+          GrayText                   quiet marks only, never text that matters
+          Control / ControlText      the face and text of a control
+
+        Hotlight (HotTrack) is for links alone and is not used here. Surfaces
+        all become Window, so the tone between bands and tiles is gone; the
+        tone stroke takes the text colour instead, and parts of a page keep
+        their edges. Series are told apart by their names and their place, as
+        they always are; the two lines of a chart are Highlight and WindowText.
+
+        Read when the palette is merged, which ThemeManager does again whenever
+        the contrast theme or its colours change, so the static values here are
+        always the theme's current ones.
+    -->
+
+    <x:Static x:Key="BrandNavyColor" Member="SystemColors.WindowColor" />
+    <x:Static x:Key="BrandIceColor" Member="SystemColors.WindowTextColor" />
+
+    <x:Static x:Key="AccentColor" Member="SystemColors.HighlightColor" />
+
+    <x:Static x:Key="DownloadColor" Member="SystemColors.HighlightColor" />
+    <x:Static x:Key="UploadColor" Member="SystemColors.WindowTextColor" />
+
+    <SolidColorBrush x:Key="AccentBrush" Color="{x:Static SystemColors.HighlightColor}" />
+    <SolidColorBrush x:Key="DownloadBrush" Color="{x:Static SystemColors.HighlightColor}" />
+    <SolidColorBrush x:Key="UploadBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="BrandBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+
+    <SolidColorBrush x:Key="RowStripeBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="RowHoverBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="Transparent" />
+
+    <SolidColorBrush x:Key="WindowGroundBrush" Color="{x:Static SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{x:Static SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="CardBrush" Color="{x:Static SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="CardHoverBrush" Color="{x:Static SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="BoneBrush" Color="{x:Static SystemColors.GrayTextColor}" />
+    <SolidColorBrush x:Key="PlateBrush" Color="{x:Static SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="CardStrokeBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="CanvasGroundBrush" Color="{x:Static SystemColors.WindowColor}" />
+
+    <SolidColorBrush x:Key="SectionBrush" Color="{x:Static SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="InsetBrush" Color="{x:Static SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="HoverBrush" Color="{x:Static SystemColors.WindowColor}" />
+
+    <SolidColorBrush x:Key="QuietFillBrush" Color="{x:Static SystemColors.ControlColor}" />
+    <SolidColorBrush x:Key="QuietHoverBrush" Color="{x:Static SystemColors.ControlColor}" />
+    <SolidColorBrush x:Key="QuietPressedBrush" Color="{x:Static SystemColors.ControlColor}" />
+
+    <SolidColorBrush x:Key="PopupBrush" Color="{x:Static SystemColors.WindowColor}" />
+
+    <SolidColorBrush x:Key="MapLandBrush" Color="{x:Static SystemColors.WindowColor}" />
+    <SolidColorBrush x:Key="MapCoastBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="MapLandLitBrush" Color="{x:Static SystemColors.HighlightColor}" />
+    <SolidColorBrush x:Key="MapBusyBrush" Color="{x:Static SystemColors.HighlightColor}" />
+
+    <x:Static x:Key="NetworkColor" Member="SystemColors.WindowTextColor" />
+    <x:Static x:Key="ProcessorColor" Member="SystemColors.WindowTextColor" />
+    <x:Static x:Key="GraphicsColor" Member="SystemColors.WindowTextColor" />
+    <x:Static x:Key="MemoryColor" Member="SystemColors.WindowTextColor" />
+    <x:Static x:Key="StorageColor" Member="SystemColors.WindowTextColor" />
+    <x:Static x:Key="BatteryColor" Member="SystemColors.WindowTextColor" />
+
+    <SolidColorBrush x:Key="NetworkBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="ProcessorBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="GraphicsBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="MemoryBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="StorageBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="BatteryBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+
+    <SolidColorBrush x:Key="MeterTrackBrush" Color="{x:Static SystemColors.GrayTextColor}" />
+
+    <SolidColorBrush x:Key="HotBrush" Color="{x:Static SystemColors.HighlightColor}" />
+    <SolidColorBrush x:Key="GoodBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+
+    <x:Static x:Key="RouterColor" Member="SystemColors.WindowTextColor" />
+    <SolidColorBrush x:Key="RouterBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+
+    <SolidColorBrush x:Key="ToneStrokeBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+
+    <!--
+        WPF's own Fluent keys that Windsock's pages use, mapped the same way.
+        Under a contrast theme Fluent loads its own contrast dictionary, which
+        does this too; saying it here as well keeps every page right should it
+        not (a pinned light or dark, a Fluent that missed the change), and keeps
+        secondary text off grey, which a contrast theme keeps for disabled text
+        alone. Only this palette defines these: the light and dark ones leave
+        them to Fluent.
+    -->
+    <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="{x:Static SystemColors.GrayTextColor}" />
+    <SolidColorBrush x:Key="DividerStrokeColorDefaultBrush" Color="{x:Static SystemColors.WindowTextColor}" />
+    <SolidColorBrush x:Key="SubtleFillColorSecondaryBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="SubtleFillColorTertiaryBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="{x:Static SystemColors.ControlColor}" />
+    <SolidColorBrush x:Key="ControlFillColorSecondaryBrush" Color="{x:Static SystemColors.ControlColor}" />
+    <SolidColorBrush x:Key="ControlFillColorTertiaryBrush" Color="{x:Static SystemColors.ControlColor}" />
+    <SolidColorBrush x:Key="ControlAltFillColorSecondaryBrush" Color="{x:Static SystemColors.ControlColor}" />
+    <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="{x:Static SystemColors.ControlTextColor}" />
+    <SolidColorBrush x:Key="ControlStrongStrokeColorDefaultBrush" Color="{x:Static SystemColors.ControlTextColor}" />
+    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="{x:Static SystemColors.HighlightColor}" />
+    <SolidColorBrush x:Key="TextOnAccentFillColorPrimaryBrush" Color="{x:Static SystemColors.HighlightTextColor}" />
+
+</ResourceDictionary>

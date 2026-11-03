@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Windsock.Core.Formatting;
 using Windsock.Core.Networking;
 using Windsock.Core.Processes;
+using Windsock.Core.Settings;
 
 namespace Windsock.App.ViewModels;
 
@@ -60,6 +61,9 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
 
     private readonly ThroughputMonitor _monitor;
     private readonly Dispatcher _dispatcher;
+    private readonly WindsockSettings _settings;
+    private readonly ISettingsStore _store;
+    private readonly bool _loaded;
     private readonly DispatcherTimer _animator;
     private readonly ThroughputSample[] _scratch;
     private readonly ReadoutSizer _downloadSizer = new(ReadoutMaximumFontSize);
@@ -92,10 +96,21 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
         ProcessAttributionHistory attribution,
         ProcessUsageMonitor processes,
 #endif
+        WindsockSettings settings,
+        ISettingsStore store,
         Dispatcher dispatcher)
     {
+        ArgumentNullException.ThrowIfNull(settings);
+
         _monitor = monitor;
         _dispatcher = dispatcher;
+        _settings = settings;
+        _store = store;
+
+        // The chart counts the way it did last time. A value the file names
+        // that this build does not know falls back to the defaults.
+        SelectedFamily = Enum.IsDefined(settings.ChartFamily) ? settings.ChartFamily : RateFamily.Bytes;
+        SelectedScale = Enum.IsDefined(settings.ChartScale) ? settings.ChartScale : RateScale.Auto;
 
 #if STORE
         _shares = [];
@@ -134,6 +149,7 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
             Interval = AnimationInterval,
         };
         _animator.Tick += OnAnimationTick;
+        _loaded = true;
     }
 
     /// <summary>Bytes or bits. Also decides what Auto ladders through.</summary>
@@ -376,11 +392,39 @@ public sealed partial class ThroughputOverviewViewModel : ObservableObject, IDis
 
     partial void OnSelectedFamilyChanged(RateFamily value)
     {
+        if (!_loaded)
+        {
+            return;
+        }
+
         RelabelScales();
         Reformat();
+        Remember();
     }
 
-    partial void OnSelectedScaleChanged(RateScale value) => Reformat();
+    partial void OnSelectedScaleChanged(RateScale value)
+    {
+        if (!_loaded)
+        {
+            return;
+        }
+
+        Reformat();
+        Remember();
+    }
+
+    /// <summary>Keeps the units for the next start, as the chart's own pickers left them.</summary>
+    private void Remember()
+    {
+        if (_settings.ChartFamily == SelectedFamily && _settings.ChartScale == SelectedScale)
+        {
+            return;
+        }
+
+        _settings.ChartFamily = SelectedFamily;
+        _settings.ChartScale = SelectedScale;
+        _store.Save(_settings);
+    }
 
     private void RelabelScales()
     {

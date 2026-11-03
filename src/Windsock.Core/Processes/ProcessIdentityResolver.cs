@@ -120,35 +120,33 @@ public sealed class ProcessIdentityResolver : IProcessIdentityResolver
                 return Unknown(processId);
             }
 
-            (string? path, string? family) = ReadFile(process);
+            // The file and the start time come from one handle with the least
+            // access Windows grants. Process.MainModule and StartTime ask for
+            // more, and threw - caught, but 30 to 50 first-chance "Access is
+            // denied" a start - for every protected process; where the least
+            // access is refused, they would have been refused too.
+            using SafeFileHandle handle = PInvoke.OpenProcess_SafeHandle(
+                PROCESS_ACCESS_RIGHTS.PROCESS_QUERY_LIMITED_INFORMATION,
+                false,
+                (uint)processId);
 
-            return new ProcessIdentity(name, ReadDescription(path), path, ReadStartTime(process), family);
+            (string? path, string? family) = ReadFile(handle);
+
+            return new ProcessIdentity(name, ReadDescription(path), path, ReadStartTime(handle), family);
         }
     }
 
     /// <summary>The process's executable, and its package family when it runs a packaged app's own file.</summary>
-    private static (string? Path, string? Family) ReadFile(Process process)
+    private static (string? Path, string? Family) ReadFile(SafeFileHandle handle)
     {
-        using SafeFileHandle handle = PInvoke.OpenProcess_SafeHandle(
-            PROCESS_ACCESS_RIGHTS.PROCESS_QUERY_LIMITED_INFORMATION,
-            false,
-            (uint)process.Id);
-
-        string? path = handle.IsInvalid ? null : ImagePath(handle, PROCESS_NAME_FORMAT.PROCESS_NAME_WIN32);
-
-        if (path is null)
+        if (handle.IsInvalid)
         {
-            try
-            {
-                path = process.MainModule?.FileName;
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
-            {
-                path = null;
-            }
+            return (null, null);
         }
 
-        string? family = !handle.IsInvalid && path is not null && OperatingSystem.IsWindowsVersionAtLeast(10)
+        string? path = ImagePath(handle, PROCESS_NAME_FORMAT.PROCESS_NAME_WIN32);
+
+        string? family = path is not null && OperatingSystem.IsWindowsVersionAtLeast(10)
             ? PackageFamily(handle, path)
             : null;
 
@@ -225,16 +223,17 @@ public sealed class ProcessIdentityResolver : IProcessIdentityResolver
         }
     }
 
-    private static DateTimeOffset? ReadStartTime(Process process)
+    /// <summary>When the process started, from its own handle; null where Windows will not say.</summary>
+    private static DateTimeOffset? ReadStartTime(SafeFileHandle handle)
     {
-        try
-        {
-            return process.StartTime;
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+        if (handle.IsInvalid
+            || !PInvoke.GetProcessTimes(handle, out System.Runtime.InteropServices.ComTypes.FILETIME created, out _, out _, out _))
         {
             return null;
         }
+
+        long ticks = ((long)created.dwHighDateTime << 32) | (uint)created.dwLowDateTime;
+        return ticks > 0 ? DateTimeOffset.FromFileTime(ticks) : null;
     }
 
     private static ProcessIdentity Unknown(int processId) =>

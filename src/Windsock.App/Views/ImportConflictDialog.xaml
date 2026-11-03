@@ -33,7 +33,7 @@
                                Foreground="{DynamicResource AccentBrush}" />
 
             <TextBlock Text="Some of this file is already recorded"
-                       FontSize="15"
+                       FontSize="{DynamicResource TextSize15}"
                        FontWeight="SemiBold"
                        VerticalAlignment="Center"
                        TextWrapping="Wrap"
@@ -42,7 +42,7 @@
 
         <StackPanel Grid.Row="1" Margin="0,0,0,18">
             <TextBlock x:Name="Summary"
-                       FontSize="12.5"
+                       FontSize="{DynamicResource TextSize12_5}"
                        TextWrapping="Wrap"
                        Margin="0,0,0,12"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -51,14 +51,14 @@
                     CornerRadius="7"
                     Padding="14,11">
                 <StackPanel>
-                    <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,0,0,7">
+                    <TextBlock FontSize="{DynamicResource TextSize12}" TextWrapping="Wrap" Margin="0,0,0,7">
                         <Run Text="Skip them" FontWeight="SemiBold"
                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <Run Text=" keeps what Windsock recorded and adds only the minutes it has never seen."
                              Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     </TextBlock>
 
-                    <TextBlock FontSize="12" TextWrapping="Wrap">
+                    <TextBlock FontSize="{DynamicResource TextSize12}" TextWrapping="Wrap">
                         <Run Text="Overwrite them" FontWeight="SemiBold"
                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <Run Text=" replaces those recorded minutes with the file's version. This cannot be undone."

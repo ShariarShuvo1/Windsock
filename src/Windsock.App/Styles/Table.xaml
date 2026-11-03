@@ -2,7 +2,11 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
                     xmlns:commands="clr-namespace:Windsock.App.Commands"
-                    xmlns:controls="clr-namespace:Windsock.App.Controls">
+                    xmlns:controls="clr-namespace:Windsock.App.Controls"
+                    xmlns:converters="clr-namespace:Windsock.App.Converters">
+
+    <!-- A table cell's dash, said as "not known": see SpokenDashConverter. -->
+    <converters:SpokenDashConverter x:Key="SpokenDash" />
 
     <!--
         Surface for a flyout the user reaches into - a filter box, a column
@@ -74,7 +78,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <!--
             Out of the way until wanted. Six funnels standing in six headings
             is a row of noise above every table; faded out, the headings read
@@ -132,7 +136,7 @@
     -->
     <Style x:Key="TableHeaderStyle" TargetType="DataGridColumnHeader">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Padding" Value="12,0,4,0" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -143,14 +147,15 @@
                 <ControlTemplate TargetType="DataGridColumnHeader">
                     <Grid>
                         <!--
-                            No ground of its own: the heading row is the top of
-                            the card the table sits in, marked off from the rows
-                            by a hairline rather than by a band of another shade.
+                            No ground of its own and no rule under it: the
+                            heading row is the top of the band the table sits
+                            in, set apart by its quieter, smaller words and by
+                            the rows' alternating tint starting under it. A
+                            table draws no lines at all.
                         -->
                         <Border x:Name="Root"
                                 Background="Transparent"
-                                BorderBrush="{DynamicResource CardStrokeBrush}"
-                                BorderThickness="0,0,0,1"
+                                CornerRadius="6"
                                 SnapsToDevicePixels="True">
                             <Grid Margin="{TemplateBinding Padding}"
                                   DataContext="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}">
@@ -190,12 +195,17 @@
                                       VerticalAlignment="Center"
                                       Visibility="Collapsed" />
 
+                                <!--
+                                    Named for its column, so six funnels in a
+                                    row are six different things to a screen
+                                    reader rather than "Filter column" six times.
+                                -->
                                 <ToggleButton x:Name="FilterToggle"
                                               Grid.Column="2"
                                               Style="{StaticResource HeaderFilterStyle}"
                                               IsChecked="{Binding IsFilterOpen, Mode=TwoWay}"
                                               ToolTip="Filter this column"
-                                              AutomationProperties.Name="Filter column">
+                                              AutomationProperties.Name="{Binding Title, StringFormat='Filter {0}', FallbackValue='Filter column'}">
                                     <Grid>
                                         <fluent:SymbolIcon Symbol="Filter"
                                                            FontSize="12"
@@ -203,6 +213,7 @@
 
                                         <Popup IsOpen="{Binding IsFilterOpen, Mode=TwoWay}"
                                                StaysOpen="False"
+                                               controls:Flyout.MovesFocus="True"
                                                Placement="Bottom"
                                                HorizontalOffset="-176"
                                                VerticalOffset="6"
@@ -223,7 +234,7 @@
                                                              AutomationProperties.Name="Column filter" />
 
                                                     <TextBlock Text="{Binding FilterHint}"
-                                                               FontSize="11"
+                                                               FontSize="{DynamicResource TextSize11}"
                                                                FontWeight="Normal"
                                                                Margin="2,6,0,0"
                                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -233,7 +244,7 @@
                                                             HorizontalAlignment="Right"
                                                             Margin="0,8,0,0"
                                                             Padding="10,3"
-                                                            FontSize="11"
+                                                            FontSize="{DynamicResource TextSize11}"
                                                             FontWeight="Normal" />
                                                 </StackPanel>
                                             </Border>
@@ -274,6 +285,32 @@
                             <Setter TargetName="FilterToggle" Property="Opacity" Value="1" />
                         </Trigger>
 
+                        <!--
+                            Reached by Tab, the funnel shows itself as the pointer
+                            would have shown it: a faded control that takes the
+                            focus is a ring around nothing. Only for the keyboard
+                            (TableKeyboard sets the flag): a click focuses the
+                            funnel too, and the heading must not stay lit after
+                            it as if the pointer were still there.
+                        -->
+                        <Trigger Property="controls:TableKeyboard.ShowsKeyboardFocus" Value="True">
+                            <Setter TargetName="Root"
+                                    Property="Background"
+                                    Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            <Setter Property="Foreground"
+                                    Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <Setter TargetName="FilterToggle" Property="Opacity" Value="1" />
+                        </Trigger>
+
+                        <!--
+                            The grid's filler heading, past the last column, is
+                            this same template with no column behind it: no
+                            funnel there, or Tab stops on a filter for nothing.
+                        -->
+                        <Trigger Property="Content" Value="{x:Null}">
+                            <Setter TargetName="FilterToggle" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+
                         <Trigger Property="SortDirection" Value="Ascending">
                             <Setter TargetName="SortAscending" Property="Visibility" Value="Visible" />
                             <Setter Property="Foreground"
@@ -291,12 +328,44 @@
         </Setter>
     </Style>
 
+    <!--
+        The ring round a table's focused cell or row: the house focus ring,
+        drawn just inside the cell rather than just outside it, so it does not
+        reach into the rows above and below.
+    -->
+    <Style x:Key="TableFocusRingStyle" BasedOn="{StaticResource FocusRingStyle}">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border Margin="1"
+                            CornerRadius="5"
+                            BorderThickness="2"
+                            BorderBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                            SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- A row. Flat, with no rule under it: the spacing does that job. -->
     <Style x:Key="TableRowStyle" TargetType="DataGridRow">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource TableFocusRingStyle}" />
+        <!--
+            A row's cells are one Tab stop with the rows around them (the grid's
+            rows panel is Once too). The grid's own cells panel is Local, so Tab
+            walked cell by cell across whichever row it was on; the arrow keys
+            are what move between cells.
+        -->
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <DataGridCellsPanel KeyboardNavigation.TabNavigation="Once" />
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridRow">
@@ -335,12 +404,16 @@
         </Setter>
     </Style>
 
-    <!-- A cell. Stripped of the stock border and focus rectangle. -->
+    <!--
+        A cell. Stripped of the stock border and focus rectangle, and given the
+        house ring instead: the table is one Tab stop and the arrow keys move
+        between its cells (TableKeyboard), so the reader has to see which.
+    -->
     <Style x:Key="TableCellStyle" TargetType="DataGridCell">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="12,0" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource TableFocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridCell">
@@ -370,7 +443,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -432,12 +505,12 @@
         it will do something.
     -->
     <Style x:Key="PathLinkStyle" TargetType="Button">
-        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Padding" Value="0" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -488,12 +561,6 @@
                             <Setter TargetName="Shell" Property="Opacity" Value="0.7" />
                         </Trigger>
 
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Label" Property="TextDecorations" Value="Underline" />
-                            <Setter TargetName="Glyph"
-                                    Property="Foreground"
-                                    Value="{DynamicResource AccentBrush}" />
-                        </Trigger>
 
                         <!-- No file behind the path: it is only a fact, so it
                              stops pretending to be a way anywhere. -->
@@ -601,7 +668,7 @@
                     </Path.Style>
                 </Path>
 
-                <Image Source="{Binding Icon}"
+                <controls:IconImage Source="{Binding Icon}"
                        Width="16"
                        Height="16"
                        RenderOptions.BitmapScalingMode="HighQuality" />
@@ -613,7 +680,7 @@
                        Margin="6,0,0,0"
                        VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"
-                       FontSize="12.5">
+                       FontSize="{DynamicResource TextSize12_5}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Foreground"
@@ -641,7 +708,7 @@
     <Style x:Key="TableTextStyle" TargetType="TextBlock">
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
     </Style>
 
     <!-- Numbers line up on the right, with tabular figures so they stay in
@@ -691,9 +758,9 @@
     -->
     <Style x:Key="CheckStyle" TargetType="CheckBox">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="Padding" Value="8,7" />
         <Setter Property="Template">
@@ -750,11 +817,6 @@
                             <Setter TargetName="Tick" Property="Opacity" Value="1" />
                         </Trigger>
 
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Row"
-                                    Property="Background"
-                                    Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
-                        </Trigger>
 
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />
@@ -773,9 +835,9 @@
         clips it.
     -->
     <Style x:Key="ToolbarCheckStyle" TargetType="CheckBox" BasedOn="{StaticResource CheckStyle}">
-        <Setter Property="Height" Value="30" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlHeight}" />
         <Setter Property="Padding" Value="8,4" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
@@ -828,7 +890,7 @@
         <Setter Property="Height" Value="24" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Opacity" Value="0.45" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Template">
@@ -860,16 +922,20 @@
         </Setter>
     </Style>
 
-    <!-- One line of a small menu: full width, no border, fill on hover. -->
+    <!--
+        One line of a small menu: full width, no border, fill on hover. Pressing
+        it closes the menu's popup, however it was pressed (MenuClosing).
+    -->
     <Style x:Key="MenuItemStyle" TargetType="Button">
-        <Setter Property="Height" Value="30" />
+        <Setter Property="controls:MenuClosing.ClosesMenu" Value="True" />
+        <Setter Property="MinHeight" Value="30" />
         <Setter Property="Padding" Value="10,0" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -896,16 +962,15 @@
 
     <!--
         The heading over a column of buttons. It has no name to show and nothing
-        to sort or filter by, so it is the header surface and nothing else.
+        to sort or filter by, so it is the header surface and nothing else - but
+        a screen reader still reads it as the column's name.
     -->
     <Style x:Key="ActionsHeaderStyle" TargetType="DataGridColumnHeader">
+        <Setter Property="AutomationProperties.Name" Value="Actions" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridColumnHeader">
-                    <Border Background="Transparent"
-                            BorderBrush="{DynamicResource CardStrokeBrush}"
-                            BorderThickness="0,0,0,1"
-                            SnapsToDevicePixels="True" />
+                    <Border Background="Transparent" SnapsToDevicePixels="True" />
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -955,7 +1020,7 @@
         <Setter Property="Width" Value="28" />
         <Setter Property="Height" Value="28" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -992,11 +1057,6 @@
                                     Value="{DynamicResource AccentBrush}" />
                         </Trigger>
 
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Shell"
-                                    Property="BorderBrush"
-                                    Value="{DynamicResource AccentBrush}" />
-                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -1013,7 +1073,7 @@
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Background" Value="{DynamicResource CardBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1.2" />
@@ -1040,11 +1100,6 @@
                                     Value="{DynamicResource AccentBrush}" />
                         </Trigger>
 
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Shell"
-                                    Property="BorderBrush"
-                                    Value="{DynamicResource AccentBrush}" />
-                        </Trigger>
 
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Shell" Property="Opacity" Value="0.75" />
@@ -1146,7 +1201,7 @@
     <Style x:Key="GraphWorldNodeStyle" TargetType="Button">
         <Setter Property="Padding" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CanvasGroundBrush}" />
         <Setter Property="BorderThickness" Value="1.5" />
@@ -1168,11 +1223,6 @@
                             <Setter TargetName="Shell" Property="BorderThickness" Value="2" />
                         </Trigger>
 
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Shell"
-                                    Property="BorderBrush"
-                                    Value="{DynamicResource TextFillColorPrimaryBrush}" />
-                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -1263,7 +1313,7 @@
         <Setter Property="Width" Value="26" />
         <Setter Property="Height" Value="26" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -1294,11 +1344,6 @@
                                     Value="{DynamicResource AccentBrush}" />
                         </Trigger>
 
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Shell"
-                                    Property="BorderBrush"
-                                    Value="{DynamicResource AccentBrush}" />
-                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -1319,7 +1364,7 @@
                                     VerticalAlignment="Center"
                                     MaxWidth="360">
                             <TextBlock Text="{TemplateBinding Note}"
-                                       FontSize="12.5"
+                                       FontSize="{DynamicResource TextSize12_5}"
                                        TextAlignment="Center"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -1400,14 +1445,14 @@
     </Style>
 
     <Style x:Key="GraphDrawerNoteStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize11}" />
         <Setter Property="Margin" Value="26,3,0,0" />
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
     </Style>
 
     <Style x:Key="GraphDrawerHeadStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Margin" Value="10,4,0,0" />
@@ -1420,7 +1465,7 @@
         <Setter Property="Height" Value="26" />
         <Setter Property="Margin" Value="0,2,2,0" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
@@ -1523,13 +1568,13 @@
 
         <StackPanel Grid.Column="1">
             <TextBlock Text="{Binding Label}"
-                       FontSize="11.5"
+                       FontSize="{DynamicResource TextSize11_5}"
                        FontWeight="SemiBold"
                        TextTrimming="CharacterEllipsis"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
             <TextBlock Text="{Binding RateText}"
-                       FontSize="10.5"
+                       FontSize="{DynamicResource TextSize10_5}"
                        Margin="0,1,0,0"
                        TextTrimming="CharacterEllipsis"
                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -1549,14 +1594,14 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Image Grid.Column="0"
+            <controls:IconImage Grid.Column="0"
                    Source="{Binding Icon}"
                    Width="18"
                    Height="18"
                    Margin="0,0,9,0"
                    VerticalAlignment="Center"
                    RenderOptions.BitmapScalingMode="HighQuality">
-                <Image.Style>
+                <controls:IconImage.Style>
                     <Style TargetType="Image">
                         <Setter Property="Visibility" Value="Visible" />
                         <Style.Triggers>
@@ -1565,18 +1610,18 @@
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </Image.Style>
-            </Image>
+                </controls:IconImage.Style>
+            </controls:IconImage>
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock Text="{Binding Label}"
-                           FontSize="11.5"
+                           FontSize="{DynamicResource TextSize11_5}"
                            FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
                 <TextBlock Text="{Binding RateText}"
-                           FontSize="10.5"
+                           FontSize="{DynamicResource TextSize10_5}"
                            Margin="0,1,0,0"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -1593,14 +1638,14 @@
 
             <TextBlock Grid.Column="0"
                        Text="{Binding Label}"
-                       FontSize="10.5"
+                       FontSize="{DynamicResource TextSize10_5}"
                        VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
             <TextBlock Grid.Column="1"
                        Text="{Binding Latency}"
-                       FontSize="10"
+                       FontSize="{DynamicResource TextSize10}"
                        Margin="8,0,0,0"
                        VerticalAlignment="Center"
                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -1619,14 +1664,14 @@
                 box is the process. Gone rather than blank where Windows has
                 none, so the words simply take the room back.
             -->
-            <Image Grid.Column="0"
+            <controls:IconImage Grid.Column="0"
                    Source="{Binding Icon}"
                    Width="24"
                    Height="24"
                    Margin="0,0,11,0"
                    VerticalAlignment="Center"
                    RenderOptions.BitmapScalingMode="HighQuality">
-                <Image.Style>
+                <controls:IconImage.Style>
                     <Style TargetType="Image">
                         <Setter Property="Visibility" Value="Visible" />
                         <Style.Triggers>
@@ -1635,18 +1680,18 @@
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </Image.Style>
-            </Image>
+                </controls:IconImage.Style>
+            </controls:IconImage>
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock Text="{Binding Title}"
-                           FontSize="13"
+                           FontSize="{DynamicResource TextSize13}"
                            FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
                 <TextBlock Text="{Binding Body}"
-                           FontSize="10.5"
+                           FontSize="{DynamicResource TextSize10_5}"
                            Margin="0,2,0,0"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -1670,13 +1715,13 @@
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock Text="{Binding Title}"
-                           FontSize="13"
+                           FontSize="{DynamicResource TextSize13}"
                            FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
                 <TextBlock Text="{Binding Body}"
-                           FontSize="10.5"
+                           FontSize="{DynamicResource TextSize10_5}"
                            Margin="0,2,0,0"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -1690,7 +1735,7 @@
         one with eight.
     -->
     <Style x:Key="PopoverLineStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize11_5}" />
         <Setter Property="Margin" Value="0,5,0,0" />
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -1702,7 +1747,7 @@
     </Style>
 
     <Style x:Key="PopoverNoteStyle" TargetType="TextBlock" BasedOn="{StaticResource PopoverLineStyle}">
-        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize11}" />
         <Setter Property="Margin" Value="0,8,0,0" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
     </Style>
@@ -1764,9 +1809,9 @@
         <Setter Property="IsReadOnly" Value="True" />
         <Setter Property="SelectionMode" Value="Single" />
         <Setter Property="SelectionUnit" Value="FullRow" />
-        <Setter Property="RowHeight" Value="30" />
+        <Setter Property="RowHeight" Value="{DynamicResource TableRowHeight}" />
         <Setter Property="AlternationCount" Value="2" />
-        <Setter Property="ColumnHeaderHeight" Value="36" />
+        <Setter Property="ColumnHeaderHeight" Value="{DynamicResource TableHeaderHeight}" />
         <Setter Property="ColumnWidth" Value="Auto" />
         <Setter Property="ClipboardCopyMode" Value="IncludeHeader" />
         <Setter Property="EnableRowVirtualization" Value="True" />
@@ -1775,6 +1820,20 @@
         <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
         <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
         <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+        <!--
+            The rows are one Tab stop: Tab reaches the table and leaves it, and
+            the arrow keys move between cells and rows. The headings stay
+            outside it, so their filters are still reached by Tab. See
+            TableKeyboard for the rest.
+        -->
+        <Setter Property="controls:TableKeyboard.IsEnabled" Value="True" />
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <DataGridRowsPresenter IsItemsHost="True" KeyboardNavigation.TabNavigation="Once" />
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!--
@@ -1784,13 +1843,13 @@
         the screen.
     -->
     <Style x:Key="SearchBoxStyle" TargetType="TextBox">
-        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="Background" Value="{DynamicResource QuietFillBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="CaretBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="Height" Value="30" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlHeight}" />
         <Setter Property="MinWidth" Value="150" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -1887,7 +1946,7 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root"
                                     Property="Background"
-                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                    Value="{DynamicResource QuietHoverBrush}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="Root"
@@ -1900,18 +1959,22 @@
         </Setter>
     </Style>
 
-    <!-- Toolbar button: same height as the pickers, no chrome until touched. -->
+    <!--
+        Toolbar button: the same height as the pickers, filled one step off
+        whatever it sits on and never outlined except to show keyboard focus.
+        Only a page's main action takes the accent; see PrimaryButtonStyle.
+    -->
     <Style x:Key="ToolbarButtonStyle" TargetType="ButtonBase">
-        <Setter Property="Height" Value="30" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlHeight}" />
         <Setter Property="Padding" Value="11,0" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="Background" Value="{DynamicResource QuietFillBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ToneStrokeBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ButtonBase">
@@ -1929,17 +1992,12 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root"
                                     Property="Background"
-                                    Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                        </Trigger>
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Root"
-                                    Property="BorderBrush"
-                                    Value="{DynamicResource AccentBrush}" />
+                                    Value="{DynamicResource QuietHoverBrush}" />
                         </Trigger>
                         <Trigger Property="ToggleButton.IsChecked" Value="True">
                             <Setter TargetName="Root"
                                     Property="Background"
-                                    Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                                    Value="{DynamicResource QuietPressedBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Opacity" Value="0.45" />

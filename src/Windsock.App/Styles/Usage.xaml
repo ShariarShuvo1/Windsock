@@ -1,0 +1,190 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!--
+        Styles shared by the usage pages - Data plan, Reports, History's
+        additions, an app over time, and the rows in Data and privacy. Merged by
+        each of those views rather than by App.xaml, so the app's own list of
+        dictionaries is left alone. Everything is built from the palette's
+        tokens and the shared styles' rules: quiet fills, no outlines except for
+        keyboard focus.
+    -->
+
+    <!--
+        A text field: filled one step off what it sits on, outlined only for the
+        keyboard. A Tag holding text is shown, faint, while the field is empty.
+    -->
+    <Style x:Key="FieldBoxStyle" TargetType="TextBox">
+        <Setter Property="Background" Value="{DynamicResource QuietFillBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ToneStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="Padding" Value="9,0,9,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <TextBlock x:Name="Placeholder"
+                                       Text="{TemplateBinding Tag}"
+                                       Margin="{TemplateBinding Padding}"
+                                       Padding="2,0,0,0"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="Collapsed"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Focusable="False"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden"
+                                          Background="Transparent" />
+                        </Grid>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource QuietHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The name over a field in a form. -->
+    <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource TextSize11_5}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,0,0,5" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!-- One field of a form: its label above it. Fields flow in a FlowRow, so a narrow window stacks them. -->
+    <Style x:Key="FieldStyle" TargetType="StackPanel">
+        <Setter Property="MinWidth" Value="180" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+
+    <!--
+        A choosable item of a list - a plan, an app - on a tile one step up from
+        its band, as the shared TileStyle draws one, but a button: focusable,
+        pressed with Enter or Space, and ringed for the keyboard. The chosen one
+        (Tag True) takes the accent's soft fill.
+    -->
+    <Style x:Key="ChoiceTileStyle" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
+        <Setter Property="Margin" Value="0,0,0,2" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{DynamicResource InsetBrush}"
+                            BorderBrush="{DynamicResource ToneStrokeBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="14,10,14,11"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource HoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="Tag">
+                            <Trigger.Value>
+                                <sys:Boolean>True</sys:Boolean>
+                            </Trigger.Value>
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The line under a chart saying what the chosen bar or cell holds. -->
+    <Style x:Key="ChartDetailStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+        <Setter Property="MinHeight" Value="18" />
+        <Setter Property="Margin" Value="58,6,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!-- A sentence of a page's lead: the forecast, a caveat. -->
+    <Style x:Key="LeadNoteStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource TextSize13}" />
+        <Setter Property="Margin" Value="4,10,4,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="QuietNoteStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+        <Setter Property="Margin" Value="4,6,4,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!-- A key's swatch: a small rounded square in a series' colour. -->
+    <Style x:Key="SwatchStyle" TargetType="Rectangle">
+        <Setter Property="Width" Value="10" />
+        <Setter Property="Height" Value="10" />
+        <Setter Property="RadiusX" Value="2" />
+        <Setter Property="RadiusY" Value="2" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="KeyTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <!-- A figure's name and its value on one line of a list: name left, value right. -->
+    <Style x:Key="ListValueStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="12,0,0,0" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="ListNameStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+</ResourceDictionary>

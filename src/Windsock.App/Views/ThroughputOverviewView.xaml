@@ -6,6 +6,7 @@
              xmlns:controls="clr-namespace:Windsock.App.Controls"
              xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
              xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             xmlns:views="clr-namespace:Windsock.App.Views"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:ThroughputOverviewViewModel}"
              d:DesignWidth="880"
@@ -33,57 +34,13 @@
                     of the column beside the chart while they are side by side,
                     straight under the readouts once the chart drops below.
                 -->
+                <!--
+                    Declared top to bottom, so Tab reads the column as the eye
+                    does: the readouts, then the units at its foot. (The foot was
+                    declared first, and Tab went to the units and then jumped
+                    back up to the readouts.)
+                -->
                 <DockPanel LastChildFill="False" VerticalAlignment="Stretch">
-                    <!-- Lifted by the chart's time axis (18), so the row ends on the plot's baseline. -->
-                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,12,0,18">
-                        <!--
-                            A verb, not a state, and the same button the Process
-                            and History pages offer. Holds the chart and the
-                            figures under it still; nothing stops being measured.
-                        -->
-                        <Button Style="{StaticResource ToolbarButtonStyle}"
-                                Margin="0,0,8,0"
-                                Command="{Binding ToggleLiveCommand}"
-                                AutomationProperties.Name="{Binding LiveLabel}"
-                                ToolTip="Hold the chart and its figures still so they can be read. Nothing stops being measured while they are paused.">
-                            <StackPanel Orientation="Horizontal">
-                                <fluent:SymbolIcon FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0">
-                                    <fluent:SymbolIcon.Style>
-                                        <Style TargetType="fluent:SymbolIcon">
-                                            <Setter Property="Symbol" Value="PauseCircle" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsLive}" Value="False">
-                                                    <Setter Property="Symbol" Value="PlayCircle" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </fluent:SymbolIcon.Style>
-                                </fluent:SymbolIcon>
-
-                                <TextBlock Text="{Binding LiveLabel}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-
-                        <controls:Picker Style="{StaticResource PickerStyle}"
-                                         MinWidth="80"
-                                         ItemsSource="{Binding Families}"
-                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                         SelectedValuePath="Family"
-                                         SelectedValue="{Binding SelectedFamily, Mode=TwoWay}"
-                                         AutomationProperties.Name="Unit family"
-                                         ToolTip="Count in bytes or in bits. Also decides what Auto scales through." />
-
-                        <controls:Picker Style="{StaticResource PickerStyle}"
-                                         MinWidth="80"
-                                         Margin="8,0,0,0"
-                                         ItemsSource="{Binding Scales}"
-                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                         SelectedValuePath="Scale"
-                                         SelectedValue="{Binding SelectedScale, Mode=TwoWay}"
-                                         AutomationProperties.Name="Unit scale"
-                                         ToolTip="Auto picks the best magnitude, or pin one." />
-                    </StackPanel>
-
                     <WrapPanel DockPanel.Dock="Top" Margin="-8,-6,0,0">
                         <ToggleButton Style="{StaticResource SeriesToggleStyle}"
                                       IsChecked="{Binding IsDownloadVisible, Mode=TwoWay}"
@@ -111,6 +68,7 @@
                                              VerticalAlignment="Bottom" />
                                     <TextBox Text="{Binding DownloadUnit, Mode=OneWay}"
                                              Style="{StaticResource ReadoutUnitTextStyle}"
+                                             AutomationProperties.Name="Download rate unit"
                                              VerticalAlignment="Bottom" />
                                 </StackPanel>
                             </StackPanel>
@@ -141,11 +99,42 @@
                                              VerticalAlignment="Bottom" />
                                     <TextBox Text="{Binding UploadUnit, Mode=OneWay}"
                                              Style="{StaticResource ReadoutUnitTextStyle}"
+                                             AutomationProperties.Name="Upload rate unit"
                                              VerticalAlignment="Bottom" />
                                 </StackPanel>
                             </StackPanel>
                         </ToggleButton>
                     </WrapPanel>
+
+                    <!-- Local network against internet, from the kernel trace (full edition, as administrator). -->
+                    <views:LanSplitLine x:Name="LanSplit" DockPanel.Dock="Top" />
+
+                    <!--
+                        Lifted by the chart's time axis (18), so the row ends on
+                        the plot's baseline. The page's Pause is in its heading,
+                        where every live page keeps it; these are the chart's own
+                        units, remembered from one start to the next.
+                    -->
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,12,0,18">
+                        <controls:Picker Style="{StaticResource PickerStyle}"
+                                         MinWidth="80"
+                                         ItemsSource="{Binding Families}"
+                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                         SelectedValuePath="Family"
+                                         SelectedValue="{Binding SelectedFamily, Mode=TwoWay}"
+                                         AutomationProperties.Name="Unit family"
+                                         ToolTip="Count in bytes or in bits. Also decides what Auto scales through." />
+
+                        <controls:Picker Style="{StaticResource PickerStyle}"
+                                         MinWidth="80"
+                                         Margin="8,0,0,0"
+                                         ItemsSource="{Binding Scales}"
+                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                         SelectedValuePath="Scale"
+                                         SelectedValue="{Binding SelectedScale, Mode=TwoWay}"
+                                         AutomationProperties.Name="Unit scale"
+                                         ToolTip="Auto picks the best magnitude, or pin one." />
+                    </StackPanel>
                 </DockPanel>
 
                 <Border Style="{StaticResource ChartWellStyle}" Height="232">
@@ -153,6 +142,12 @@
                                          WindowTitle="Throughput"
                                          Note="The chart is open in a window of its own.">
                         <Grid>
+                            <!-- Row 1 is the Wi-Fi signal under the plot (d-signal), while Wi-Fi is connected. -->
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
                             <controls:ThroughputChart x:Name="Chart"
                                                       DownloadSeries="{Binding DownloadSeries}"
                                                       UploadSeries="{Binding UploadSeries}"
@@ -167,7 +162,8 @@
                                                       UploadBrush="{DynamicResource UploadBrush}"
                                                       GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                                                       AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
-                                                      SurfaceBrush="{DynamicResource CardBrush}"
+                                                      SurfaceBrush="{DynamicResource SurfaceBrush}"
+                                                      MarkerBrush="{DynamicResource HotBrush}"
                                                       AutomationProperties.Name="Download and upload over time" />
 
                             <Canvas x:Name="PopoverLayer" IsHitTestVisible="False">
@@ -178,12 +174,22 @@
                                         <TextBlock Text="{Binding HoverTimeLabel}"
                                                    Style="{StaticResource CaptionTextStyle}" />
 
+                                        <!-- The outage, network change or alert marked under the pointer; set by the code behind. -->
+                                        <TextBlock x:Name="HoverEvent"
+                                                   Margin="0,6,0,0"
+                                                   MaxWidth="240"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="{DynamicResource TextSize12}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                   Visibility="Collapsed" />
+
                                         <StackPanel Orientation="Horizontal" Margin="0,7,0,0"
                                                     Visibility="{Binding IsDownloadVisible, Converter={StaticResource BooleanToVisibility}}">
                                             <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                                                      Fill="{DynamicResource DownloadBrush}" Margin="0,0,7,0" />
                                             <TextBlock Text="{Binding HoverDownload}"
-                                                       FontSize="12"
+                                                       FontSize="{DynamicResource TextSize12}"
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                         </StackPanel>
@@ -193,7 +199,7 @@
                                             <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                                                      Fill="{DynamicResource UploadBrush}" Margin="0,0,7,0" />
                                             <TextBlock Text="{Binding HoverUpload}"
-                                                       FontSize="12"
+                                                       FontSize="{DynamicResource TextSize12}"
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                         </StackPanel>
@@ -220,14 +226,14 @@
 
                                                             <TextBlock Grid.Column="0"
                                                                        Text="{Binding Name}"
-                                                                       FontSize="11.5"
+                                                                       FontSize="{DynamicResource TextSize11_5}"
                                                                        MaxWidth="130"
                                                                        TextTrimming="CharacterEllipsis"
                                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
                                                             <TextBlock Grid.Column="1"
                                                                        Text="{Binding Rate}"
-                                                                       FontSize="11.5"
+                                                                       FontSize="{DynamicResource TextSize11_5}"
                                                                        FontWeight="SemiBold"
                                                                        Margin="12,0,0,0"
                                                                        Typography.NumeralAlignment="Tabular"
@@ -240,6 +246,29 @@
                                     </StackPanel>
                                 </Border>
                             </Canvas>
+
+                            <!--
+                                The Wi-Fi signal on the chart's own time axis: inset by
+                                the chart's value axis and following its zoom, so a slow
+                                moment lines up with a weak signal under it.
+                            -->
+                            <controls:SignalStrip x:Name="Signal"
+                                                  Grid.Row="1"
+                                                  Height="34"
+                                                  Margin="0,4,0,0"
+                                                  Points="{Binding Points}"
+                                                  Revision="{Binding Revision}"
+                                                  Label="{Binding Label}"
+                                                  VisibleSampleCount="{Binding VisibleSampleCount, ElementName=Chart}"
+                                                  SampleIntervalSeconds="{Binding SampleIntervalSeconds, ElementName=Chart}"
+                                                  EndAt="{Binding LatestSampleTime, ElementName=Chart}"
+                                                  LeftInset="54"
+                                                  LineBrush="{DynamicResource NetworkBrush}"
+                                                  GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                  AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                  Visibility="{Binding IsShowing, Converter={StaticResource BooleanToVisibility}}"
+                                                  AutomationProperties.Name="Wi-Fi signal under the chart"
+                                                  AutomationProperties.HelpText="{Binding Summary}" />
                         </Grid>
                     </controls:DetachHost>
                 </Border>

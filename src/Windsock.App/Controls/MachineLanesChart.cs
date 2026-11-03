@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using Windsock.Core.History;
+using System.Windows.Automation.Peers;
 
 namespace Windsock.App.Controls;
 
@@ -242,6 +243,9 @@ public sealed class MachineLanesChart : FrameworkElement
             yield return bucket.Start;
         }
     }
+
+    /// <summary>A screen reader hears that this is a chart, its name, and what it shows now.</summary>
+    protected override AutomationPeer OnCreateAutomationPeer() => new ChartAutomationPeer(this, () => ChartWords.Machine(SystemBuckets));
 
     protected override void OnRender(DrawingContext drawingContext)
     {

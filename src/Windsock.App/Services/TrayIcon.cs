@@ -74,6 +74,7 @@ public sealed unsafe partial class TrayIcon : IDisposable
     private HwndSource? _source;
     private HICON _icon;
     private HICON _largeIcon;
+    private nint _figures;
     private string _tooltip = "Windsock";
     private bool _wanted;
     private bool _lending;
@@ -265,6 +266,30 @@ public sealed unsafe partial class TrayIcon : IDisposable
         }
     }
 
+    /// <summary>
+    /// Draws the icon as <paramref name="icon"/> - the rates, painted - taking
+    /// it over and destroying it once it is replaced; zero goes back to the
+    /// app's own icon.
+    /// </summary>
+    public void SetFigures(nint icon)
+    {
+        nint before = _figures;
+
+        _figures = icon;
+
+        if (_shown && !_disposed)
+        {
+            NotifyIconData data = Describe();
+            data.Flags = HasIcon;
+            _ = Shell_NotifyIconW(Modify, ref data);
+        }
+
+        if (before != 0 && before != icon)
+        {
+            _ = PInvoke.DestroyIcon(new HICON(before));
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -272,6 +297,7 @@ public sealed unsafe partial class TrayIcon : IDisposable
             return;
         }
 
+        SetFigures(0);
         _wanted = false;
         _lending = false;
         Remove();
@@ -358,7 +384,7 @@ public sealed unsafe partial class TrayIcon : IDisposable
             Window = _source is { } source ? source.Handle : 0,
             Id = Id,
             CallbackMessage = Callback,
-            Icon = LoadIcon(),
+            Icon = _figures != 0 ? _figures : LoadIcon(),
         };
 
         // Tip is a fixed 128-character field and has to keep its terminator.

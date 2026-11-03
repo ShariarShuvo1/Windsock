@@ -65,6 +65,7 @@ public sealed partial class AppTotalsViewModel : ObservableObject, IDisposable
         AppUsageCollector collector,
         AppNames names,
         AppIconCache icons,
+        AppTimelineViewModel timeline,
         Dispatcher dispatcher,
         ILogger<AppTotalsViewModel> logger)
     {
@@ -81,6 +82,7 @@ public sealed partial class AppTotalsViewModel : ObservableObject, IDisposable
         _icons = icons;
         _dispatcher = dispatcher;
         _logger = logger;
+        Timeline = timeline;
 
         NameColumn = Column.Text<AppRowViewModel>("App", row => row.Name);
         KindColumn = Column.Text<AppRowViewModel>("Kind", row => row.KindText, visible: false);
@@ -209,6 +211,10 @@ public sealed partial class AppTotalsViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string EmptyText { get; private set; } = string.Empty;
 
+    /// <summary>What to do about it, said under <see cref="EmptyText"/>.</summary>
+    [ObservableProperty]
+    public partial string EmptyNote { get; private set; } = string.Empty;
+
     /// <summary>Whether the period reaches back further than Windows keeps app usage.</summary>
     [ObservableProperty]
     public partial bool ReachesPastWindows { get; private set; }
@@ -273,6 +279,18 @@ public sealed partial class AppTotalsViewModel : ObservableObject, IDisposable
 
         ViewReset?.Invoke(this, EventArgs.Empty);
         OnPropertyChanged(nameof(IsCustomised));
+    }
+
+    /// <summary>One app over time, opened from a row's menu.</summary>
+    public AppTimelineViewModel Timeline { get; }
+
+    [RelayCommand]
+    private void ShowOverTime(AppRowViewModel? row)
+    {
+        if (row is not null)
+        {
+            Timeline.Show(row.App);
+        }
     }
 
     [RelayCommand]
@@ -507,7 +525,7 @@ public sealed partial class AppTotalsViewModel : ObservableObject, IDisposable
                 string.Format(
                     CultureInfo.CurrentCulture,
                     "Counted by Windows, up to {0}. Windows is still settling the last few minutes, so they join these totals shortly; the Last 5 minutes column shows them as they stand.",
-                    until.ToString("h:mm tt", CultureInfo.CurrentCulture)),
+                    ClockFormat.Time(until)),
             AppUsageState.Waiting => "Reading Windows' data usage…",
             _ => status.Detail ?? string.Empty,
         };
@@ -570,6 +588,16 @@ public sealed partial class AppTotalsViewModel : ObservableObject, IDisposable
                     AppUsageState.Unavailable => "Windows' data usage could not be read, so nothing is known for this period yet.",
                     _ => "Windows counted no app using the network in this period.",
                 };
+        EmptyNote = _current.Count > 0
+            ? "Clear the search, or press Reset view to see every app again."
+            : _unreadable
+                ? "The file may be damaged. Delete history under Settings, Data and privacy, to start a new one."
+                : _collector.State switch
+                {
+                    AppUsageState.Waiting => "The first reading takes a few seconds.",
+                    AppUsageState.Unavailable => "Windsock asks Windows again every few minutes. Live still shows what is using the network now.",
+                    _ => "Choose a longer period, or Live to see what is using the network now.",
+                };
     }
 
     private void Illustrate()
@@ -616,8 +644,8 @@ public sealed partial class AppTotalsViewModel : ObservableObject, IDisposable
         return string.Format(
             CultureInfo.CurrentCulture,
             "{0} to {1}",
-            from.ToString("d MMM, h:mm tt", CultureInfo.CurrentCulture),
-            last.ToString("h:mm tt", CultureInfo.CurrentCulture));
+            from.ToString(ClockFormat.Current.DateAndTime, ClockFormat.Current.Format),
+            ClockFormat.Time(last));
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "App usage could not be read from history")]

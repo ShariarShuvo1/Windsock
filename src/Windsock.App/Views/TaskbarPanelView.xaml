@@ -12,1028 +12,1536 @@
              d:DesignWidth="880"
              d:DesignHeight="420">
 
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Styles/Usage.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- A field inside a part's sheet: narrower than a form's, since a sheet is narrow. -->
+            <Style x:Key="SheetFieldStyle" TargetType="TextBox" BasedOn="{StaticResource FieldBoxStyle}">
+                <Setter Property="MinHeight" Value="28" />
+                <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
+            </Style>
+
+            <!-- A shortcut's box: the field's look, pressed into rather than typed into. -->
+            <Style TargetType="controls:ShortcutBox" BasedOn="{StaticResource FieldBoxStyle}">
+                <Setter Property="MinWidth" Value="180" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="Tag" Value="Press the keys" />
+                <Setter Property="Cursor" Value="Arrow" />
+            </Style>
+
+            <!-- What is wrong with a shortcut or a feed, in the colour of a fault. -->
+            <Style x:Key="ProblemStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="{DynamicResource TextSize11_5}" />
+                <Setter Property="Margin" Value="0,5,0,0" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+            </Style>
+
+            <!--
+                The colour of one part of one cell: the two colours that are
+                rules rather than colours, the short row that reads well on a
+                bar, and one mixed by hand for when none of those is it. One
+                template for all three parts, because the choice is the same
+                choice three times over.
+            -->
+            <DataTemplate x:Key="InkChoiceTemplate" DataType="{x:Type vm:InkChoiceViewModel}">
+                <StackPanel>
+                    <TextBlock Text="COLOUR" Style="{StaticResource PartHeadStyle}" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
+                        <Button Style="{StaticResource PartChoiceStyle}"
+                                Content="Taskbar text"
+                                Command="{Binding PaintCommand}"
+                                AutomationProperties.Name="Draw this in the taskbar own text colour"
+                                ToolTip="Whatever colour the taskbar writes in, which is the most legible" />
+
+                        <Button Style="{StaticResource PartChoiceStyle}"
+                                Content="Its own colour"
+                                Foreground="{Binding OwnInk}"
+                                Command="{Binding PaintCommand}"
+                                CommandParameter="{x:Static settings:MeterSlot.Own}"
+                                AutomationProperties.Name="Draw this in the reading own colour"
+                                ToolTip="The colour this reading has elsewhere in Windsock" />
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding Inks}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource InkStyle}"
+                                        Background="{Binding Hex, Converter={StaticResource InkToBrush}}"
+                                        Command="{Binding DataContext.PaintCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding Hex}"
+                                        AutomationProperties.Name="{Binding Name}"
+                                        ToolTip="{Binding Tip}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!--
+                        Any colour at all, for when none of the eight is the one
+                        in mind. Dragged or typed: a reader who knows the colour
+                        writes it down, and one who does not slides until it
+                        looks right.
+                    -->
+                    <ToggleButton x:Name="Mixer"
+                                  Style="{StaticResource PartToggleStyle}"
+                                  HorizontalAlignment="Left"
+                                  Margin="0,2,0,0"
+                                  Content="Mix a colour"
+                                  AutomationProperties.Name="Mix a colour"
+                                  ToolTip="Choose any colour at all" />
+
+                    <StackPanel Margin="0,8,0,0"
+                                Visibility="{Binding IsChecked, ElementName=Mixer, Converter={StaticResource BooleanToVisibility}}">
+                        <DockPanel LastChildFill="True" Margin="0,0,0,6">
+                            <Border DockPanel.Dock="Left"
+                                    Width="24"
+                                    Height="24"
+                                    CornerRadius="5"
+                                    Margin="0,0,8,0"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                    Background="{Binding Showing}" />
+
+                            <TextBox Style="{StaticResource SheetFieldStyle}"
+                                     VerticalAlignment="Center"
+                                     Text="{Binding Hex, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     AutomationProperties.Name="The colour, written down"
+                                     ToolTip="The colour as #rrggbb" />
+                        </DockPanel>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="R" Style="{StaticResource MixLabelStyle}" />
+                            <Slider Grid.Row="0" Grid.Column="1" Style="{StaticResource FlatSliderStyle}"
+                                    Minimum="0" Maximum="255" SmallChange="1" LargeChange="16"
+                                    Value="{Binding Red, Mode=TwoWay}"
+                                    AutomationProperties.Name="How much red" />
+
+                            <TextBlock Grid.Row="1" Text="G" Style="{StaticResource MixLabelStyle}" />
+                            <Slider Grid.Row="1" Grid.Column="1" Style="{StaticResource FlatSliderStyle}"
+                                    Minimum="0" Maximum="255" SmallChange="1" LargeChange="16"
+                                    Value="{Binding Green, Mode=TwoWay}"
+                                    AutomationProperties.Name="How much green" />
+
+                            <TextBlock Grid.Row="2" Text="B" Style="{StaticResource MixLabelStyle}" />
+                            <Slider Grid.Row="2" Grid.Column="1" Style="{StaticResource FlatSliderStyle}"
+                                    Minimum="0" Maximum="255" SmallChange="1" LargeChange="16"
+                                    Value="{Binding Blue, Mode=TwoWay}"
+                                    AutomationProperties.Name="How much blue" />
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </DataTemplate>
+
+            <!--
+                A cell, drawn the way the taskbar will draw it: the mark, the
+                figure and the unit, each in its own colour and weight. Every
+                part is a button onto its own sheet, so a reader changes what
+                they are pointing at rather than finding its name in a list; the
+                corner's "more" opens what is beyond the three parts - a graph,
+                colour levels, taking turns, a feed.
+            -->
+            <DataTemplate DataType="{x:Type vm:MeterSlotChoiceViewModel}">
+                <Border Style="{StaticResource SlotCellStyle}">
+                    <StackPanel>
+                        <DockPanel LastChildFill="True">
+                            <!-- Empties this slot, and only this slot. -->
+                            <Button DockPanel.Dock="Right"
+                                    Style="{StaticResource SlotDropStyle}"
+                                    Command="{Binding ClearCommand}"
+                                    AutomationProperties.Name="{Binding ValueText, StringFormat='Remove {0} from the meter'}"
+                                    ToolTip="Leave this slot blank" />
+
+                            <ToggleButton x:Name="MorePart"
+                                          DockPanel.Dock="Right"
+                                          Style="{StaticResource SlotMoreStyle}"
+                                          Margin="0,0,2,0"
+                                          AutomationProperties.Name="{Binding ValueText, StringFormat='More for {0}'}"
+                                          ToolTip="A graph, colours by level, taking turns with other readings">
+                                <fluent:SymbolIcon Symbol="MoreHorizontal" FontSize="14" />
+                            </ToggleButton>
+
+                            <TextBlock Text="{Binding Address}"
+                                       Style="{StaticResource SlotAddressStyle}"
+                                       Margin="2,0,0,0"
+                                       TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+
+                        <!--
+                            The mark at one end and the unit at the other,
+                            exactly as the meter draws them, with the reading
+                            filling what is left: every cell is one line however
+                            narrow its column, and a narrow one shortens the
+                            reading rather than folding the cell. The sheets hang
+                            underneath rather than in the row: a popup is a child
+                            like any other, and three in the row would each be
+                            given a share of it.
+                        -->
+                        <controls:SlotRow Margin="0,4,0,0" LeftCount="{Binding PartsOnTheLeft}">
+                            <ToggleButton x:Name="MarkPart"
+                                          Style="{StaticResource CellPartStyle}"
+                                          AutomationProperties.Name="{Binding ValueText, StringFormat='The mark on {0}'}"
+                                          ToolTip="What marks this reading, and its colour">
+                                <Grid>
+                                    <fluent:SymbolIcon Symbol="{Binding Mark, Converter={StaticResource MarkToSymbol}}"
+                                                       IconVariant="{Binding Bold, Converter={StaticResource WeightToVariant}}"
+                                                       Foreground="{Binding MarkInk.Showing}"
+                                                       FontSize="13"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="{Binding MarkIsIcon, Converter={StaticResource BooleanToVisibility}}" />
+
+                                    <TextBlock Text="{Binding LabelText}"
+                                               FontSize="{DynamicResource TextSize11}"
+                                               FontWeight="{Binding Bold, Converter={StaticResource BoolToWeight}}"
+                                               Foreground="{Binding MarkInk.Showing}"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding MarkIsIcon, Converter={StaticResource InverseBooleanToVisibility}}" />
+
+                                    <!-- Struck through rather than gone: a mark not shown is still the part that says so. -->
+                                    <Border Height="1"
+                                            Background="{Binding MarkInk.Showing}"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding ShowLabel, Converter={StaticResource InverseBooleanToVisibility}}" />
+                                </Grid>
+                            </ToggleButton>
+
+                            <ToggleButton x:Name="ValuePart"
+                                          Style="{StaticResource CellPartStyle}"
+                                          AutomationProperties.Name="{Binding ValueText}"
+                                          ToolTip="Which reading this is, its units, size and colour">
+                                <TextBlock Text="{Binding ValueText}"
+                                           FontSize="{DynamicResource TextSize12}"
+                                           TextTrimming="CharacterEllipsis"
+                                           FontWeight="{Binding Bold, Converter={StaticResource BoolToWeight}}"
+                                           Foreground="{Binding ValueInk.Showing}" />
+                            </ToggleButton>
+
+                            <ToggleButton x:Name="UnitPart"
+                                          Style="{StaticResource CellPartStyle}"
+                                          AutomationProperties.Name="{Binding ValueText, StringFormat='The unit on {0}'}"
+                                          ToolTip="Whether the unit is written, and its colour">
+                                <TextBlock Text="{Binding UnitText}"
+                                           FontSize="{DynamicResource TextSize11}"
+                                           Foreground="{Binding UnitInk.Showing}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowUnit}" Value="False">
+                                                    <Setter Property="Opacity" Value="0.35" />
+                                                    <Setter Property="TextDecorations" Value="Strikethrough" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </ToggleButton>
+                        </controls:SlotRow>
+
+                        <TextBlock Text="{Binding Extras}"
+                                   Style="{StaticResource SlotExtrasStyle}"
+                                   Visibility="{Binding Extras, Converter={StaticResource TextToVisibility}}" />
+
+                        <!-- ============ The mark's sheet ============ -->
+                        <Popup IsOpen="{Binding IsChecked, ElementName=MarkPart, Mode=TwoWay}"
+                               PlacementTarget="{Binding ElementName=MarkPart}"
+                               Placement="Bottom"
+                               VerticalOffset="6"
+                               StaysOpen="True"
+                               controls:Flyout.DismissOnOutsideClick="True"
+                               controls:Flyout.MovesFocus="True"
+                               AllowsTransparency="True"
+                               PopupAnimation="Fade">
+                            <Border Style="{StaticResource FlyoutStyle}" MinWidth="240" MaxWidth="320" Padding="14,10,14,14">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="False" Margin="0,0,0,6">
+                                        <TextBlock Text="THE MARK" Style="{StaticResource PartHeadStyle}" Margin="0" VerticalAlignment="Center" />
+                                        <Button DockPanel.Dock="Right"
+                                                Style="{StaticResource PartResetStyle}"
+                                                Content="Reset"
+                                                Command="{Binding ResetMarkCommand}"
+                                                AutomationProperties.Name="Put the mark back"
+                                                ToolTip="Forget everything chosen for the mark" />
+                                    </DockPanel>
+
+                                    <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                              Content="Show the mark"
+                                              IsChecked="{Binding ShowLabel, Mode=TwoWay}"
+                                              AutomationProperties.Name="Show the mark" />
+
+                                    <TextBlock Text="DRAWN AS" Style="{StaticResource PartHeadStyle}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Style="{StaticResource PartChoiceStyle}"
+                                                Command="{Binding MarkAsPictureCommand}"
+                                                AutomationProperties.Name="Mark this reading with a picture"
+                                                ToolTip="A picture of the part of the machine this reading is about">
+                                            <StackPanel Orientation="Horizontal">
+                                                <fluent:SymbolIcon Symbol="{Binding Mark, Converter={StaticResource MarkToSymbol}}"
+                                                                   FontSize="13"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,6,0" />
+                                                <TextBlock Text="Picture" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Style="{StaticResource PartChoiceStyle}"
+                                                Command="{Binding MarkAsLettersCommand}"
+                                                AutomationProperties.Name="Mark this reading with letters"
+                                                ToolTip="The short name the reader already calls it">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding LabelText}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Letters" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+
+                                    <TextBlock Text="SITS AT" Style="{StaticResource PartHeadStyle}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Style="{StaticResource PartChoiceStyle}"
+                                                Content="Left"
+                                                Command="{Binding MarkOnTheLeftCommand}"
+                                                AutomationProperties.Name="Put the mark on the left"
+                                                ToolTip="Against the left edge of this place on the bar" />
+                                        <Button Style="{StaticResource PartChoiceStyle}"
+                                                Content="Right"
+                                                Command="{Binding MarkOnTheRightCommand}"
+                                                AutomationProperties.Name="Put the mark on the right"
+                                                ToolTip="Against the right edge of this place on the bar" />
+                                    </StackPanel>
+
+                                    <ContentControl Content="{Binding MarkInk}"
+                                                    ContentTemplate="{StaticResource InkChoiceTemplate}"
+                                                    Focusable="False" />
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+
+                        <!-- ============ The figure's sheet ============ -->
+                        <Popup IsOpen="{Binding IsChecked, ElementName=ValuePart, Mode=TwoWay}"
+                               PlacementTarget="{Binding ElementName=ValuePart}"
+                               Placement="Bottom"
+                               VerticalOffset="6"
+                               StaysOpen="True"
+                               controls:Flyout.DismissOnOutsideClick="True"
+                               controls:Flyout.MovesFocus="True"
+                               AllowsTransparency="True"
+                               PopupAnimation="Fade">
+                            <Border Style="{StaticResource FlyoutStyle}" MinWidth="256" MaxWidth="320" Padding="14,10,14,14">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="False" Margin="0,0,0,6">
+                                        <TextBlock Text="THE READING" Style="{StaticResource PartHeadStyle}" Margin="0" VerticalAlignment="Center" />
+                                        <Button DockPanel.Dock="Right"
+                                                Style="{StaticResource PartResetStyle}"
+                                                Content="Reset"
+                                                Command="{Binding ResetValueCommand}"
+                                                AutomationProperties.Name="Put the figure back"
+                                                ToolTip="Forget the units, the size, the weight, the colour, the levels and the graph chosen here" />
+                                    </DockPanel>
+
+                                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                                     HorizontalAlignment="Stretch"
+                                                     ItemsSource="{Binding Fields}"
+                                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                     SelectedValuePath="Value"
+                                                     SelectedValue="{Binding Field, Mode=TwoWay}"
+                                                     AutomationProperties.Name="What this slot shows" />
+
+                                    <TextBlock Text="COUNTED IN" Style="{StaticResource PartHeadStyle}" />
+                                    <controls:FlowRow Spacing="6" LineSpacing="6">
+                                        <controls:Picker Style="{StaticResource PickerStyle}"
+                                                         MinWidth="104"
+                                                         ItemsSource="{Binding Families}"
+                                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                         SelectedValuePath="Family"
+                                                         SelectedValue="{Binding Family, Mode=TwoWay}"
+                                                         AutomationProperties.Name="Bytes or bits" />
+                                        <controls:Picker Style="{StaticResource PickerStyle}"
+                                                         MinWidth="104"
+                                                         ItemsSource="{Binding Scales}"
+                                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                         SelectedValuePath="Scale"
+                                                         SelectedValue="{Binding Scale, Mode=TwoWay}"
+                                                         AutomationProperties.Name="How far it is scaled" />
+                                    </controls:FlowRow>
+
+                                    <TextBlock Text="SIZE" Style="{StaticResource PartHeadStyle}" />
+                                    <controls:FlowRow Spacing="10" LineSpacing="6">
+                                        <controls:Picker Style="{StaticResource PickerStyle}"
+                                                         MinWidth="124"
+                                                         ItemsSource="{Binding TextSizes}"
+                                                         ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                         SelectedValuePath="Value"
+                                                         SelectedValue="{Binding TextSize, Mode=TwoWay}"
+                                                         AutomationProperties.Name="How large this figure is" />
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Content="Bold"
+                                                  IsChecked="{Binding Bold, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Bold" />
+                                    </controls:FlowRow>
+
+                                    <TextBlock Text="SITS AT" Style="{StaticResource PartHeadStyle}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Style="{StaticResource PartChoiceStyle}"
+                                                Content="Left"
+                                                Command="{Binding ValueOnTheLeftCommand}"
+                                                AutomationProperties.Name="Put the figure on the left"
+                                                ToolTip="Against the left edge of this place on the bar" />
+                                        <Button Style="{StaticResource PartChoiceStyle}"
+                                                Content="Right"
+                                                Command="{Binding ValueOnTheRightCommand}"
+                                                AutomationProperties.Name="Put the figure on the right"
+                                                ToolTip="Against the right edge of this place on the bar" />
+                                    </StackPanel>
+
+                                    <ContentControl Content="{Binding ValueInk}"
+                                                    ContentTemplate="{StaticResource InkChoiceTemplate}"
+                                                    Focusable="False" />
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+
+                        <!-- ============ The unit's sheet ============ -->
+                        <Popup IsOpen="{Binding IsChecked, ElementName=UnitPart, Mode=TwoWay}"
+                               PlacementTarget="{Binding ElementName=UnitPart}"
+                               Placement="Bottom"
+                               VerticalOffset="6"
+                               StaysOpen="True"
+                               controls:Flyout.DismissOnOutsideClick="True"
+                               controls:Flyout.MovesFocus="True"
+                               AllowsTransparency="True"
+                               PopupAnimation="Fade">
+                            <Border Style="{StaticResource FlyoutStyle}" MinWidth="240" MaxWidth="320" Padding="14,10,14,14">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="False" Margin="0,0,0,6">
+                                        <TextBlock Text="THE UNIT" Style="{StaticResource PartHeadStyle}" Margin="0" VerticalAlignment="Center" />
+                                        <Button DockPanel.Dock="Right"
+                                                Style="{StaticResource PartResetStyle}"
+                                                Content="Reset"
+                                                Command="{Binding ResetUnitCommand}"
+                                                AutomationProperties.Name="Put the unit back"
+                                                ToolTip="Forget everything chosen for the unit" />
+                                    </DockPanel>
+
+                                    <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                              Content="Write the unit"
+                                              IsChecked="{Binding ShowUnit, Mode=TwoWay}"
+                                              AutomationProperties.Name="Write the unit" />
+
+                                    <TextBlock Text="SITS AT" Style="{StaticResource PartHeadStyle}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Style="{StaticResource PartChoiceStyle}"
+                                                Content="Left"
+                                                Command="{Binding UnitOnTheLeftCommand}"
+                                                AutomationProperties.Name="Put the unit on the left"
+                                                ToolTip="Against the left edge of this place on the bar" />
+                                        <Button Style="{StaticResource PartChoiceStyle}"
+                                                Content="Right"
+                                                Command="{Binding UnitOnTheRightCommand}"
+                                                AutomationProperties.Name="Put the unit on the right"
+                                                ToolTip="Against the right edge of this place on the bar" />
+                                    </StackPanel>
+
+                                    <ContentControl Content="{Binding UnitInk}"
+                                                    ContentTemplate="{StaticResource InkChoiceTemplate}"
+                                                    Focusable="False" />
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+
+                        <!-- ============ More: graph, card, levels, turns, feed ============ -->
+                        <Popup IsOpen="{Binding IsChecked, ElementName=MorePart, Mode=TwoWay}"
+                               PlacementTarget="{Binding ElementName=MorePart}"
+                               Placement="Bottom"
+                               VerticalOffset="6"
+                               StaysOpen="True"
+                               controls:Flyout.DismissOnOutsideClick="True"
+                               controls:Flyout.MovesFocus="True"
+                               AllowsTransparency="True"
+                               PopupAnimation="Fade">
+                            <Border Style="{StaticResource FlyoutStyle}" Width="330" Padding="0">
+                                <ScrollViewer MaxHeight="520"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              Padding="14,10,14,14"
+                                              Focusable="False">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding ValueText}"
+                                                   FontSize="{DynamicResource TextSize13}"
+                                                   FontWeight="SemiBold"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+                                        <!-- The public address: where it comes from, and what keeps it current. -->
+                                        <TextBlock Style="{StaticResource PartNoteStyle}"
+                                                   Margin="0,8,0,0"
+                                                   Visibility="{Binding IsPublicAddress, Converter={StaticResource BooleanToVisibility}}"
+                                                   Text="The public address is what the Connection page's Look up last found, with its country. The meter asks for it again only if you switch that on under Settings › Data and privacy, as Public address on the meter." />
+
+                                        <!-- The feed: where a JSON value comes from. -->
+                                        <StackPanel Visibility="{Binding IsFeed, Converter={StaticResource BooleanToVisibility}}">
+                                            <TextBlock Text="READ FROM" Style="{StaticResource PartHeadStyle}" />
+                                            <TextBox Style="{StaticResource SheetFieldStyle}"
+                                                     Tag="https://example.com/data.json"
+                                                     Text="{Binding FeedAddress, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     AutomationProperties.Name="The address of the JSON document"
+                                                     ToolTip="https anywhere, http only on this PC or your own network, or a file on this PC's own drives" />
+
+                                            <TextBlock Text="THE FIELD" Style="{StaticResource PartHeadStyle}" />
+                                            <TextBox Style="{StaticResource SheetFieldStyle}"
+                                                     Tag="$.price"
+                                                     Text="{Binding FeedPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     AutomationProperties.Name="The field to read, as a path"
+                                                     ToolTip="A path from the top of the document: $.price, $.items[0].name, $['a key']" />
+
+                                            <Grid Margin="0,0,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="MARKED" Style="{StaticResource PartHeadStyle}" />
+                                                    <TextBox Style="{StaticResource SheetFieldStyle}"
+                                                             MaxLength="6"
+                                                             Tag="BTC"
+                                                             Text="{Binding FeedLabel, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                             AutomationProperties.Name="The letters that mark it" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="UNIT" Style="{StaticResource PartHeadStyle}" />
+                                                    <TextBox Style="{StaticResource SheetFieldStyle}"
+                                                             MaxLength="8"
+                                                             Tag="$"
+                                                             Text="{Binding FeedUnit, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                             AutomationProperties.Name="The unit written after it" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <TextBlock Text="ASKED" Style="{StaticResource PartHeadStyle}" />
+                                            <controls:Picker Style="{StaticResource PickerStyle}"
+                                                             HorizontalAlignment="Stretch"
+                                                             ItemsSource="{x:Static vm:MeterSlotChoiceViewModel.FeedIntervals}"
+                                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                             SelectedValuePath="Value"
+                                                             SelectedValue="{Binding FeedSeconds, Mode=TwoWay}"
+                                                             AutomationProperties.Name="How often it is asked for" />
+
+                                            <TextBlock Text="{Binding FeedProblem}"
+                                                       Style="{StaticResource ProblemStyle}"
+                                                       Visibility="{Binding FeedProblem, Converter={StaticResource TextToVisibility}}" />
+
+                                            <DockPanel Margin="0,12,0,0" LastChildFill="True">
+                                                <ToggleButton DockPanel.Dock="Right"
+                                                              Style="{StaticResource ToggleSwitchStyle}"
+                                                              Margin="12,0,0,0"
+                                                              IsChecked="{Binding FeedsAllowed, Mode=TwoWay}"
+                                                              AutomationProperties.Name="Allow web and local feeds" />
+                                                <StackPanel>
+                                                    <TextBlock Text="Allow web and local feeds"
+                                                               FontSize="{DynamicResource TextSize12}"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                    <TextBlock Style="{StaticResource PartNoteStyle}"
+                                                               Text="Off by default. On, Windsock asks the addresses you typed here, and nothing else. Listed in Settings › Data and privacy." />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </StackPanel>
+
+                                        <!-- The graph of the last minute. -->
+                                        <StackPanel Visibility="{Binding HasNumber, Converter={StaticResource BooleanToVisibility}}">
+                                            <TextBlock Text="GRAPH OF THE LAST MINUTE" Style="{StaticResource PartHeadStyle}" />
+                                            <controls:Picker Style="{StaticResource PickerStyle}"
+                                                             HorizontalAlignment="Stretch"
+                                                             ItemsSource="{x:Static vm:MeterSlotChoiceViewModel.Graphs}"
+                                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                             SelectedValuePath="Value"
+                                                             SelectedValue="{Binding Graph, Mode=TwoWay}"
+                                                             AutomationProperties.Name="Graph of the last minute" />
+                                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                      Margin="0,4,0,0"
+                                                      Content="The graph alone, without the figure"
+                                                      IsChecked="{Binding GraphAlone, Mode=TwoWay}"
+                                                      IsEnabled="{Binding HasGraph}"
+                                                      AutomationProperties.Name="The graph alone, without the figure" />
+                                        </StackPanel>
+
+                                        <!-- Which graphics card, on a machine with more than one. -->
+                                        <StackPanel Visibility="{Binding OffersCard, Converter={StaticResource BooleanToVisibility}}">
+                                            <TextBlock Text="GRAPHICS CARD" Style="{StaticResource PartHeadStyle}" />
+                                            <controls:Picker Style="{StaticResource PickerStyle}"
+                                                             HorizontalAlignment="Stretch"
+                                                             ItemsSource="{Binding CardChoices}"
+                                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                             SelectedValuePath="Value"
+                                                             SelectedValue="{Binding CardChoice, Mode=TwoWay}"
+                                                             AutomationProperties.Name="Which graphics card" />
+                                        </StackPanel>
+
+                                        <!-- Colours by level. -->
+                                        <StackPanel Visibility="{Binding OffersLevels, Converter={StaticResource BooleanToVisibility}}">
+                                            <DockPanel LastChildFill="False">
+                                                <TextBlock Text="COLOUR BY LEVEL" Style="{StaticResource PartHeadStyle}" />
+                                                <Button DockPanel.Dock="Right"
+                                                        Style="{StaticResource PartResetStyle}"
+                                                        Margin="0,6,0,0"
+                                                        Content="Defaults"
+                                                        Command="{Binding ResetLevelsCommand}"
+                                                        AutomationProperties.Name="Back to the reading's own levels"
+                                                        ToolTip="Back to the reading's own levels" />
+                                            </DockPanel>
+
+                                            <ItemsControl ItemsSource="{Binding Levels}" Focusable="False">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:MeterLevelRowViewModel}">
+                                                        <Grid Margin="0,0,0,4">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="Auto" />
+                                                            </Grid.RowDefinitions>
+
+                                                            <controls:Picker Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                                                                             Style="{StaticResource PickerStyle}"
+                                                                             HorizontalAlignment="Stretch"
+                                                                             ItemsSource="{x:Static vm:MeterLevelRowViewModel.Directions}"
+                                                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                                             SelectedValuePath="Value"
+                                                                             SelectedValue="{Binding Below, Mode=TwoWay}"
+                                                                             AutomationProperties.Name="Passed going up or going down" />
+
+                                                            <Button Grid.Row="0" Grid.Column="3"
+                                                                    Style="{StaticResource SlotDropStyle}"
+                                                                    Margin="6,0,0,0"
+                                                                    Command="{Binding RemoveCommand}"
+                                                                    AutomationProperties.Name="{Binding Summary, StringFormat='Remove the level {0}'}"
+                                                                    ToolTip="Remove this level" />
+
+                                                            <DockPanel Grid.Row="1" Grid.Column="0" Margin="0,4,6,0" LastChildFill="True">
+                                                                <TextBlock DockPanel.Dock="Right"
+                                                                           Text="{Binding UnitLabel}"
+                                                                           Margin="6,0,0,0"
+                                                                           VerticalAlignment="Center"
+                                                                           FontSize="{DynamicResource TextSize11_5}"
+                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                <TextBox Style="{StaticResource SheetFieldStyle}"
+                                                                         Text="{Binding Figure, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                         AutomationProperties.Name="The level" />
+                                                            </DockPanel>
+
+                                                            <Border Grid.Row="1" Grid.Column="1"
+                                                                    Width="14" Height="14"
+                                                                    Margin="0,4,6,0"
+                                                                    CornerRadius="4"
+                                                                    VerticalAlignment="Center"
+                                                                    Background="{Binding Swatch}" />
+
+                                                            <controls:Picker Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2"
+                                                                             Style="{StaticResource PickerStyle}"
+                                                                             MinWidth="96"
+                                                                             Margin="0,4,0,0"
+                                                                             ItemsSource="{x:Static vm:MeterLevelRowViewModel.Colours}"
+                                                                             SelectedValuePath="Value"
+                                                                             SelectedValue="{Binding Colour, Mode=TwoWay}"
+                                                                             AutomationProperties.Name="The colour past it">
+                                                                <controls:Picker.ItemTemplate>
+                                                                    <DataTemplate DataType="{x:Type vm:LevelColour}">
+                                                                        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                                                    </DataTemplate>
+                                                                </controls:Picker.ItemTemplate>
+                                                            </controls:Picker>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Text="{Binding LevelsNote}" Style="{StaticResource PartNoteStyle}" />
+
+                                            <Button Style="{StaticResource PartChoiceStyle}"
+                                                    HorizontalAlignment="Left"
+                                                    Margin="0,8,0,0"
+                                                    Command="{Binding AddLevelCommand}"
+                                                    AutomationProperties.Name="Add a level">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <fluent:SymbolIcon Symbol="Add" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                    <TextBlock Text="Add a level" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+
+                                        <!-- Taking turns with other readings. -->
+                                        <StackPanel Visibility="{Binding CanAddTurn, Converter={StaticResource BooleanToVisibility}}">
+                                            <TextBlock Text="TAKES TURNS WITH" Style="{StaticResource PartHeadStyle}" />
+                                            <TextBlock Style="{StaticResource PartNoteStyle}"
+                                                       Margin="0,0,0,6"
+                                                       Text="One place shows several readings in turn, holding still while the pointer is on the meter." />
+
+                                            <ItemsControl ItemsSource="{Binding Turns}" Focusable="False">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:MeterTurnViewModel}">
+                                                        <DockPanel Margin="0,0,0,2" LastChildFill="True">
+                                                            <Button DockPanel.Dock="Right"
+                                                                    Style="{StaticResource SlotDropStyle}"
+                                                                    Command="{Binding RemoveCommand}"
+                                                                    AutomationProperties.Name="{Binding Name, StringFormat='Stop taking turns with {0}'}"
+                                                                    ToolTip="Stop taking turns with this" />
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       VerticalAlignment="Center"
+                                                                       FontSize="{DynamicResource TextSize12}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                        </DockPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <DockPanel Margin="0,4,0,0" LastChildFill="True">
+                                                <TextBlock DockPanel.Dock="Left"
+                                                           Text="Add"
+                                                           Margin="0,0,8,0"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="{DynamicResource TextSize12}"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                                 HorizontalAlignment="Stretch"
+                                                                 ItemsSource="{Binding TurnChoices}"
+                                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                                 SelectedValuePath="Value"
+                                                                 SelectedValue="{Binding TurnToAdd, Mode=TwoWay}"
+                                                                 AutomationProperties.Name="Add a reading to take turns with" />
+                                            </DockPanel>
+
+                                            <DockPanel Margin="0,8,0,0"
+                                                       LastChildFill="True"
+                                                       Visibility="{Binding TakesTurns, Converter={StaticResource BooleanToVisibility}}">
+                                                <TextBlock DockPanel.Dock="Left"
+                                                           Text="Each stays"
+                                                           Margin="0,0,8,0"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="{DynamicResource TextSize12}"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                                 HorizontalAlignment="Stretch"
+                                                                 ItemsSource="{x:Static vm:MeterSlotChoiceViewModel.TurnLengths}"
+                                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                                 SelectedValuePath="Value"
+                                                                 SelectedValue="{Binding TurnSeconds, Mode=TwoWay}"
+                                                                 AutomationProperties.Name="How long each reading stays" />
+                                            </DockPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+
+            <!-- The place that adds a reading where it will appear. -->
+            <DataTemplate DataType="{x:Type vm:MeterGridAddViewModel}">
+                <Button Style="{StaticResource SlotAddStyle}"
+                        Command="{Binding Add}"
+                        AutomationProperties.Name="{Binding Name}"
+                        ToolTip="Show another reading here">
+                    <TextBlock Text="+" Style="{StaticResource SlotAddSignStyle}" />
+                </Button>
+            </DataTemplate>
+
+            <!-- A one-click layout. -->
+            <DataTemplate x:Key="PresetTemplate" DataType="{x:Type vm:PresetChoice}">
+                <Button Style="{StaticResource PresetTileStyle}"
+                        Command="{Binding DataContext.ChoosePresetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"
+                        AutomationProperties.Name="{Binding Name}"
+                        AutomationProperties.HelpText="{Binding Note}"
+                        ToolTip="{Binding Note}">
+                    <StackPanel>
+                        <DockPanel LastChildFill="True">
+                            <fluent:SymbolIcon DockPanel.Dock="Right"
+                                               Symbol="CheckmarkCircle"
+                                               IconVariant="Filled"
+                                               FontSize="14"
+                                               Margin="8,0,0,0"
+                                               Foreground="{DynamicResource AccentBrush}"
+                                               Visibility="{Binding IsChosen, Converter={StaticResource BooleanToVisibility}}" />
+                            <TextBlock Text="{Binding Name}"
+                                       FontSize="{DynamicResource TextSize13}"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </DockPanel>
+                        <TextBlock Text="{Binding Readings}"
+                                   Margin="0,3,0,0"
+                                   FontSize="{DynamicResource TextSize11_5}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Button>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
     <!--
-        The Taskbar section: whether the meter is on the bar, what it shows, and
-        what it looks like showing it.
+        The Taskbar page: whether the meter is on the bar, what it shows, and
+        how it behaves.
 
         Whether it is shown at all is the page's own switch, so it stands in the
-        heading. What it shows comes first under that, because it is what a
-        reader opens this page to change; how it sits on the bar follows, since
-        that is set once and then left alone.
+        heading. The board of what it shows is the page's lead and sits on the
+        page itself, laid out as the meter is; every other subject - layouts,
+        where it sits, clicks and shortcuts, the tray and the compact window,
+        size and look - is a band of its own under it.
     -->
     <controls:SectionPage Title="Taskbar" Subtitle="{Binding Status}">
         <controls:SectionPage.Actions>
-            <StackPanel Orientation="Horizontal">
-                <Border Padding="12,0,8,0"
-                        Height="32"
-                        CornerRadius="6"
-                        Margin="0,0,8,0"
-                        Background="{DynamicResource ControlFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="1">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="Show in the taskbar"
-                                   FontSize="12"
-                                   Margin="0,0,10,0"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-
-                        <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
-                                      IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                      AutomationProperties.Name="Show the meter"
-                                      ToolTip="Add the live readings to the Windows taskbar. Off by default, and removed the moment Windsock closes." />
-                    </StackPanel>
-                </Border>
+            <controls:FlowRow Spacing="8" LineSpacing="8">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
+                    <TextBlock Text="Show in the taskbar"
+                               FontSize="{DynamicResource TextSize12_5}"
+                               Margin="0,0,10,0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                  AutomationProperties.Name="Show the meter"
+                                  ToolTip="Add the live readings to the Windows taskbar. Off by default, and removed the moment Windsock closes." />
+                </StackPanel>
 
                 <Button Style="{StaticResource ToolbarButtonStyle}"
                         Command="{Binding ResetAllCommand}"
                         AutomationProperties.Name="Put the whole page back"
                         ToolTip="Put every choice on this page back the way it shipped. Whether the meter is shown is left alone.">
                     <StackPanel Orientation="Horizontal">
-                        <fluent:SymbolIcon Symbol="ArrowReset"
-                                           FontSize="14"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,7,0" />
+                        <fluent:SymbolIcon Symbol="ArrowReset" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
                         <TextBlock Text="Reset everything" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-            </StackPanel>
+            </controls:FlowRow>
         </controls:SectionPage.Actions>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  Padding="{StaticResource PagePadding}">
-        <StackPanel>
-            <!--
-                Where the meter actually ended up, when it did not get there.
-                Windows 11 has no supported way in, so the attempt can fail - and
-                a failure nobody is told about is a meter that has simply
-                vanished. That stays on the page, above everything.
-            -->
-            <Border Margin="0,0,0,16"
-                    Padding="14,10"
-                    CornerRadius="8"
-                    Background="{DynamicResource AccentSoftBrush}"
-                    Visibility="{Binding IsWarning, Converter={StaticResource BooleanToVisibility}}">
-                <DockPanel LastChildFill="True">
-                    <fluent:SymbolIcon DockPanel.Dock="Left"
-                                       Symbol="Warning"
-                                       FontSize="15"
-                                       Margin="0,0,10,0"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource HotBrush}" />
-                    <TextBlock Text="{Binding Status}"
-                               FontSize="12.5"
-                               TextWrapping="Wrap"
-                               VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                </DockPanel>
-            </Border>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="{StaticResource PagePadding}">
+            <StackPanel>
+                <!--
+                    Where the meter actually ended up, when it did not get there.
+                    Windows 11 has no supported way in, so the attempt can fail -
+                    and a failure nobody is told about is a meter that has simply
+                    vanished. That stays on the page, above everything.
+                -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Visibility="{Binding IsWarning, Converter={StaticResource BooleanToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <fluent:SymbolIcon DockPanel.Dock="Left"
+                                           Symbol="Warning"
+                                           FontSize="15"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource HotBrush}" />
+                        <TextBlock Text="{Binding Status}"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </DockPanel>
+                </Border>
 
-            <!--
-                The slot editor. Laid out as the meter itself is laid out, so
-                the picker in the top-right corner is the one that fills the
-                top-right corner of the bar. A numbered list of dropdowns would
-                make the reader keep the arrangement in their head.
-            -->
-            <controls:Card>
-                <controls:RuledPanel>
-                    <Border Style="{StaticResource SectionStyle}">
-                        <StackPanel>
-                            <DockPanel LastChildFill="True">
-                                <controls:SettingHead DockPanel.Dock="Right"
-                                                      VerticalAlignment="Center"
-                                                      Margin="12,0,0,0"
-                                                      Hint="Choose what each position on the bar shows. Anything Windsock measures can go in any slot - network rates, processor, graphics, memory or disk. Each part of a cell opens its own settings: what it is marked with, what it counts in, how large it is drawn, which colour it takes and which end of its place it sits at."
-                                                      Note="{Binding TemperatureNote}" />
+                <!-- ============ The lead: what the meter shows ============ -->
+                <controls:FlowRow Spacing="8" LineSpacing="8" Margin="4,4,0,10">
+                    <StackPanel VerticalAlignment="Center">
+                        <DockPanel LastChildFill="False">
+                            <TextBlock Text="Readings on the bar" Style="{StaticResource CardTitleStyle}" VerticalAlignment="Center" />
+                            <controls:SettingHead Margin="6,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Hint="Each cell stands where it will stand on the taskbar. Press a part of a cell to change it: its mark, the reading and how it is counted, or its unit. The corner's ··· adds a graph of the last minute, colours by level, readings that take turns, or a feed."
+                                                  Note="{Binding TemperatureNote}" />
+                        </DockPanel>
+                        <TextBlock Text="Press a part of a cell to change it"
+                                   Style="{StaticResource CardNoteStyle}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
 
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="Readings on the bar" Style="{StaticResource CardTitleStyle}" />
-                                    <TextBlock Text="Each cell stands where it will stand on the taskbar. Press a part of a cell to change it."
-                                               Style="{StaticResource CardNoteStyle}" />
+                    <controls:FlowRow controls:FlowRow.Trailing="True" Spacing="8" LineSpacing="8">
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding SaveLayoutCommand}"
+                                AutomationProperties.Name="Save the layout to a file"
+                                ToolTip="Save what each place shows and how the meter looks to a small file, to keep or to share">
+                            <StackPanel Orientation="Horizontal">
+                                <fluent:SymbolIcon Symbol="Save" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="Save layout" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding LoadLayoutCommand}"
+                                AutomationProperties.Name="Load a layout from a file"
+                                ToolTip="Put a saved layout on the meter. Where the meter sits, what clicking it does and the shortcuts stay as they are.">
+                            <StackPanel Orientation="Horizontal">
+                                <fluent:SymbolIcon Symbol="FolderOpen" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                <TextBlock Text="Load layout" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </controls:FlowRow>
+                </controls:FlowRow>
+
+                <!--
+                    The board. Wide, it is the meter's own grid, every place it
+                    may have drawn from the start so nothing moves as readings
+                    come and go. Narrow, where three cells across would crush
+                    each to a word, it becomes a list of the meter's places in
+                    reading order, with adding a row or a column as buttons.
+                    The view decides by the room it is given, not the window.
+                -->
+                <Grid x:Name="BoardHost">
+                    <ItemsControl x:Name="BoardGrid"
+                                  ItemsSource="{Binding GridCells}"
+                                  Focusable="False"
+                                  Margin="0,0,-2,-2"
+                                  AutomationProperties.Name="Readings on the bar">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="{Binding GridRows}" Columns="{Binding GridColumns}" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+
+                    <StackPanel x:Name="BoardList" Visibility="Collapsed">
+                        <ItemsControl ItemsSource="{Binding ListCells}"
+                                      Focusable="False"
+                                      AutomationProperties.Name="Readings on the bar" />
+
+                        <controls:FlowRow Spacing="8" LineSpacing="8" Margin="0,6,0,0">
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding AddRowCommand}"
+                                    AutomationProperties.Name="Add a row of readings"
+                                    ToolTip="Another row on the meter, with a reading in it">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Add" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Add a row" VerticalAlignment="Center" />
                                 </StackPanel>
-                            </DockPanel>
+                            </Button>
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding AddColumnCommand}"
+                                    AutomationProperties.Name="Add a column of readings"
+                                    ToolTip="Another column on the meter, with a reading in it">
+                                <StackPanel Orientation="Horizontal">
+                                    <fluent:SymbolIcon Symbol="Add" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock Text="Add a column" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </controls:FlowRow>
+                    </StackPanel>
+                </Grid>
 
-                            <!--
-                                One grid, one kind of cell. The slots are cells; the
-                                ones that add a reading are cells as well, standing
-                                where the reading they add will appear. Every place the
-                                meter may have is on the board from the start, so
-                                nothing moves as readings come and go.
-                            -->
-                            <ScrollViewer x:Name="Board"
-                                          HorizontalScrollBarVisibility="Auto"
-                                          VerticalScrollBarVisibility="Disabled"
-                                          Margin="0,16,0,0">
-                                <!--
-                                    Room under the cells only while there is a bar to
-                                    scroll them with. The bar is drawn over the bottom of
-                                    the view, and without the room it sat across the last
-                                    row of cells; with the room always there, a card wide
-                                    enough for every cell ended in a strip of nothing.
-                                -->
-                                <ScrollViewer.Style>
-                                    <Style TargetType="ScrollViewer" BasedOn="{StaticResource {x:Type ScrollViewer}}">
-                                        <Setter Property="Padding" Value="0" />
-                                        <Style.Triggers>
-                                            <Trigger Property="ComputedHorizontalScrollBarVisibility" Value="Visible">
-                                                <Setter Property="Padding" Value="0,0,0,12" />
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ScrollViewer.Style>
-                            <ItemsControl ItemsSource="{Binding GridCells}" Margin="0,0,-8,-8">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <UniformGrid Rows="{Binding GridRows}" Columns="{Binding GridColumns}" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
+                <TextBlock Text="{Binding LayoutNote}"
+                           Style="{StaticResource QuietNoteStyle}"
+                           Margin="4,10,4,0"
+                           AutomationProperties.LiveSetting="Polite"
+                           Visibility="{Binding LayoutNote, Converter={StaticResource TextToVisibility}}" />
 
-                                <ItemsControl.Resources>
-                                    <!--
-                                        The colour of one part of one cell: the two
-                                        colours that are rules rather than colours, the
-                                        short row that reads well on a bar, and one
-                                        mixed by hand for when none of those is it.
-
-                                        One template for all three parts, because the
-                                        choice is the same choice three times over.
-                                    -->
-                                    <DataTemplate x:Key="InkChoiceTemplate" DataType="{x:Type vm:InkChoiceViewModel}">
-                                        <StackPanel>
-                                            <TextBlock Text="COLOUR" Style="{StaticResource PartHeadStyle}" />
-
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
-                                                <Button Style="{StaticResource PartChoiceStyle}"
-                                                        Content="Taskbar text"
-                                                        Command="{Binding PaintCommand}"
-                                                        AutomationProperties.Name="Draw this in the taskbar own text colour"
-                                                        ToolTip="Whatever colour the taskbar writes in, which is the most legible" />
-
-                                                <Button Style="{StaticResource PartChoiceStyle}"
-                                                        Content="Its own colour"
-                                                        Foreground="{Binding OwnInk}"
-                                                        Command="{Binding PaintCommand}"
-                                                        CommandParameter="{x:Static settings:MeterSlot.Own}"
-                                                        AutomationProperties.Name="Draw this in the reading own colour"
-                                                        ToolTip="The colour this reading has elsewhere in Windsock" />
-                                            </StackPanel>
-
-                                            <ItemsControl ItemsSource="{Binding Inks}">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <WrapPanel />
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Button Style="{StaticResource InkStyle}"
-                                                                Background="{Binding Converter={StaticResource InkToBrush}}"
-                                                                Command="{Binding DataContext.PaintCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                CommandParameter="{Binding}"
-                                                                AutomationProperties.Name="{Binding}"
-                                                                ToolTip="{Binding}" />
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-
-                                            <!--
-                                                Any colour at all, for when none of the
-                                                eight is the one in mind. Dragged or
-                                                typed: a reader who knows the colour
-                                                writes it down, and one who does not
-                                                slides until it looks right.
-                                            -->
-                                            <ToggleButton x:Name="Mixer"
-                                                          Style="{StaticResource PartToggleStyle}"
-                                                          HorizontalAlignment="Left"
-                                                          Margin="0,2,0,0"
-                                                          Content="Mix a colour"
-                                                          AutomationProperties.Name="Mix a colour"
-                                                          ToolTip="Choose any colour at all" />
-
-                                            <StackPanel Margin="0,8,0,0"
-                                                        Visibility="{Binding IsChecked, ElementName=Mixer, Converter={StaticResource BooleanToVisibility}}">
-                                                <DockPanel LastChildFill="True" Margin="0,0,0,6">
-                                                    <Border DockPanel.Dock="Left"
-                                                            Width="24"
-                                                            Height="24"
-                                                            CornerRadius="5"
-                                                            Margin="0,0,8,0"
-                                                            BorderThickness="1"
-                                                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                                                            Background="{Binding Showing}" />
-
-                                                    <TextBox Style="{StaticResource EmbeddedTextBoxStyle}"
-                                                             VerticalAlignment="Center"
-                                                             Text="{Binding Hex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                             AutomationProperties.Name="The colour, written down"
-                                                             ToolTip="The colour as #rrggbb" />
-                                                </DockPanel>
-
-                                                <DockPanel LastChildFill="True">
-                                                    <TextBlock DockPanel.Dock="Left"
-                                                               Text="R"
-                                                               Width="14"
-                                                               FontSize="10.5"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-
-                                                    <Slider Style="{StaticResource FlatSliderStyle}"
-                                                            Minimum="0"
-                                                            Maximum="255"
-                                                            SmallChange="1"
-                                                            LargeChange="16"
-                                                            Value="{Binding Red, Mode=TwoWay}"
-                                                            AutomationProperties.Name="How much red"
-                                                            ToolTip="How much red" />
-                                                </DockPanel>
-
-                                                <DockPanel LastChildFill="True">
-                                                    <TextBlock DockPanel.Dock="Left"
-                                                               Text="G"
-                                                               Width="14"
-                                                               FontSize="10.5"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-
-                                                    <Slider Style="{StaticResource FlatSliderStyle}"
-                                                            Minimum="0"
-                                                            Maximum="255"
-                                                            SmallChange="1"
-                                                            LargeChange="16"
-                                                            Value="{Binding Green, Mode=TwoWay}"
-                                                            AutomationProperties.Name="How much green"
-                                                            ToolTip="How much green" />
-                                                </DockPanel>
-
-                                                <DockPanel LastChildFill="True">
-                                                    <TextBlock DockPanel.Dock="Left"
-                                                               Text="B"
-                                                               Width="14"
-                                                               FontSize="10.5"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-
-                                                    <Slider Style="{StaticResource FlatSliderStyle}"
-                                                            Minimum="0"
-                                                            Maximum="255"
-                                                            SmallChange="1"
-                                                            LargeChange="16"
-                                                            Value="{Binding Blue, Mode=TwoWay}"
-                                                            AutomationProperties.Name="How much blue"
-                                                            ToolTip="How much blue" />
-                                                </DockPanel>
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </DataTemplate>
-
-                                    <!--
-                                        A cell, drawn the way the taskbar will draw it:
-                                        the mark, the figure and the unit, each in its
-                                        own colour and weight. Every part is a button
-                                        onto its own settings, so a reader changes what
-                                        they are pointing at rather than finding its
-                                        name in a list.
-                                    -->
-                                    <DataTemplate DataType="{x:Type vm:MeterSlotChoiceViewModel}">
-                                        <Grid>
-                                        <Border Style="{StaticResource SlotCellStyle}">
-                                            <StackPanel>
-                                                <DockPanel LastChildFill="True">
-                                                    <!-- Empties this slot, and only this slot. -->
-                                                    <Button DockPanel.Dock="Right"
-                                                            Style="{StaticResource SlotDropStyle}"
-                                                            VerticalAlignment="Top"
-                                                            Command="{Binding ClearCommand}"
-                                                            AutomationProperties.Name="Leave this slot blank"
-                                                            ToolTip="Leave this slot blank" />
-
-                                                    <TextBlock Text="{Binding Address}"
-                                                               Style="{StaticResource SlotAddressStyle}"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                </DockPanel>
-
-                                                <!--
-                                                    The mark at one end and the unit at
-                                                    the other, exactly as the meter
-                                                    draws them, with the reading filling
-                                                    what is left. So every cell is one
-                                                    line however wide its column is, and
-                                                    a column dragged narrow shortens the
-                                                    reading rather than folding the cell
-                                                    into three lines.
-
-                                                    The sheets hang underneath rather
-                                                    than in the row: a popup is a child
-                                                    like any other, and three of them in
-                                                    the row would each be given a share
-                                                    of it.
-                                                -->
-                                                <controls:SlotRow Margin="0,4,0,0"
-                                                                  LeftCount="{Binding PartsOnTheLeft}">
-
-                                                    <!-- The mark: which part of the machine this is. -->
-                                                    <ToggleButton x:Name="MarkPart"
-                                                                  Style="{StaticResource CellPartStyle}"
-                                                                  AutomationProperties.Name="The mark on this reading"
-                                                                  ToolTip="What marks this reading, and its colour">
-                                                        <Grid>
-                                                            <fluent:SymbolIcon Symbol="{Binding Mark, Converter={StaticResource MarkToSymbol}}"
-                                                                               IconVariant="{Binding Bold, Converter={StaticResource WeightToVariant}}"
-                                                                               Foreground="{Binding MarkInk.Showing}"
-                                                                               FontSize="13"
-                                                                               VerticalAlignment="Center">
-                                                                <fluent:SymbolIcon.Style>
-                                                                    <Style TargetType="fluent:SymbolIcon">
-                                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding MarkIsIcon}" Value="True">
-                                                                                <Setter Property="Visibility" Value="Visible" />
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </fluent:SymbolIcon.Style>
-                                                            </fluent:SymbolIcon>
-
-                                                            <TextBlock Text="{Binding LabelText}"
-                                                                       FontSize="11"
-                                                                       FontWeight="{Binding Bold, Converter={StaticResource BoolToWeight}}"
-                                                                       Foreground="{Binding MarkInk.Showing}"
-                                                                       VerticalAlignment="Center">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding MarkIsIcon}" Value="True">
-                                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-
-                                                            <!--
-                                                                Struck through rather
-                                                                than gone: a mark that
-                                                                is not being shown is
-                                                                still the part of the
-                                                                cell that says so.
-                                                            -->
-                                                            <Border Height="1"
-                                                                    Background="{Binding MarkInk.Showing}"
-                                                                    VerticalAlignment="Center"
-                                                                    Visibility="{Binding ShowLabel, Converter={StaticResource InverseBooleanToVisibility}}" />
-                                                        </Grid>
-                                                    </ToggleButton>
-
-                                                    <!-- The figure: which reading, in what units, how large. -->
-                                                    <ToggleButton x:Name="ValuePart"
-                                                                  Style="{StaticResource CellPartStyle}"
-                                                                  AutomationProperties.Name="{Binding ValueText}"
-                                                                  ToolTip="Which reading this is, its units, size and colour">
-                                                        <TextBlock Text="{Binding ValueText}"
-                                                                   FontSize="12"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   FontWeight="{Binding Bold, Converter={StaticResource BoolToWeight}}"
-                                                                   Foreground="{Binding ValueInk.Showing}" />
-                                                    </ToggleButton>
-
-                                                    <!-- The unit: what the figure is counted in. -->
-                                                    <ToggleButton x:Name="UnitPart"
-                                                                  Style="{StaticResource CellPartStyle}"
-                                                                  AutomationProperties.Name="The unit on this reading"
-                                                                  ToolTip="Whether the unit is written, and its colour">
-                                                        <TextBlock Text="{Binding UnitText}"
-                                                                   FontSize="11"
-                                                                   Foreground="{Binding UnitInk.Showing}">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding ShowUnit}" Value="False">
-                                                                            <Setter Property="Opacity" Value="0.35" />
-                                                                            <Setter Property="TextDecorations" Value="Strikethrough" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                    </ToggleButton>
-                                                </controls:SlotRow>
-
-                                                    <Popup IsOpen="{Binding IsChecked, ElementName=MarkPart, Mode=TwoWay}"
-                                                           PlacementTarget="{Binding ElementName=MarkPart}"
-                                                           Placement="Bottom"
-                                                           VerticalOffset="6"
-                                                           StaysOpen="True"
-                                                           controls:Flyout.DismissOnOutsideClick="True"
-                                                           AllowsTransparency="True"
-                                                           PopupAnimation="Fade">
-                                                        <Border Style="{StaticResource FlyoutStyle}" MinWidth="232" Padding="12,8,12,12">
-                                                            <StackPanel>
-                                                                <DockPanel LastChildFill="False" Margin="0,0,0,6">
-                                                                    <TextBlock Text="THE MARK"
-                                                                               Style="{StaticResource PartHeadStyle}"
-                                                                               Margin="0"
-                                                                               VerticalAlignment="Center" />
-
-                                                                    <Button DockPanel.Dock="Right"
-                                                                            Style="{StaticResource PartResetStyle}"
-                                                                            Content="Reset"
-                                                                            Command="{Binding ResetMarkCommand}"
-                                                                            AutomationProperties.Name="Put the mark back"
-                                                                            ToolTip="Forget everything chosen for the mark" />
-                                                                </DockPanel>
-
-                                                                <CheckBox Style="{StaticResource ToolbarCheckStyle}"
-                                                                          Content="Show the mark"
-                                                                          IsChecked="{Binding ShowLabel, Mode=TwoWay}"
-                                                                          AutomationProperties.Name="Show the mark" />
-
-                                                                <TextBlock Text="DRAWN AS" Style="{StaticResource PartHeadStyle}" />
-
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <Button Style="{StaticResource PartChoiceStyle}"
-                                                                            Command="{Binding MarkAsPictureCommand}"
-                                                                            AutomationProperties.Name="Mark this reading with a picture"
-                                                                            ToolTip="A picture of the part of the machine this reading is about">
-                                                                        <StackPanel Orientation="Horizontal">
-                                                                            <fluent:SymbolIcon Symbol="{Binding Mark, Converter={StaticResource MarkToSymbol}}"
-                                                                                               FontSize="13"
-                                                                                               VerticalAlignment="Center"
-                                                                                               Margin="0,0,6,0" />
-                                                                            <TextBlock Text="Picture" VerticalAlignment="Center" />
-                                                                        </StackPanel>
-                                                                    </Button>
-
-                                                                    <Button Style="{StaticResource PartChoiceStyle}"
-                                                                            Command="{Binding MarkAsLettersCommand}"
-                                                                            AutomationProperties.Name="Mark this reading with letters"
-                                                                            ToolTip="The short name the reader already calls it">
-                                                                        <StackPanel Orientation="Horizontal">
-                                                                            <TextBlock Text="{Binding LabelText}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="0,0,6,0" />
-                                                                            <TextBlock Text="Letters" VerticalAlignment="Center" />
-                                                                        </StackPanel>
-                                                                    </Button>
-                                                                </StackPanel>
-
-                                                                <TextBlock Text="SITS AT" Style="{StaticResource PartHeadStyle}" />
-
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <Button Style="{StaticResource PartChoiceStyle}"
-                                                                            Content="Left"
-                                                                            Command="{Binding MarkOnTheLeftCommand}"
-                                                                            AutomationProperties.Name="Put the mark on the left"
-                                                                            ToolTip="Against the left edge of this place on the bar" />
-
-                                                                    <Button Style="{StaticResource PartChoiceStyle}"
-                                                                            Content="Right"
-                                                                            Command="{Binding MarkOnTheRightCommand}"
-                                                                            AutomationProperties.Name="Put the mark on the right"
-                                                                            ToolTip="Against the right edge of this place on the bar" />
-                                                                </StackPanel>
-
-                                                                <ContentControl Content="{Binding MarkInk}"
-                                                                                ContentTemplate="{StaticResource InkChoiceTemplate}"
-                                                                                Focusable="False" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                    </Popup>
-
-                                                    <Popup IsOpen="{Binding IsChecked, ElementName=ValuePart, Mode=TwoWay}"
-                                                           PlacementTarget="{Binding ElementName=ValuePart}"
-                                                           Placement="Bottom"
-                                                           VerticalOffset="6"
-                                                           StaysOpen="True"
-                                                           controls:Flyout.DismissOnOutsideClick="True"
-                                                           AllowsTransparency="True"
-                                                           PopupAnimation="Fade">
-                                                        <Border Style="{StaticResource FlyoutStyle}" MinWidth="248" Padding="12,8,12,12">
-                                                            <StackPanel>
-                                                                <DockPanel LastChildFill="False" Margin="0,0,0,6">
-                                                                    <TextBlock Text="THE READING"
-                                                                               Style="{StaticResource PartHeadStyle}"
-                                                                               Margin="0"
-                                                                               VerticalAlignment="Center" />
-
-                                                                    <Button DockPanel.Dock="Right"
-                                                                            Style="{StaticResource PartResetStyle}"
-                                                                            Content="Reset"
-                                                                            Command="{Binding ResetValueCommand}"
-                                                                            AutomationProperties.Name="Put the figure back"
-                                                                            ToolTip="Forget the units, the size, the weight and the colour chosen here" />
-                                                                </DockPanel>
-
-                                                                <controls:Picker Style="{StaticResource PickerStyle}"
-                                                                                 HorizontalAlignment="Stretch"
-                                                                                 ItemsSource="{Binding Fields}"
-                                                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                                                                 SelectedValuePath="Value"
-                                                                                 SelectedValue="{Binding Field, Mode=TwoWay}"
-                                                                                 AutomationProperties.Name="What this slot shows" />
-
-                                                                <TextBlock Text="COUNTED IN" Style="{StaticResource PartHeadStyle}" />
-
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <controls:Picker Style="{StaticResource PickerStyle}"
-                                                                                     MinWidth="104"
-                                                                                     Margin="0,0,8,0"
-                                                                                     ItemsSource="{Binding Families}"
-                                                                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                                                                     SelectedValuePath="Family"
-                                                                                     SelectedValue="{Binding Family, Mode=TwoWay}"
-                                                                                     AutomationProperties.Name="Bytes or bits" />
-
-                                                                    <controls:Picker Style="{StaticResource PickerStyle}"
-                                                                                     MinWidth="104"
-                                                                                     ItemsSource="{Binding Scales}"
-                                                                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                                                                     SelectedValuePath="Scale"
-                                                                                     SelectedValue="{Binding Scale, Mode=TwoWay}"
-                                                                                     AutomationProperties.Name="How far it is scaled" />
-                                                                </StackPanel>
-
-                                                                <TextBlock Text="SIZE" Style="{StaticResource PartHeadStyle}" />
-
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <controls:Picker Style="{StaticResource PickerStyle}"
-                                                                                     MinWidth="124"
-                                                                                     Margin="0,0,10,0"
-                                                                                     ItemsSource="{Binding TextSizes}"
-                                                                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                                                                     SelectedValuePath="Value"
-                                                                                     SelectedValue="{Binding TextSize, Mode=TwoWay}"
-                                                                                     AutomationProperties.Name="How large this figure is" />
-
-                                                                    <CheckBox Style="{StaticResource ToolbarCheckStyle}"
-                                                                              VerticalAlignment="Center"
-                                                                              Content="Bold"
-                                                                              IsChecked="{Binding Bold, Mode=TwoWay}"
-                                                                              AutomationProperties.Name="Bold" />
-                                                                </StackPanel>
-
-                                                                <TextBlock Text="SITS AT" Style="{StaticResource PartHeadStyle}" />
-
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <Button Style="{StaticResource PartChoiceStyle}"
-                                                                            Content="Left"
-                                                                            Command="{Binding ValueOnTheLeftCommand}"
-                                                                            AutomationProperties.Name="Put the figure on the left"
-                                                                            ToolTip="Against the left edge of this place on the bar" />
-
-                                                                    <Button Style="{StaticResource PartChoiceStyle}"
-                                                                            Content="Right"
-                                                                            Command="{Binding ValueOnTheRightCommand}"
-                                                                            AutomationProperties.Name="Put the figure on the right"
-                                                                            ToolTip="Against the right edge of this place on the bar" />
-                                                                </StackPanel>
-
-                                                                <ContentControl Content="{Binding ValueInk}"
-                                                                                ContentTemplate="{StaticResource InkChoiceTemplate}"
-                                                                                Focusable="False" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                    </Popup>
-
-                                                    <Popup IsOpen="{Binding IsChecked, ElementName=UnitPart, Mode=TwoWay}"
-                                                           PlacementTarget="{Binding ElementName=UnitPart}"
-                                                           Placement="Bottom"
-                                                           VerticalOffset="6"
-                                                           StaysOpen="True"
-                                                           controls:Flyout.DismissOnOutsideClick="True"
-                                                           AllowsTransparency="True"
-                                                           PopupAnimation="Fade">
-                                                        <Border Style="{StaticResource FlyoutStyle}" MinWidth="232" Padding="12,8,12,12">
-                                                            <StackPanel>
-                                                                <DockPanel LastChildFill="False" Margin="0,0,0,6">
-                                                                    <TextBlock Text="THE UNIT"
-                                                                               Style="{StaticResource PartHeadStyle}"
-                                                                               Margin="0"
-                                                                               VerticalAlignment="Center" />
-
-                                                                    <Button DockPanel.Dock="Right"
-                                                                            Style="{StaticResource PartResetStyle}"
-                                                                            Content="Reset"
-                                                                            Command="{Binding ResetUnitCommand}"
-                                                                            AutomationProperties.Name="Put the unit back"
-                                                                            ToolTip="Forget everything chosen for the unit" />
-                                                                </DockPanel>
-
-                                                                <CheckBox Style="{StaticResource ToolbarCheckStyle}"
-                                                                          Content="Write the unit"
-                                                                          IsChecked="{Binding ShowUnit, Mode=TwoWay}"
-                                                                          AutomationProperties.Name="Write the unit" />
-
-                                                                <TextBlock Text="SITS AT" Style="{StaticResource PartHeadStyle}" />
-
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <Button Style="{StaticResource PartChoiceStyle}"
-                                                                            Content="Left"
-                                                                            Command="{Binding UnitOnTheLeftCommand}"
-                                                                            AutomationProperties.Name="Put the unit on the left"
-                                                                            ToolTip="Against the left edge of this place on the bar" />
-
-                                                                    <Button Style="{StaticResource PartChoiceStyle}"
-                                                                            Content="Right"
-                                                                            Command="{Binding UnitOnTheRightCommand}"
-                                                                            AutomationProperties.Name="Put the unit on the right"
-                                                                            ToolTip="Against the right edge of this place on the bar" />
-                                                                </StackPanel>
-
-                                                                <ContentControl Content="{Binding UnitInk}"
-                                                                                ContentTemplate="{StaticResource InkChoiceTemplate}"
-                                                                                Focusable="False" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                    </Popup>
-                                            </StackPanel>
-                                        </Border>
-
-                                        </Grid>
-                                    </DataTemplate>
-
-                                    <!-- The cell that adds one more of something. -->
-                                    <DataTemplate DataType="{x:Type vm:MeterGridAddViewModel}">
-                                        <Button Style="{StaticResource SlotAddStyle}"
-                                                Margin="0,0,8,8"
-                                                Command="{Binding Add}"
-                                                AutomationProperties.Name="{Binding Name}"
-                                                ToolTip="Show another reading here">
-                                            <TextBlock Text="+" Style="{StaticResource SlotAddSignStyle}" />
-                                        </Button>
-                                    </DataTemplate>
-
-                                </ItemsControl.Resources>
-                            </ItemsControl>
-                            </ScrollViewer>
-
-                        </StackPanel>
-                    </Border>
-
-                    <!-- ============ On the bar ============ -->
-                    <Border Style="{StaticResource GroupHeadStyle}">
-                        <StackPanel>
-                            <TextBlock Text="On the bar" Style="{StaticResource CardTitleStyle}" />
-                            <TextBlock Text="Where the meter sits, and what clicking it does"
+                <!-- ============ Layouts ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="0,18,0,0">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Layouts" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Start from one of these with a click, then change any place above. Only what the meter shows changes; how it looks and where it sits stay."
                                        TextWrapping="Wrap"
                                        Style="{StaticResource CardNoteStyle}" />
                         </StackPanel>
-                    </Border>
 
-                    <Border Style="{StaticResource SettingRowStyle}" controls:RuledPanel.RuleAbove="False">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead
-                                HorizontalAlignment="Left"
-                                Text="Position"
-                                Hint="Inside the taskbar looks native, but Windows has no supported way to add anything there, so an update could stop it working. Above the taskbar always works." />
+                        <ItemsControl ItemsSource="{Binding Presets}"
+                                      ItemTemplate="{StaticResource PresetTemplate}"
+                                      Focusable="False"
+                                      Margin="0,4,-2,0"
+                                      AutomationProperties.Name="Layouts">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <controls:FlowGrid MinimumColumnWidth="200" Spacing="0" IsBalanced="True" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
 
-                            <controls:Picker HorizontalAlignment="Left"
-                                             Style="{StaticResource PickerStyle}"
-                                             MinWidth="180"
-                                             VerticalAlignment="Center"
-                                             ItemsSource="{Binding Placements}"
-                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                             SelectedValuePath="Value"
-                                             SelectedValue="{Binding Placement, Mode=TwoWay}"
-                                             AutomationProperties.Name="Position" />
-                        </controls:AdaptiveRow>
-                    </Border>
+                <!-- ============ On the bar ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="On the bar" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Where the meter sits, and when it steps aside"
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
 
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead
-                                HorizontalAlignment="Left"
-                                Text="On click"
-                                Hint="What happens when the meter is clicked. Hovering always names every reading in full." />
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Position"
+                                                      Hint="Inside the taskbar looks native, but Windows has no supported way to add anything there, so an update could stop it working. Above the taskbar always works." />
+                                <controls:Picker HorizontalAlignment="Left"
+                                                 Style="{StaticResource PickerStyle}"
+                                                 MinWidth="200"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding Placements}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding Placement, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Position" />
+                            </controls:AdaptiveRow>
+                        </Border>
 
-                            <controls:Picker HorizontalAlignment="Left"
-                                             Style="{StaticResource PickerStyle}"
-                                             MinWidth="180"
-                                             VerticalAlignment="Center"
-                                             ItemsSource="{Binding Clicks}"
-                                             ItemTemplate="{StaticResource OptionLabelTemplate}"
-                                             SelectedValuePath="Value"
-                                             SelectedValue="{Binding Click, Mode=TwoWay}"
-                                             AutomationProperties.Name="On click" />
-                        </controls:AdaptiveRow>
-                    </Border>
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Which taskbars"
+                                                      Hint="The main taskbar is the one with the clock and the notification area. Every taskbar puts a meter on each display that shows one; above the taskbar, it puts one on every display. A display chosen on its own keeps its meter there, and if it is not connected the meter goes back to the main taskbar until it is." />
+                                <controls:Picker HorizontalAlignment="Left"
+                                                 Style="{StaticResource PickerStyle}"
+                                                 MinWidth="220"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding Monitors}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding MonitorChoice, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Which taskbars" />
+                            </controls:AdaptiveRow>
+                        </Border>
 
-                    <!-- ============ Size and look ============ -->
-                    <Border Style="{StaticResource GroupHeadStyle}">
-                        <StackPanel>
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Full-screen apps"
+                                                      Hint="What the meter does while a game, a video or a slide show fills its display, borderless games included. It comes back when they leave." />
+                                <controls:Picker HorizontalAlignment="Left"
+                                                 Style="{StaticResource PickerStyle}"
+                                                 MinWidth="200"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding FullScreens}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding FullScreen, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Full-screen apps" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Remote Desktop"
+                                                      Hint="In a remote session the readings are the remote computer's traffic, not the traffic of the one you are sitting at. The meter can say so when you point at it, or stay out of the way." />
+                                <controls:Picker HorizontalAlignment="Left"
+                                                 Style="{StaticResource PickerStyle}"
+                                                 MinWidth="200"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding Remotes}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding Remote, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Remote Desktop" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <!--
+                            Only while the meter floats: a meter in the taskbar
+                            cannot be dragged anywhere, and a lock for something
+                            that cannot move is a control that does nothing.
+                        -->
+                        <Border Style="{StaticResource BandRowStyle}"
+                                Visibility="{Binding IsFloating, Converter={StaticResource BooleanToVisibility}}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Keep it where it is"
+                                                      Hint="Unlocked, the floating meter can be dragged anywhere, and each display remembers where its meter was left - on a display without a taskbar too. Dropped back on its own spot, it follows the taskbar again." />
+                                <controls:FlowRow HorizontalAlignment="Left" VerticalAlignment="Center" Spacing="14" LineSpacing="8">
+                                    <ToggleButton Style="{StaticResource ToggleSwitchStyle}"
+                                                  IsChecked="{Binding Locked, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Lock the floating meter" />
+                                    <Button Style="{StaticResource PartChoiceStyle}"
+                                            Content="Put it back on the taskbar"
+                                            Command="{Binding ForgetSpotsCommand}"
+                                            AutomationProperties.Name="Put the floating meter back on the taskbar"
+                                            ToolTip="Forget where the floating meter was dragged, on every display" />
+                                </controls:FlowRow>
+                            </controls:AdaptiveRow>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Clicks and shortcuts ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Clicks and shortcuts" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="What pressing the meter does, and keys that work from anywhere in Windows. Right-click the meter for its menu: a page, the compact window, hide the meter, pause recording, copy the speeds."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Click"
+                                                      Hint="What one click on the meter does. Resting the pointer on it always shows its card, whatever is chosen here." />
+                                <controls:Picker HorizontalAlignment="Left"
+                                                 Style="{StaticResource PickerStyle}"
+                                                 MinWidth="220"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding ClickActions}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding Click, Mode=TwoWay}"
+                                                 AutomationProperties.Name="On click" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Double-click"
+                                                      Hint="Given something to do, a single click waits as long as Windows allows between the two presses of a double-click, so the two can be told apart." />
+                                <controls:Picker HorizontalAlignment="Left"
+                                                 Style="{StaticResource PickerStyle}"
+                                                 MinWidth="220"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding ClickActions}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding DoubleClick, Mode=TwoWay}"
+                                                 AutomationProperties.Name="On double-click" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Middle-click"
+                                                      Hint="Pressing the wheel." />
+                                <controls:Picker HorizontalAlignment="Left"
+                                                 Style="{StaticResource PickerStyle}"
+                                                 MinWidth="220"
+                                                 VerticalAlignment="Center"
+                                                 ItemsSource="{Binding ClickActions}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding MiddleClick, Mode=TwoWay}"
+                                                 AutomationProperties.Name="On middle-click" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Show the window"
+                                                      Hint="A shortcut that brings Windsock's window to the front from anywhere. Press the keys in the box; Backspace takes the shortcut away. None is set until you set one, so no other program loses a shortcut it uses." />
+                                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <controls:ShortcutBox Text="{Binding ShowWindowKeys, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          AutomationProperties.Name="Shortcut to show the window" />
+                                    <TextBlock Text="{Binding ShowWindowProblem}"
+                                               Style="{StaticResource ProblemStyle}"
+                                               MaxWidth="260"
+                                               HorizontalAlignment="Left"
+                                               Visibility="{Binding ShowWindowProblem, Converter={StaticResource TextToVisibility}}" />
+                                </StackPanel>
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Hide or show the meter"
+                                                      Hint="Takes the meter off the taskbar, and puts it back, as the switch at the top of this page does." />
+                                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <controls:ShortcutBox Text="{Binding ToggleMeterKeys, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          AutomationProperties.Name="Shortcut to hide or show the meter" />
+                                    <TextBlock Text="{Binding ToggleMeterProblem}"
+                                               Style="{StaticResource ProblemStyle}"
+                                               MaxWidth="260"
+                                               HorizontalAlignment="Left"
+                                               Visibility="{Binding ToggleMeterProblem, Converter={StaticResource TextToVisibility}}" />
+                                </StackPanel>
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Pause the chart"
+                                                      Hint="Holds the network chart on the Overview still to read it, and lets it go on again." />
+                                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <controls:ShortcutBox Text="{Binding PauseChartKeys, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          AutomationProperties.Name="Shortcut to pause the chart" />
+                                    <TextBlock Text="{Binding PauseChartProblem}"
+                                               Style="{StaticResource ProblemStyle}"
+                                               MaxWidth="260"
+                                               HorizontalAlignment="Left"
+                                               Visibility="{Binding PauseChartProblem, Converter={StaticResource TextToVisibility}}" />
+                                </StackPanel>
+                            </controls:AdaptiveRow>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Tray and compact window ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="The tray icon and the compact window" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Two other places for the rates, for a taskbar with no room or a second screen"
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Speeds in the tray icon"
+                                                      Hint="Draws download over upload in Windsock's own icon in the notification area, once a second, and keeps the icon there while the window is open. Windows may tuck the icon behind the arrow; drag it out beside the clock to keep it in sight." />
+                                <ToggleButton HorizontalAlignment="Left"
+                                              Style="{StaticResource ToggleSwitchStyle}"
+                                              IsChecked="{Binding TrayFigures, Mode=TwoWay}"
+                                              AutomationProperties.Name="Speeds in the tray icon" />
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Compact window"
+                                                      Hint="A small window with the rates and their last minute, always on top. Drag it anywhere; it opens where it was left. Double-click it for Windsock, right-click it for the menu, Escape closes it. Also on the meter's menu, and as windsock --open mini." />
+                                <Button HorizontalAlignment="Left"
+                                        Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding ToggleMiniCommand}"
+                                        AutomationProperties.Name="Open or close the compact window">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="WindowNew" FontSize="14" VerticalAlignment="Center" Margin="0,0,7,0" />
+                                        <TextBlock Text="Open or close" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </controls:AdaptiveRow>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ Size and look ============ -->
+                <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
                             <TextBlock Text="Size and look" Style="{StaticResource CardTitleStyle}" />
                             <TextBlock Text="How wide the meter is, and what is painted behind it"
                                        TextWrapping="Wrap"
                                        Style="{StaticResource CardNoteStyle}" />
                         </StackPanel>
-                    </Border>
 
-                    <Border Style="{StaticResource SettingRowStyle}" controls:RuledPanel.RuleAbove="False">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead
-                                HorizontalAlignment="Left"
-                                Text="Fit to the readings"
-                                Hint="Take exactly the width the figures need. The meter hangs from the notification area, so its width moves only its own left edge - there is nothing to its right to shove sideways." />
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Fit to the readings"
+                                                      Hint="Take the width the figures need. The meter hangs from the notification area, so its width moves only the edge facing the apps - there is nothing on the other side to shove." />
+                                <ToggleButton HorizontalAlignment="Left"
+                                              Style="{StaticResource ToggleSwitchStyle}"
+                                              IsChecked="{Binding FitToContents, Mode=TwoWay}"
+                                              AutomationProperties.Name="Fit to contents" />
+                            </controls:AdaptiveRow>
+                        </Border>
 
-                            <ToggleButton HorizontalAlignment="Left"
-                                          Style="{StaticResource ToggleSwitchStyle}"
-                                          IsChecked="{Binding FitToContents, Mode=TwoWay}"
-                                          AutomationProperties.Name="Fit to contents" />
-                        </controls:AdaptiveRow>
-                    </Border>
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Keep a steady width"
+                                                      Hint="Keep room for the widest figure each reading can show in its unit, so the meter holds still while the digits change and the taskbar's icons stop shifting. Off, the meter takes exactly what the figures on show need." />
+                                <ToggleButton HorizontalAlignment="Left"
+                                              Style="{StaticResource ToggleSwitchStyle}"
+                                              IsChecked="{Binding SteadyWidth, Mode=TwoWay}"
+                                              IsEnabled="{Binding FitToContents}"
+                                              AutomationProperties.Name="Keep a steady width" />
+                            </controls:AdaptiveRow>
+                        </Border>
 
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead
-                                HorizontalAlignment="Left"
-                                Text="Fixed width"
-                                Hint="Used when the meter is not fitted to its readings." />
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Fixed width"
+                                                      Hint="Used when the meter is not fitted to its readings." />
+                                <StackPanel HorizontalAlignment="Left"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding FitToContents}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                    <Setter Property="Opacity" Value="0.4" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
 
-                            <StackPanel HorizontalAlignment="Left"
-                                        Orientation="Horizontal"
-                                        VerticalAlignment="Center">
-                                <StackPanel.Style>
-                                    <Style TargetType="StackPanel">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding FitToContents}" Value="True">
-                                                <Setter Property="IsEnabled" Value="False" />
-                                                <Setter Property="Opacity" Value="0.35" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </StackPanel.Style>
+                                    <!-- Back to the width it shipped at, once it is not. -->
+                                    <Button Style="{StaticResource ResetStyle}"
+                                            Margin="0,0,8,0"
+                                            Padding="6,0"
+                                            Command="{Binding ResetWidthCommand}"
+                                            AutomationProperties.Name="Put the width back"
+                                            ToolTip="Back to the width the meter shipped at" />
 
-                                <!-- Back to the width it shipped at, once it is not. -->
-                                <Button Style="{StaticResource ResetStyle}"
-                                        Margin="0,0,8,0"
-                                        Padding="6,0"
-                                        Command="{Binding ResetWidthCommand}"
-                                        AutomationProperties.Name="Put the width back"
-                                        ToolTip="Back to the width the meter shipped at" />
+                                    <Slider Style="{StaticResource FlatSliderStyle}"
+                                            Minimum="{x:Static vm:TaskbarPanelViewModel.MinimumWidth}"
+                                            Maximum="{x:Static vm:TaskbarPanelViewModel.MaximumWidth}"
+                                            Value="{Binding Width, Mode=TwoWay}"
+                                            Width="150"
+                                            VerticalAlignment="Center"
+                                            IsSnapToTickEnabled="True"
+                                            TickFrequency="2"
+                                            AutomationProperties.Name="Width" />
 
-                                <Slider Style="{StaticResource FlatSliderStyle}"
-                                        Minimum="{x:Static vm:TaskbarPanelViewModel.MinimumWidth}"
-                                        Maximum="{x:Static vm:TaskbarPanelViewModel.MaximumWidth}"
-                                        Value="{Binding Width, Mode=TwoWay}"
-                                        Width="150"
-                                        VerticalAlignment="Center"
-                                        IsSnapToTickEnabled="True"
-                                        TickFrequency="2"
-                                        AutomationProperties.Name="Width" />
+                                    <TextBlock Text="{Binding Width, StringFormat={}{0:F0} px}"
+                                               FontSize="{DynamicResource TextSize12}"
+                                               MinWidth="46"
+                                               Margin="10,0,0,0"
+                                               TextAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </controls:AdaptiveRow>
+                        </Border>
 
-                                <TextBlock Text="{Binding Width, StringFormat={}{0:F0} px}"
-                                           FontSize="12"
-                                           Width="46"
-                                           Margin="10,0,0,0"
-                                           TextAlignment="Right"
-                                           VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            </StackPanel>
-                        </controls:AdaptiveRow>
-                    </Border>
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead HorizontalAlignment="Left"
+                                                      Text="Soft outline"
+                                                      Hint="A soft shadow round each figure, dark behind light text and light behind dark, so the readings stay legible over a see-through taskbar and a busy wallpaper without painting a background." />
+                                <ToggleButton HorizontalAlignment="Left"
+                                              Style="{StaticResource ToggleSwitchStyle}"
+                                              IsChecked="{Binding Shadow, Mode=TwoWay}"
+                                              AutomationProperties.Name="Soft outline" />
+                            </controls:AdaptiveRow>
+                        </Border>
 
-                    <!--
-                        A ground of the reader's own, behind the readings only. Last on
-                        the page because it is the one setting here most people never
-                        touch: the bar is acrylic over the wallpaper, and a meter that
-                        paints nothing looks like part of it. It exists for the bars
-                        that argument does not cover - an accent-coloured taskbar, or a
-                        wallpaper busy enough that no text colour is legible over it.
-                    -->
-                    <Border Style="{StaticResource SettingRowStyle}">
-                        <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
-                            <controls:SettingHead
-                                Text="Background"
-                                Hint="Paint a colour behind the readings, so they stay legible over an accent-coloured taskbar or a busy wallpaper. Off by default: the bar is acrylic over whatever is behind it, and a meter that paints nothing of its own is the one that always looks like part of it."
-                                Note="Strength decides how much of the taskbar still shows through." />
+                        <!--
+                            A ground of the reader's own, behind the readings
+                            only. Last because most people never touch it: the
+                            bar is acrylic over the wallpaper, and a meter that
+                            paints nothing looks like part of it. It exists for
+                            the bars that argument does not cover.
+                        -->
+                        <Border Style="{StaticResource BandRowStyle}">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <controls:SettingHead Text="Background"
+                                                      Hint="Paint a colour behind the readings, so they stay legible over an accent-coloured taskbar or a busy wallpaper. Off by default: the bar is acrylic over whatever is behind it, and a meter that paints nothing of its own is the one that always looks like part of it."
+                                                      Note="Strength decides how much of the taskbar still shows through." />
 
-                            <StackPanel HorizontalAlignment="Left"
-                                        Orientation="Horizontal"
-                                        VerticalAlignment="Center">
+                                <StackPanel HorizontalAlignment="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <!-- Back to no ground, once there is one. -->
+                                    <Button Style="{StaticResource ResetStyle}"
+                                            Margin="0,0,8,0"
+                                            Padding="6,0"
+                                            Command="{Binding ResetGroundCommand}"
+                                            AutomationProperties.Name="Take the background away"
+                                            ToolTip="Back to no background, letting the taskbar show through" />
 
-                                <!-- Back to no ground, once there is one. -->
-                                <Button Style="{StaticResource ResetStyle}"
-                                        Margin="0,0,8,0"
-                                        Padding="6,0"
-                                        Command="{Binding ResetGroundCommand}"
-                                        AutomationProperties.Name="Take the background away"
-                                        ToolTip="Back to no background, letting the taskbar show through" />
+                                    <ToggleButton x:Name="GroundButton"
+                                                  Style="{StaticResource PartToggleStyle}"
+                                                  MinWidth="124"
+                                                  MinHeight="30"
+                                                  AutomationProperties.Name="Choose a background"
+                                                  ToolTip="Choose a colour to paint behind the readings">
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- The swatch shows the colour at the strength it is drawn. -->
+                                            <Border Width="14"
+                                                    Height="14"
+                                                    CornerRadius="4"
+                                                    Margin="0,0,8,0"
+                                                    VerticalAlignment="Center"
+                                                    BorderThickness="1"
+                                                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                    Background="{Binding Ground.Showing}"
+                                                    Visibility="{Binding Ground.IsNone, Converter={StaticResource InverseBooleanToVisibility}}" />
 
-                                <ToggleButton x:Name="GroundButton"
-                                              Style="{StaticResource PartToggleStyle}"
-                                              MinWidth="118"
-                                              AutomationProperties.Name="Choose a background"
-                                              ToolTip="Choose a colour to paint behind the readings">
-                                    <StackPanel Orientation="Horizontal">
-                                        <!--
-                                            The swatch shows the colour at the strength
-                                            it is actually drawn, over a chequer so that
-                                            a part-strength one reads as part strength
-                                            rather than as a paler colour.
-                                        -->
-                                        <Border Width="14"
-                                                Height="14"
-                                                CornerRadius="4"
-                                                Margin="0,0,8,0"
-                                                VerticalAlignment="Center"
-                                                BorderThickness="1"
-                                                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                                                Background="{Binding Ground.Showing}"
-                                                Visibility="{Binding Ground.IsNone, Converter={StaticResource InverseBooleanToVisibility}}" />
-
-                                        <TextBlock VerticalAlignment="Center">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="{Binding Ground.Hex}" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Ground.IsNone}" Value="True">
-                                                            <Setter Property="Text" Value="No background" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                    </StackPanel>
-                                </ToggleButton>
-
-                                <Popup IsOpen="{Binding IsChecked, ElementName=GroundButton, Mode=TwoWay}"
-                                       PlacementTarget="{Binding ElementName=GroundButton}"
-                                       Placement="Bottom"
-                                       VerticalOffset="6"
-                                       HorizontalOffset="-60"
-                                       StaysOpen="True"
-                                                           controls:Flyout.DismissOnOutsideClick="True"
-                                       AllowsTransparency="True"
-                                       PopupAnimation="Fade">
-                                    <Border Style="{StaticResource FlyoutStyle}" MinWidth="230" Padding="12">
-                                        <StackPanel>
-                                            <TextBlock Text="BACKGROUND" Style="{StaticResource PartHeadStyle}" />
-
-                                            <Button Style="{StaticResource PartChoiceStyle}"
-                                                    Content="No background"
-                                                    HorizontalAlignment="Left"
-                                                    Margin="0,0,0,9"
-                                                    Command="{Binding Ground.PaintCommand}"
-                                                    AutomationProperties.Name="Paint no background at all"
-                                                    ToolTip="Let the taskbar show through, which is how it ships" />
-
-                                            <ItemsControl ItemsSource="{Binding Ground.Grounds}">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <WrapPanel />
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Button Style="{StaticResource InkStyle}"
-                                                                Background="{Binding Converter={StaticResource InkToBrush}}"
-                                                                Command="{Binding DataContext.Ground.PaintCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                CommandParameter="{Binding}"
-                                                                AutomationProperties.Name="{Binding}"
-                                                                ToolTip="{Binding}" />
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-
-                                            <!--
-                                                Any colour at all, for when none of the
-                                                eight is the one in mind. Dragged or
-                                                typed, the same way a cell's parts are:
-                                                a reader who knows the colour writes it
-                                                down, one who does not slides until it
-                                                looks right.
-                                            -->
-                                            <TextBlock Text="MIX A COLOUR" Style="{StaticResource PartHeadStyle}" Margin="0,6,0,0" />
-
-                                            <Grid Margin="0,0,0,2">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
-
-                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="R"
-                                                           Style="{StaticResource MixLabelStyle}" />
-                                                <Slider Grid.Row="0" Grid.Column="1"
-                                                        Style="{StaticResource FlatSliderStyle}"
-                                                        Minimum="0" Maximum="255"
-                                                        Value="{Binding Ground.Red, Mode=TwoWay}"
-                                                        AutomationProperties.Name="How much red is in the background" />
-
-                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="G"
-                                                           Style="{StaticResource MixLabelStyle}" />
-                                                <Slider Grid.Row="1" Grid.Column="1"
-                                                        Style="{StaticResource FlatSliderStyle}"
-                                                        Minimum="0" Maximum="255"
-                                                        Value="{Binding Ground.Green, Mode=TwoWay}"
-                                                        AutomationProperties.Name="How much green is in the background" />
-
-                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="B"
-                                                           Style="{StaticResource MixLabelStyle}" />
-                                                <Slider Grid.Row="2" Grid.Column="1"
-                                                        Style="{StaticResource FlatSliderStyle}"
-                                                        Minimum="0" Maximum="255"
-                                                        Value="{Binding Ground.Blue, Mode=TwoWay}"
-                                                        AutomationProperties.Name="How much blue is in the background" />
-                                            </Grid>
-
-                                            <!-- Written down, for a colour already known. -->
-                                            <TextBox Text="{Binding Ground.Hex, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                     Margin="0,4,0,0"
-                                                     AutomationProperties.Name="The background as a colour code"
-                                                     ToolTip="The background written down, as #AARRGGBB" />
-
-                                            <!--
-                                                The control most of this is here for. A
-                                                ground at full opacity hides the bar; one
-                                                at part opacity lifts the figures off the
-                                                wallpaper and still lets the acrylic
-                                                through. In percent, because that is the
-                                                unit people think in - the byte a colour
-                                                is written with is not the reader's
-                                                problem.
-                                            -->
-                                            <DockPanel Margin="0,10,0,0" LastChildFill="True">
-                                                <TextBlock
-                                                           Text="{Binding Ground.Opacity, StringFormat={}{0:F0}%}"
-                                                           Width="38"
-                                                           TextAlignment="Right"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-
-                                                <TextBlock Text="OPACITY" Style="{StaticResource PartHeadStyle}" />
-                                            </DockPanel>
-
-                                            <Slider Minimum="0"
-                                                    Maximum="100"
-                                                    Value="{Binding Ground.Opacity, Mode=TwoWay}"
-                                                    AutomationProperties.Name="How solid the background is, in percent"
-                                                    ToolTip="How solid the background is, from clear through to fully opaque">
-                                                <Slider.Style>
-                                                    <!--
-                                                        Greyed while there is no ground,
-                                                        because an opacity with nothing
-                                                        to apply it to is a control that
-                                                        appears to do nothing.
-                                                    -->
-                                                    <Style TargetType="Slider" BasedOn="{StaticResource FlatSliderStyle}">
+                                            <TextBlock VerticalAlignment="Center" FontSize="{DynamicResource TextSize12}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="{Binding Ground.Hex}" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding Ground.IsNone}" Value="True">
-                                                                <Setter Property="IsEnabled" Value="False" />
-                                                                <Setter Property="Opacity" Value="0.35" />
+                                                                <Setter Property="Text" Value="No background" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
-                                                </Slider.Style>
-                                            </Slider>
-
-                                            <!--
-                                                Shapes the ground and the wash under the
-                                                pointer together: they are one surface
-                                                seen twice, and a rounded highlight over
-                                                a square ground would read as a mistake.
-                                            -->
-                                            <DockPanel Margin="0,12,0,0" LastChildFill="True">
-                                                <TextBlock
-                                                           Text="{Binding Corner, StringFormat={}{0:F0} px}"
-                                                           Width="44"
-                                                           TextAlignment="Right"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-
-                                                <Button
-                                                        Style="{StaticResource ResetStyle}"
-                                                        Margin="0,0,6,0"
-                                                        Padding="6,0"
-                                                        Command="{Binding ResetCornerCommand}"
-                                                        AutomationProperties.Name="Put the roundness back"
-                                                        ToolTip="Back to the roundness the meter shipped with" />
-
-                                                <TextBlock Text="ROUNDNESS" Style="{StaticResource PartHeadStyle}" />
-                                            </DockPanel>
-
-                                            <Slider Style="{StaticResource FlatSliderStyle}"
-                                                    Minimum="{x:Static vm:TaskbarPanelViewModel.MinimumCorner}"
-                                                    Maximum="{x:Static vm:TaskbarPanelViewModel.MaximumCorner}"
-                                                    Value="{Binding Corner, Mode=TwoWay}"
-                                                    AutomationProperties.Name="How rounded the meter corners are"
-                                                    ToolTip="How rounded the meter surface is, from square to fully rounded ends" />
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </StackPanel>
-                                    </Border>
-                                </Popup>
-                            </StackPanel>
-                        </controls:AdaptiveRow>
-                    </Border>
-                </controls:RuledPanel>
-            </controls:Card>
+                                    </ToggleButton>
 
-        </StackPanel>
-    </ScrollViewer>
+                                    <Popup IsOpen="{Binding IsChecked, ElementName=GroundButton, Mode=TwoWay}"
+                                           PlacementTarget="{Binding ElementName=GroundButton}"
+                                           Placement="Bottom"
+                                           VerticalOffset="6"
+                                           HorizontalOffset="-60"
+                                           StaysOpen="True"
+                                           controls:Flyout.DismissOnOutsideClick="True"
+                                           controls:Flyout.MovesFocus="True"
+                                           AllowsTransparency="True"
+                                           PopupAnimation="Fade">
+                                        <Border Style="{StaticResource FlyoutStyle}" MinWidth="240" Padding="14,10,14,14">
+                                            <StackPanel>
+                                                <TextBlock Text="BACKGROUND" Style="{StaticResource PartHeadStyle}" Margin="0,0,0,6" />
+
+                                                <Button Style="{StaticResource PartChoiceStyle}"
+                                                        Content="No background"
+                                                        HorizontalAlignment="Left"
+                                                        Margin="0,0,0,9"
+                                                        Command="{Binding Ground.PaintCommand}"
+                                                        AutomationProperties.Name="Paint no background at all"
+                                                        ToolTip="Let the taskbar show through, which is how it ships" />
+
+                                                <ItemsControl ItemsSource="{Binding Ground.Grounds}" Focusable="False">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Style="{StaticResource InkStyle}"
+                                                                    Background="{Binding Hex, Converter={StaticResource InkToBrush}}"
+                                                                    Command="{Binding DataContext.Ground.PaintCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                    CommandParameter="{Binding Hex}"
+                                                                    AutomationProperties.Name="{Binding Name}"
+                                                                    ToolTip="{Binding Tip}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <TextBlock Text="MIX A COLOUR" Style="{StaticResource PartHeadStyle}" Margin="0,6,0,5" />
+
+                                                <Grid Margin="0,0,0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+
+                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="R" Style="{StaticResource MixLabelStyle}" />
+                                                    <Slider Grid.Row="0" Grid.Column="1" Style="{StaticResource FlatSliderStyle}"
+                                                            Minimum="0" Maximum="255"
+                                                            Value="{Binding Ground.Red, Mode=TwoWay}"
+                                                            AutomationProperties.Name="How much red is in the background" />
+
+                                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="G" Style="{StaticResource MixLabelStyle}" />
+                                                    <Slider Grid.Row="1" Grid.Column="1" Style="{StaticResource FlatSliderStyle}"
+                                                            Minimum="0" Maximum="255"
+                                                            Value="{Binding Ground.Green, Mode=TwoWay}"
+                                                            AutomationProperties.Name="How much green is in the background" />
+
+                                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="B" Style="{StaticResource MixLabelStyle}" />
+                                                    <Slider Grid.Row="2" Grid.Column="1" Style="{StaticResource FlatSliderStyle}"
+                                                            Minimum="0" Maximum="255"
+                                                            Value="{Binding Ground.Blue, Mode=TwoWay}"
+                                                            AutomationProperties.Name="How much blue is in the background" />
+                                                </Grid>
+
+                                                <!-- Written down, for a colour already known. -->
+                                                <TextBox Style="{StaticResource SheetFieldStyle}"
+                                                         Text="{Binding Ground.Hex, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                         Margin="0,4,0,0"
+                                                         AutomationProperties.Name="The background as a colour code"
+                                                         ToolTip="The background written down, as #AARRGGBB" />
+
+                                                <!--
+                                                    The control most of this is here for: at
+                                                    part strength a ground lifts the figures
+                                                    off the wallpaper and still lets the
+                                                    acrylic through. In percent, the unit
+                                                    people think in.
+                                                -->
+                                                <DockPanel Margin="0,10,0,0" LastChildFill="True">
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="{Binding Ground.Opacity, StringFormat={}{0:F0}%}"
+                                                               MinWidth="38"
+                                                               TextAlignment="Right"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="{DynamicResource TextSize12}"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    <TextBlock Text="OPACITY" Style="{StaticResource PartHeadStyle}" Margin="0" VerticalAlignment="Center" />
+                                                </DockPanel>
+
+                                                <Slider Minimum="0"
+                                                        Maximum="100"
+                                                        Value="{Binding Ground.Opacity, Mode=TwoWay}"
+                                                        AutomationProperties.Name="How solid the background is, in percent"
+                                                        ToolTip="How solid the background is, from clear through to fully opaque">
+                                                    <Slider.Style>
+                                                        <!-- Greyed while there is no ground: an opacity with nothing to apply it to appears to do nothing. -->
+                                                        <Style TargetType="Slider" BasedOn="{StaticResource FlatSliderStyle}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Ground.IsNone}" Value="True">
+                                                                    <Setter Property="IsEnabled" Value="False" />
+                                                                    <Setter Property="Opacity" Value="0.35" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Slider.Style>
+                                                </Slider>
+
+                                                <!-- The ground and the hover wash are one surface, so they share their corners. -->
+                                                <DockPanel Margin="0,12,0,0" LastChildFill="True">
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="{Binding Corner, StringFormat={}{0:F0} px}"
+                                                               MinWidth="44"
+                                                               TextAlignment="Right"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="{DynamicResource TextSize12}"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    <Button DockPanel.Dock="Right"
+                                                            Style="{StaticResource ResetStyle}"
+                                                            Margin="0,0,6,0"
+                                                            Padding="6,0"
+                                                            Command="{Binding ResetCornerCommand}"
+                                                            AutomationProperties.Name="Put the roundness back"
+                                                            ToolTip="Back to the roundness the meter shipped with" />
+                                                    <TextBlock Text="ROUNDNESS" Style="{StaticResource PartHeadStyle}" Margin="0" VerticalAlignment="Center" />
+                                                </DockPanel>
+
+                                                <Slider Style="{StaticResource FlatSliderStyle}"
+                                                        Minimum="{x:Static vm:TaskbarPanelViewModel.MinimumCorner}"
+                                                        Maximum="{x:Static vm:TaskbarPanelViewModel.MaximumCorner}"
+                                                        Value="{Binding Corner, Mode=TwoWay}"
+                                                        AutomationProperties.Name="How rounded the meter corners are"
+                                                        ToolTip="How rounded the meter surface is, from square to fully rounded ends" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
+                                </StackPanel>
+                            </controls:AdaptiveRow>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
     </controls:SectionPage>
 </UserControl>

@@ -1,0 +1,44 @@
+<UserControl x:Class="Windsock.App.Views.LanSplitLine"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:LanSplitViewModel}"
+             Visibility="{Binding IsMeasuring, Converter={StaticResource BooleanToVisibility}}">
+
+    <!--
+        Under the readouts, while the kernel trace runs: how much of the traffic
+        stayed on the local network and how much crossed the internet
+        connection. Text, not a third series: the chart's two lines stay the
+        adapter's, and these are the trace's payload beside them.
+    -->
+    <Grid Margin="0,4,0,0"
+          ToolTip="Measured by the kernel trace from each packet's far end. Payload only, so the two together read a little under the chart's figures, which count headers too.">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="LOCAL NETWORK" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,12,2" />
+        <TextBlock Grid.Row="0" Grid.Column="1"
+                   Text="{Binding Local}"
+                   FontSize="{DynamicResource TextSize12_5}"
+                   Typography.NumeralAlignment="Tabular"
+                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                   AutomationProperties.Name="Local network traffic" />
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="INTERNET" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,12,0" />
+        <TextBlock Grid.Row="1" Grid.Column="1"
+                   Text="{Binding Internet}"
+                   FontSize="{DynamicResource TextSize12_5}"
+                   Typography.NumeralAlignment="Tabular"
+                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                   AutomationProperties.Name="Internet traffic" />
+    </Grid>
+</UserControl>

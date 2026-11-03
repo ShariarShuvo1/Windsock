@@ -50,3 +50,6 @@ logs/
 ## OS noise
 Thumbs.db
 desktop.ini
+
+## Reference documentation saved locally for development sessions
+.reference/

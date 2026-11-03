@@ -16,10 +16,11 @@ namespace Windsock.Core.Processes;
 /// </para>
 /// <para>
 /// Where the cache has no answer, a reverse lookup goes to the resolver the
-/// machine already uses, but only when <c>askResolver</c> allows it. The Store
-/// edition does not: its privacy policy promises that the only packets it sends
-/// are its connection checks, so there an address the cache cannot name stays
-/// an address until some program looks it up.
+/// machine already uses, but only while <see cref="AskResolver"/> allows it,
+/// which is the person's choice on the privacy page and off until made. The
+/// Store edition never does: its privacy policy promises that the only packets
+/// it sends are its connection checks, so there an address the cache cannot
+/// name stays an address until some program looks it up.
 /// </para>
 /// </remarks>
 public sealed class HostNameCache
@@ -30,7 +31,7 @@ public sealed class HostNameCache
     private static readonly TimeSpan CacheFreshness = TimeSpan.FromSeconds(10);
 
     private readonly IDnsCacheSource? _cache;
-    private readonly bool _askResolver;
+    private volatile bool _askResolver;
     private readonly ConcurrentDictionary<string, string?> _names = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _asking = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _waiting = new(StringComparer.Ordinal);
@@ -43,7 +44,23 @@ public sealed class HostNameCache
     public HostNameCache(IDnsCacheSource? cache, bool askResolver)
     {
         _cache = cache;
-        _askResolver = askResolver;
+        AskResolver = askResolver;
+    }
+
+    /// <summary>
+    /// Whether an address the cache cannot name is looked up in reverse. Always
+    /// false in the Store edition, however it is set.
+    /// </summary>
+    public bool AskResolver
+    {
+        get => _askResolver;
+        set
+        {
+#if STORE
+            value = false;
+#endif
+            _askResolver = value;
+        }
     }
 
     /// <summary>Raised when a name arrives, so a view can redraw.</summary>

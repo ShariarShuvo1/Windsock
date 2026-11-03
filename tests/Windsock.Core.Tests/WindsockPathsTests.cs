@@ -30,13 +30,23 @@ public sealed class WindsockPathsTests
 
         Assert.NotEqual(
             installDirectory,
-            WindsockPaths.Root.TrimEnd(Path.DirectorySeparatorChar),
+            WindsockPaths.Choose(null).TrimEnd(Path.DirectorySeparatorChar),
             StringComparer.OrdinalIgnoreCase);
 
-        string? publisher = Path.GetDirectoryName(WindsockPaths.Root);
+        string? publisher = Path.GetDirectoryName(WindsockPaths.Choose(null));
         Assert.NotNull(publisher);
         Assert.Equal(LocalAppData, Path.GetDirectoryName(publisher), StringComparer.OrdinalIgnoreCase);
         Assert.Equal("Shariar Shuvo", Path.GetFileName(publisher));
+    }
+
+    [Fact]
+    public void Choose_HonoursOnlyAnAbsoluteOverride()
+    {
+        string moved = Path.Combine(Path.GetTempPath(), "windsock-check");
+
+        Assert.Equal(Path.GetFullPath(moved), WindsockPaths.Choose(moved));
+        Assert.Equal(WindsockPaths.Choose(null), WindsockPaths.Choose(@"relativeolder"));
+        Assert.Equal(WindsockPaths.Choose(null), WindsockPaths.Choose(string.Empty));
     }
 
     [Fact]

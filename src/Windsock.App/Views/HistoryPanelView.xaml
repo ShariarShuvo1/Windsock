@@ -12,11 +12,61 @@
              d:DesignWidth="880"
              d:DesignHeight="700">
 
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Styles/Usage.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- A network's swatch in the key, in the hue its lane is drawn in. -->
+            <Style x:Key="NetworkSwatchStyle" TargetType="Rectangle" BasedOn="{StaticResource SwatchStyle}">
+                <Setter Property="Fill" Value="{DynamicResource NetworkBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Hue}" Value="1">
+                        <Setter Property="Fill" Value="{DynamicResource MemoryBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Hue}" Value="2">
+                        <Setter Property="Fill" Value="{DynamicResource GraphicsBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Hue}" Value="3">
+                        <Setter Property="Fill" Value="{DynamicResource StorageBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Hue}" Value="4">
+                        <Setter Property="Fill" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- How much an event matters, in a shape as well as a colour, as on the Alerts page. -->
+            <Style x:Key="EventIconStyle" TargetType="fluent:SymbolIcon">
+                <Setter Property="Symbol" Value="Info" />
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="VerticalAlignment" Value="Top" />
+                <Setter Property="Margin" Value="0,1,10,0" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Hue}" Value="1">
+                        <Setter Property="Symbol" Value="Warning" />
+                        <Setter Property="Foreground" Value="{DynamicResource UploadBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Hue}" Value="2">
+                        <Setter Property="Symbol" Value="ErrorCircle" />
+                        <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
     <!--
-        A period of the past: what it came to, the shape of it over time, and the
-        rows behind both. The choice of period is the page's own, so it sits in
-        the heading, where it governs everything under it rather than the one
-        card it used to share a line with.
+        Usage › History. A period of the past: what it came to, the shape of it
+        over time, the rest of the machine over the same time, and the rows
+        behind them. The choice of period is the page's own, so it sits in the
+        heading, where it governs everything under it.
+
+        What the period came to and the shape of it lead on the page itself, as
+        the Overview's chart and figures do; the machine over the period and the
+        table are subjects of their own, each on a band.
     -->
     <controls:SectionPage Title="History" Subtitle="{Binding RangeLabel}">
         <controls:SectionPage.Actions>
@@ -50,7 +100,7 @@
                     <Button Style="{StaticResource ToolbarButtonStyle}"
                             Command="{Binding ExportCommand}"
                             AutomationProperties.Name="Export"
-                            ToolTip="Write the period on screen to a CSV file">
+                            ToolTip="Write the period on screen to a file: CSV for network use, JSON for everything History holds">
                         <StackPanel Orientation="Horizontal">
                             <fluent:SymbolIcon Symbol="ArrowDownload"
                                                FontSize="14"
@@ -133,12 +183,30 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
+                <StackPanel Grid.Row="0">
+                <!--
+                    A file a newer Windsock wrote is shown but never written:
+                    said once, at the top, for as long as it lasts.
+                -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Visibility="{Binding Marks.IsReadOnly, Converter={StaticResource BooleanToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <fluent:SymbolIcon DockPanel.Dock="Left"
+                                           Symbol="LockClosed"
+                                           FontSize="15"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="{Binding Marks.ReadOnlyText}"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </DockPanel>
+                </Border>
+
                 <!-- Says what an import or an export just did. Absent until one has. -->
-                <Border Grid.Row="0"
-                        Margin="0,0,0,16"
-                        Padding="14,10"
-                        CornerRadius="8"
-                        Background="{DynamicResource AccentSoftBrush}"
+                <Border Style="{StaticResource NoticeStyle}"
                         Visibility="{Binding Notice, Converter={StaticResource TextToVisibility}}">
                     <DockPanel LastChildFill="True">
                         <fluent:SymbolIcon DockPanel.Dock="Left"
@@ -148,44 +216,43 @@
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AccentBrush}" />
                         <TextBlock Text="{Binding Notice}"
-                                   FontSize="12.5"
+                                   FontSize="{DynamicResource TextSize12_5}"
                                    TextWrapping="Wrap"
                                    VerticalAlignment="Center"
+                                   AutomationProperties.LiveSetting="Polite"
                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                     </DockPanel>
                 </Border>
+                </StackPanel>
 
                 <!--
-                    The period on one card: the custom range while one is chosen,
-                    what it came to, and the shape of it over time. They are one
-                    answer to one question, so they share a surface and are only
-                    ruled apart.
+                    The period, on the page: the custom range while one is
+                    chosen, what it came to on plates, and the shape of it over
+                    time. One answer to one question, and the page's lead.
                 -->
-                <controls:Card Grid.Row="1">
-                    <controls:RuledPanel>
+                <StackPanel Grid.Row="1">
                         <!-- The custom period, only while one is chosen. -->
-                        <Border Style="{StaticResource SectionStyle}"
-                                Padding="20,12"
+                        <Border Padding="4,0,4,14"
                                 Visibility="{Binding IsCustom, Converter={StaticResource BooleanToVisibility}}">
                             <controls:FlowRow Spacing="8" LineSpacing="8">
                                 <TextBlock Text="From"
                                            VerticalAlignment="Center"
-                                           FontSize="12"
+                                           FontSize="{DynamicResource TextSize12}"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
                                 <controls:DateTimeBox Value="{Binding CustomFrom, Mode=TwoWay}"
-                                                      AutomationProperties.Name="Range start"
+                                                      Label="Range start"
                                                       ToolTip="The first minute to include" />
 
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="to"
                                                VerticalAlignment="Center"
                                                Margin="0,0,8,0"
-                                               FontSize="12"
+                                               FontSize="{DynamicResource TextSize12}"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
                                     <controls:DateTimeBox Value="{Binding CustomTo, Mode=TwoWay}"
-                                                          AutomationProperties.Name="Range end"
+                                                          Label="Range end"
                                                           ToolTip="The last minute to include, counted in full" />
                                 </StackPanel>
                             </controls:FlowRow>
@@ -196,8 +263,8 @@
                             and both together, with how fast and how much of the
                             period Windsock saw under each.
                         -->
-                        <controls:FlowGrid Style="{StaticResource StatStripStyle}">
-                            <Border Style="{StaticResource StatCellStyle}">
+                        <controls:FlowGrid Style="{StaticResource PlateStripStyle}">
+                            <Border Style="{StaticResource PlateCellStyle}">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <fluent:SymbolIcon Symbol="ArrowDownload"
@@ -208,10 +275,10 @@
                                         <TextBlock Text="DOWNLOADED" Style="{StaticResource StatLabelStyle}" VerticalAlignment="Center" />
                                     </StackPanel>
 
-                                    <TextBlock Style="{StaticResource StatValueStyle}" FontSize="24" AutomationProperties.Name="Downloaded">
+                                    <TextBlock Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="Downloaded">
                                         <Run Text="{Binding DownloadValue, Mode=OneWay}" />
                                         <Run Text="{Binding DownloadUnit, Mode=OneWay}"
-                                             FontSize="14"
+                                             FontSize="{DynamicResource TextSize14}"
                                              Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     </TextBlock>
 
@@ -219,7 +286,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource StatCellStyle}">
+                            <Border Style="{StaticResource PlateCellStyle}">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <fluent:SymbolIcon Symbol="ArrowUpload"
@@ -230,10 +297,10 @@
                                         <TextBlock Text="UPLOADED" Style="{StaticResource StatLabelStyle}" VerticalAlignment="Center" />
                                     </StackPanel>
 
-                                    <TextBlock Style="{StaticResource StatValueStyle}" FontSize="24" AutomationProperties.Name="Uploaded">
+                                    <TextBlock Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="Uploaded">
                                         <Run Text="{Binding UploadValue, Mode=OneWay}" />
                                         <Run Text="{Binding UploadUnit, Mode=OneWay}"
-                                             FontSize="14"
+                                             FontSize="{DynamicResource TextSize14}"
                                              Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     </TextBlock>
 
@@ -241,7 +308,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource StatCellStyle}" ToolTip="{Binding CoverageText}">
+                            <Border Style="{StaticResource PlateCellStyle}" ToolTip="{Binding CoverageText}">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
                                         <fluent:SymbolIcon Symbol="ArrowSort"
@@ -254,7 +321,7 @@
 
                                     <TextBlock Text="{Binding TotalText}"
                                                Style="{StaticResource StatValueStyle}"
-                                               FontSize="24"
+                                               FontSize="{DynamicResource TextSize24}"
                                                AutomationProperties.Name="Together" />
 
                                     <TextBlock Text="{Binding CoverageText}" Style="{StaticResource StatNoteStyle}" />
@@ -263,7 +330,7 @@
                         </controls:FlowGrid>
 
                         <!-- The shape of the period, a bar to each row of the table. -->
-                        <Border Style="{StaticResource SectionStyle}">
+                        <Border Padding="4,20,4,0">
                             <StackPanel>
                                 <controls:AdaptiveRow Breakpoint="420" Spacing="10" LeadFills="True" LeadMinimumWidth="220">
                                     <StackPanel VerticalAlignment="Center">
@@ -273,23 +340,30 @@
                                                    Style="{StaticResource CardNoteStyle}" />
                                     </StackPanel>
 
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
-                                                   Fill="{DynamicResource DownloadBrush}" Margin="0,0,6,0" />
-                                        <TextBlock Text="Download" FontSize="12" Margin="0,0,14,0"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
-                                                   Fill="{DynamicResource UploadBrush}" Margin="0,0,6,0" />
-                                        <TextBlock Text="Upload" FontSize="12" Margin="0,0,14,0"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <!-- The key, wrapping a whole entry at a time in a narrow window. -->
+                                    <controls:FlowRow Spacing="14" LineSpacing="4" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
+                                                       Fill="{DynamicResource DownloadBrush}" Margin="0,0,6,0" />
+                                            <TextBlock Text="Download" FontSize="{DynamicResource TextSize12}"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
+                                                       Fill="{DynamicResource UploadBrush}" Margin="0,0,6,0" />
+                                            <TextBlock Text="Upload" FontSize="{DynamicResource TextSize12}"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
                                         <!-- Windows' part is drawn in both colours, fainter; so is its key. -->
-                                        <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
-                                                   Fill="{DynamicResource DownloadBrush}" Opacity="0.4" Margin="0,0,2,0" />
-                                        <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
-                                                   Fill="{DynamicResource UploadBrush}" Opacity="0.4" Margin="0,0,6,0" />
-                                        <TextBlock Text="Counted by Windows" FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
+                                                       Fill="{DynamicResource DownloadBrush}" Opacity="0.4" Margin="0,0,2,0" />
+                                            <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" VerticalAlignment="Center"
+                                                       Fill="{DynamicResource UploadBrush}" Opacity="0.4" Margin="0,0,6,0" />
+                                            <TextBlock Text="Counted by Windows" FontSize="{DynamicResource TextSize12}"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                    </controls:FlowRow>
                                 </controls:AdaptiveRow>
 
                                 <Border Style="{StaticResource ChartWellStyle}" Height="240" Margin="0,10,0,0">
@@ -307,16 +381,18 @@
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        Panel.ZIndex="1"
-                                                       FontSize="12"
+                                                       FontSize="{DynamicResource TextSize12}"
                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                        Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibility}}" />
 
-                                            <TextBlock Text="Nothing was recorded or counted in this period."
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       FontSize="12.5"
-                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                       Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}" />
+                                            <!-- What will appear here, why nothing has, and what to do. -->
+                                            <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                                        Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}">
+                                                <TextBlock Text="Nothing was recorded or counted in this period"
+                                                           Style="{StaticResource EmptyTitleStyle}" />
+                                                <TextBlock Text="A bar appears for every stretch Windsock recorded, or Windows counted while Windsock was closed. Choose a longer period, or check that recording is not paused."
+                                                           Style="{StaticResource EmptyNoteStyle}" />
+                                            </StackPanel>
 
                                             <controls:UsageBarChart x:Name="Chart"
                                                                     Buckets="{Binding Buckets}"
@@ -328,11 +404,28 @@
                                                                     UploadBrush="{DynamicResource UploadBrush}"
                                                                     GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                                                                     AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
-                                                                    SurfaceBrush="{DynamicResource CardBrush}"
                                                                     HighlightBrush="{DynamicResource SubtleFillColorSecondaryBrush}"
                                                                     HighlightedStart="{Binding HighlightedStart}"
                                                                     Visibility="{Binding IsChartVisible, Converter={StaticResource BooleanToVisibility}}"
+                                                                    FocusVisualStyle="{StaticResource FocusRingStyle}"
                                                                     AutomationProperties.Name="Usage over the period" />
+
+                                            <!--
+                                                While measuring, a drag across the chart marks a
+                                                stretch instead of panning it. From the keyboard,
+                                                the arrows on the overlay do the same, and so do
+                                                the boxes under the chart.
+                                            -->
+                                            <controls:MeasureOverlay x:Name="MeasureLayer"
+                                                                     RangeStart="{Binding RangeStart}"
+                                                                     RangeEnd="{Binding RangeEnd}"
+                                                                     Granularity="{Binding SelectedResolution}"
+                                                                     FocusVisualStyle="{StaticResource FocusRingStyle}"
+                                                                     IsActive="{Binding Marks.IsMeasuring}"
+                                                                     From="{Binding Marks.MeasureFrom, Mode=TwoWay}"
+                                                                     Until="{Binding Marks.MeasureUntil, Mode=TwoWay}"
+                                                                     SelectionBrush="{DynamicResource AccentBrush}"
+                                                                     AutomationProperties.Name="Stretch being measured" />
 
                                             <Canvas x:Name="PopoverLayer" IsHitTestVisible="False">
                                                 <Border x:Name="Popover"
@@ -349,7 +442,7 @@
                                                         -->
                                                         <StackPanel Visibility="{Binding HoverHasRecorded, Converter={StaticResource BooleanToVisibility}}">
                                                             <TextBlock Text="Recorded by Windsock"
-                                                                       FontSize="11"
+                                                                       FontSize="{DynamicResource TextSize11}"
                                                                        Margin="0,8,0,0"
                                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                                        Visibility="{Binding HoverHasBoth, Converter={StaticResource BooleanToVisibility}}" />
@@ -358,7 +451,7 @@
                                                                 <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                                                                          Fill="{DynamicResource DownloadBrush}" Margin="0,0,7,0" />
                                                                 <TextBlock Text="{Binding HoverDownload}"
-                                                                           FontSize="12"
+                                                                           FontSize="{DynamicResource TextSize12}"
                                                                            FontWeight="SemiBold"
                                                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                             </StackPanel>
@@ -367,7 +460,7 @@
                                                                 <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                                                                          Fill="{DynamicResource UploadBrush}" Margin="0,0,7,0" />
                                                                 <TextBlock Text="{Binding HoverUpload}"
-                                                                           FontSize="12"
+                                                                           FontSize="{DynamicResource TextSize12}"
                                                                            FontWeight="SemiBold"
                                                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                             </StackPanel>
@@ -380,7 +473,7 @@
                                                         -->
                                                         <StackPanel Visibility="{Binding HoverHasWindows, Converter={StaticResource BooleanToVisibility}}">
                                                             <TextBlock Text="Counted by Windows while Windsock was closed"
-                                                                       FontSize="11"
+                                                                       FontSize="{DynamicResource TextSize11}"
                                                                        Margin="0,8,0,0"
                                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
 
@@ -388,7 +481,7 @@
                                                                 <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                                                                          Fill="{DynamicResource DownloadBrush}" Opacity="0.4" Margin="0,0,7,0" />
                                                                 <TextBlock Text="{Binding HoverWindowsDownload}"
-                                                                           FontSize="12"
+                                                                           FontSize="{DynamicResource TextSize12}"
                                                                            FontWeight="SemiBold"
                                                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                             </StackPanel>
@@ -397,13 +490,13 @@
                                                                 <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                                                                          Fill="{DynamicResource UploadBrush}" Opacity="0.4" Margin="0,0,7,0" />
                                                                 <TextBlock Text="{Binding HoverWindowsUpload}"
-                                                                           FontSize="12"
+                                                                           FontSize="{DynamicResource TextSize12}"
                                                                            FontWeight="SemiBold"
                                                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                             </StackPanel>
                                                         </StackPanel>
 
-                                                        <TextBlock Margin="0,6,0,0" FontSize="11.5">
+                                                        <TextBlock Margin="0,6,0,0" FontSize="{DynamicResource TextSize11_5}">
                                                             <Run Text="Together " Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                             <Run Text="{Binding HoverTotal, Mode=OneWay}"
                                                                  FontWeight="SemiBold"
@@ -423,16 +516,16 @@
                                                                     Visibility="{Binding HoverHasApps, Converter={StaticResource BooleanToVisibility}}">
                                                             <Grid>
                                                                 <TextBlock Text="Apps"
-                                                                           FontSize="11"
+                                                                           FontSize="{DynamicResource TextSize11}"
                                                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
 
                                                                 <StackPanel Orientation="Horizontal"
                                                                             HorizontalAlignment="Right"
                                                                             Visibility="{Binding HoverAppsMixed, Converter={StaticResource BooleanToVisibility}}">
                                                                     <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="{DynamicResource NetworkBrush}" Margin="0,0,4,0" />
-                                                                    <TextBlock Text="Windsock" FontSize="10.5" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                                    <TextBlock Text="Windsock" FontSize="{DynamicResource TextSize10_5}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                                     <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="{DynamicResource NetworkBrush}" Opacity="0.4" Margin="10,0,4,0" />
-                                                                    <TextBlock Text="Windows" FontSize="10.5" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                                    <TextBlock Text="Windows" FontSize="{DynamicResource TextSize10_5}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                                                 </StackPanel>
                                                             </Grid>
 
@@ -468,14 +561,14 @@
 
                                                                             <TextBlock Grid.Column="2"
                                                                                        Text="{Binding Name}"
-                                                                                       FontSize="12"
+                                                                                       FontSize="{DynamicResource TextSize12}"
                                                                                        TextTrimming="CharacterEllipsis"
                                                                                        VerticalAlignment="Center"
                                                                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
                                                                             <TextBlock Grid.Column="3"
                                                                                        Text="{Binding Amount}"
-                                                                                       FontSize="12"
+                                                                                       FontSize="{DynamicResource TextSize12}"
                                                                                        FontWeight="SemiBold"
                                                                                        Margin="12,0,0,0"
                                                                                        VerticalAlignment="Center"
@@ -486,7 +579,7 @@
                                                             </ItemsControl>
 
                                                             <TextBlock Text="{Binding HoverAppsRest}"
-                                                                       FontSize="11"
+                                                                       FontSize="{DynamicResource TextSize11}"
                                                                        Margin="0,6,0,0"
                                                                        TextWrapping="Wrap"
                                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
@@ -499,7 +592,7 @@
                                                             about it.
                                                         -->
                                                         <TextBlock Text="{Binding HoverRecorded}"
-                                                                   FontSize="11"
+                                                                   FontSize="{DynamicResource TextSize11}"
                                                                    Margin="0,4,0,0"
                                                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                                    Visibility="{Binding HoverRecorded, Converter={StaticResource TextToVisibility}}" />
@@ -509,10 +602,275 @@
                                         </Grid>
                                     </controls:DetachHost>
                                 </Border>
+
+                                <!--
+                                    The bar the keyboard is on, in words, and read out as
+                                    the arrows move. Only while the chart has the keyboard:
+                                    the pointer has the popover.
+                                -->
+                                <TextBlock Text="{Binding SelectedDetail, ElementName=Chart}"
+                                           Style="{StaticResource ChartDetailStyle}"
+                                           controls:LiveRegion.Speaks="True"
+                                           Visibility="{Binding SelectedDetail, ElementName=Chart, Converter={StaticResource TextToVisibility}}" />
+
+                                <!--
+                                    The network each stretch was on, what happened, and
+                                    the notes, on the chart's own time axis: they follow
+                                    its zoom and pan. Every mark is also listed below,
+                                    for the keyboard and a screen reader.
+                                -->
+                                <controls:HistoryLanes x:Name="MarkLanes"
+                                                       Margin="0,8,0,0"
+                                                       RangeStart="{Binding RangeStart}"
+                                                       RangeEnd="{Binding RangeEnd}"
+                                                       Networks="{Binding Marks.NetworkSpans}"
+                                                       Events="{Binding Marks.EventSpans}"
+                                                       Notes="{Binding Marks.NoteSpans}"
+                                                       Hue0Brush="{DynamicResource NetworkBrush}"
+                                                       Hue1Brush="{DynamicResource MemoryBrush}"
+                                                       Hue2Brush="{DynamicResource GraphicsBrush}"
+                                                       Hue3Brush="{DynamicResource StorageBrush}"
+                                                       Hue4Brush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       InfoBrush="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       WarningBrush="{DynamicResource UploadBrush}"
+                                                       ProblemBrush="{DynamicResource HotBrush}"
+                                                       NoteBrush="{DynamicResource AccentBrush}"
+                                                       NoteTextBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                                                       AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       EmptyBrush="{DynamicResource MeterTrackBrush}"
+                                                       AutomationProperties.Name="Networks, events and notes over the period"
+                                                       AutomationProperties.HelpText="Point at a mark for its details. Every note and event is also listed under Notes and events." />
+
+                                <!-- The key: each network by its hue, then what the event marks mean. -->
+                                <controls:FlowRow Spacing="14" LineSpacing="4" Margin="58,8,0,0">
+                                    <ItemsControl ItemsSource="{Binding Marks.NetworkKeys}"
+                                                  Focusable="False"
+                                                  Visibility="{Binding Marks.HasNetworkKeys, Converter={StaticResource BooleanToVisibility}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <controls:FlowRow Spacing="14" LineSpacing="4" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:NetworkKeyRow}">
+                                                <StackPanel Orientation="Horizontal" ToolTip="{Binding Amount}">
+                                                    <Rectangle Style="{StaticResource NetworkSwatchStyle}" />
+                                                    <TextBlock Text="{Binding Name}" Style="{StaticResource KeyTextStyle}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource HotBrush}" Opacity="0.5" />
+                                        <TextBlock Text="Outage" Style="{StaticResource KeyTextStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Rectangle Style="{StaticResource SwatchStyle}" Width="3" Fill="{DynamicResource UploadBrush}" />
+                                        <TextBlock Text="Alert" Style="{StaticResource KeyTextStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Rectangle Style="{StaticResource SwatchStyle}" Width="3" Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="Network or VPN changed" Style="{StaticResource KeyTextStyle}" />
+                                    </StackPanel>
+                                </controls:FlowRow>
+                                <TextBlock Text="{Binding Marks.NetworkNote}"
+                                           Style="{StaticResource QuietNoteStyle}"
+                                           Margin="58,6,0,0"
+                                           Visibility="{Binding Marks.NetworkNote, Converter={StaticResource TextToVisibility}}" />
+
+                                <!--
+                                    Measuring a stretch, a note, and timing a download:
+                                    things to do with the chart, under it.
+                                -->
+                                <controls:FlowRow Spacing="8" LineSpacing="8" Margin="0,14,0,0">
+                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                            Command="{Binding Marks.ToggleMeasureCommand}"
+                                            AutomationProperties.Name="{Binding Marks.MeasureButtonText}"
+                                            ToolTip="Add up any stretch: drag across the chart, or type its two ends">
+                                        <StackPanel Orientation="Horizontal">
+                                            <fluent:SymbolIcon Symbol="Ruler" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock Text="{Binding Marks.MeasureButtonText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+
+                                    <controls:FlowRow Spacing="8" LineSpacing="8"
+                                                      Visibility="{Binding Marks.IsMeasuring, Converter={StaticResource BooleanToVisibility}}">
+                                        <controls:DateTimeBox Value="{Binding Marks.MeasureFrom, Mode=TwoWay}"
+                                                              Label="Measure from"
+                                                              ToolTip="The first minute to add up" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="to" VerticalAlignment="Center" Margin="0,0,8,0" Style="{StaticResource KeyTextStyle}" />
+                                            <controls:DateTimeBox Value="{Binding Marks.MeasureUntil, Mode=TwoWay}"
+                                                                  Label="Measure until"
+                                                                  ToolTip="The last minute to add up, counted in full" />
+                                        </StackPanel>
+                                    </controls:FlowRow>
+
+                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                            Command="{Binding Marks.AddNoteCommand}"
+                                            IsEnabled="{Binding Marks.CanWriteNotes}"
+                                            AutomationProperties.Name="Add a note"
+                                            ToolTip="Say what was going on - a game update, a guest on the Wi-Fi - over the stretch being measured, or the newest bar">
+                                        <StackPanel Orientation="Horizontal">
+                                            <fluent:SymbolIcon Symbol="NoteEdit" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock Text="Add a note" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                            Command="{Binding Marks.ToggleStopwatchCommand}"
+                                            AutomationProperties.Name="{Binding Marks.StopwatchButtonText}"
+                                            ToolTip="Time a download by hand: everything every app moves until you press it again">
+                                        <StackPanel Orientation="Horizontal">
+                                            <fluent:SymbolIcon Symbol="Timer" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock Text="{Binding Marks.StopwatchButtonText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </controls:FlowRow>
+
+                                <TextBlock Text="{Binding Marks.MeasureText}"
+                                           Style="{StaticResource LeadNoteStyle}"
+                                           Margin="0,10,0,0"
+                                           AutomationProperties.LiveSetting="Polite"
+                                           Visibility="{Binding Marks.MeasureText, Converter={StaticResource TextToVisibility}}" />
+                                <TextBlock Text="{Binding Marks.StopwatchText}"
+                                           Style="{StaticResource QuietNoteStyle}"
+                                           Margin="0,8,0,0"
+                                           AutomationProperties.LiveSetting="Polite" />
                             </StackPanel>
                         </Border>
-                    </controls:RuledPanel>
-                </controls:Card>
+
+                        <!--
+                            The notes and what happened in the period, as lists: the
+                            lane above in words, and where a note is written or changed.
+                        -->
+                        <Border x:Name="NotesBand" Style="{StaticResource BandStyle}" Margin="0,20,0,0">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource BandHeadStyle}">
+                                    <TextBlock Text="Notes and events" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Your notes on the period, then outages, alerts and network changes, newest first. Notes are kept in the history file and erased with it."
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CardNoteStyle}" />
+                                </StackPanel>
+
+                                <!-- The note being written or changed. -->
+                                <Border x:Name="NoteEditor"
+                                        Style="{StaticResource TileStyle}"
+                                        Margin="0,4,0,8"
+                                        Visibility="{Binding Marks.IsEditingNote, Converter={StaticResource BooleanToVisibility}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Marks.NoteTitle}" Style="{StaticResource ListNameStyle}" FontWeight="SemiBold" />
+                                        <TextBox x:Name="NoteBox"
+                                                 Style="{StaticResource FieldBoxStyle}"
+                                                 Margin="0,8,0,0"
+                                                 MinHeight="34"
+                                                 Tag="What was going on"
+                                                 MaxLength="500"
+                                                 TextWrapping="Wrap"
+                                                 AcceptsReturn="False"
+                                                 Text="{Binding Marks.NoteText, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Note" />
+                                        <controls:FlowRow Spacing="8" LineSpacing="8" Margin="0,8,0,0">
+                                            <TextBlock Text="From" VerticalAlignment="Center" Style="{StaticResource KeyTextStyle}" />
+                                            <controls:DateTimeBox Value="{Binding Marks.NoteFrom, Mode=TwoWay}"
+                                                                  Label="Note from"
+                                                                  ToolTip="The first minute the note is about" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="to" VerticalAlignment="Center" Margin="0,0,8,0" Style="{StaticResource KeyTextStyle}" />
+                                                <controls:DateTimeBox Value="{Binding Marks.NoteUntil, Mode=TwoWay}"
+                                                                      Label="Note until"
+                                                                      ToolTip="The last minute the note is about, counted in full" />
+                                            </StackPanel>
+                                        </controls:FlowRow>
+                                        <TextBlock Text="{Binding Marks.NoteProblem}" Style="{StaticResource QuietNoteStyle}" Foreground="{DynamicResource HotBrush}"
+                                                   Visibility="{Binding Marks.NoteProblem, Converter={StaticResource TextToVisibility}}" />
+                                        <TextBlock Text="{Binding Marks.NoteFailure}" Style="{StaticResource QuietNoteStyle}" Foreground="{DynamicResource HotBrush}"
+                                                   AutomationProperties.LiveSetting="Polite"
+                                                   Visibility="{Binding Marks.NoteFailure, Converter={StaticResource TextToVisibility}}" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                            <Button Style="{StaticResource PrimaryButtonStyle}"
+                                                    Content="Keep the note"
+                                                    IsDefault="True"
+                                                    Command="{Binding Marks.SaveNoteCommand}"
+                                                    IsEnabled="{Binding Marks.CanSaveNote}"
+                                                    AutomationProperties.Name="Keep the note" />
+                                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                    Margin="8,0,0,0"
+                                                    Content="Cancel"
+                                                    IsCancel="True"
+                                                    Command="{Binding Marks.CancelNoteCommand}"
+                                                    AutomationProperties.Name="Cancel the note" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <ItemsControl ItemsSource="{Binding Marks.NoteRows}" Focusable="False" AutomationProperties.Name="Notes">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:NoteRow}">
+                                            <Border Style="{StaticResource TileStyle}">
+                                                <DockPanel LastChildFill="True">
+                                                    <fluent:SymbolIcon DockPanel.Dock="Left" Symbol="Note" FontSize="16" VerticalAlignment="Top" Margin="0,1,10,0" Foreground="{DynamicResource AccentBrush}" />
+                                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                                                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                                Padding="8,0"
+                                                                Command="{Binding DataContext.Marks.EditNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                IsEnabled="{Binding DataContext.Marks.CanWriteNotes, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                AutomationProperties.Name="Change this note"
+                                                                ToolTip="Change this note">
+                                                            <fluent:SymbolIcon Symbol="Edit" FontSize="14" />
+                                                        </Button>
+                                                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                                                Padding="8,0"
+                                                                Margin="4,0,0,0"
+                                                                Command="{Binding DataContext.Marks.DeleteNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                IsEnabled="{Binding DataContext.Marks.CanWriteNotes, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                AutomationProperties.Name="Remove this note"
+                                                                ToolTip="Remove this note">
+                                                            <fluent:SymbolIcon Symbol="Delete" FontSize="14" />
+                                                        </Button>
+                                                    </StackPanel>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Text}" Style="{StaticResource ListNameStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding When}" FontSize="{DynamicResource TextSize11_5}" Margin="0,2,0,0" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!--
+                                    Read, not pressed: an event's tile does nothing, so
+                                    it is no Tab stop. A screen reader hears each one
+                                    through its item (EventRow.ToString), level first.
+                                -->
+                                <ItemsControl ItemsSource="{Binding Marks.EventRows}" Focusable="False" AutomationProperties.Name="Events">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:EventRow}">
+                                            <Border Style="{StaticResource TileStyle}">
+                                                <DockPanel LastChildFill="True">
+                                                    <fluent:SymbolIcon DockPanel.Dock="Left" Style="{StaticResource EventIconStyle}" />
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Title}" Style="{StaticResource ListNameStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding Line}" FontSize="{DynamicResource TextSize11_5}" Margin="0,2,0,0" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding Marks.EventsNote}" Style="{StaticResource QuietNoteStyle}"
+                                           Visibility="{Binding Marks.EventsNote, Converter={StaticResource TextToVisibility}}" />
+
+                                <TextBlock Text="No notes, outages or alerts in this period."
+                                           Style="{StaticResource QuietNoteStyle}"
+                                           Margin="0,0,0,4"
+                                           Visibility="{Binding Marks.IsQuiet, Converter={StaticResource BooleanToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+                </StackPanel>
 
                 <!--
                     The exact numbers. Newest first, because the question a
@@ -525,63 +883,67 @@
                     time axis as the usage chart, so a busy download, a hot
                     processor and an outage line up where they happened.
                 -->
-                <controls:Card Grid.Row="2" Margin="{StaticResource BlockGap}">
-                    <controls:RuledPanel>
-                        <controls:FlowGrid Style="{StaticResource StatStripStyle}">
-                            <Border Style="{StaticResource StatCellStyle}">
+                <Border Grid.Row="2" Style="{StaticResource BandStyle}" Margin="0,20,0,0">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="The machine over the period" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Each lane is the bucket's average, with its peak fainter behind it. Disk and ping are drawn against the busiest bucket in the period; outages are marked in the ping lane. Kept while history is recorded; the connection only while it is being checked."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <controls:FlowGrid Style="{StaticResource PlateStripStyle}" Margin="0,4,0,0">
+                            <Border Style="{StaticResource InsetPlateCellStyle}">
                                 <StackPanel>
                                     <TextBlock Text="PROCESSOR" Style="{StaticResource StatLabelStyle}" Foreground="{DynamicResource ProcessorBrush}" />
-                                    <TextBlock Text="{Binding ProcessorText}" Style="{StaticResource StatValueStyle}" FontSize="22" AutomationProperties.Name="Processor on average" />
+                                    <TextBlock Text="{Binding ProcessorText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize22}" AutomationProperties.Name="Processor on average" />
                                     <TextBlock Text="{Binding ProcessorNote}" Style="{StaticResource StatNoteStyle}" />
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource StatCellStyle}">
+                            <Border Style="{StaticResource InsetPlateCellStyle}">
                                 <StackPanel>
                                     <TextBlock Text="GRAPHICS" Style="{StaticResource StatLabelStyle}" Foreground="{DynamicResource GraphicsBrush}" />
-                                    <TextBlock Text="{Binding GraphicsText}" Style="{StaticResource StatValueStyle}" FontSize="22" AutomationProperties.Name="Graphics on average" />
+                                    <TextBlock Text="{Binding GraphicsText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize22}" AutomationProperties.Name="Graphics on average" />
                                     <TextBlock Text="{Binding GraphicsNote}" Style="{StaticResource StatNoteStyle}" />
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource StatCellStyle}">
+                            <Border Style="{StaticResource InsetPlateCellStyle}">
                                 <StackPanel>
                                     <TextBlock Text="MEMORY" Style="{StaticResource StatLabelStyle}" Foreground="{DynamicResource MemoryBrush}" />
-                                    <TextBlock Text="{Binding MemoryText}" Style="{StaticResource StatValueStyle}" FontSize="22" AutomationProperties.Name="Memory in use on average" />
+                                    <TextBlock Text="{Binding MemoryText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize22}" AutomationProperties.Name="Memory in use on average" />
                                     <TextBlock Text="{Binding MemoryNote}" Style="{StaticResource StatNoteStyle}" />
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource StatCellStyle}">
+                            <Border Style="{StaticResource InsetPlateCellStyle}">
                                 <StackPanel>
                                     <TextBlock Text="DISK" Style="{StaticResource StatLabelStyle}" Foreground="{DynamicResource StorageBrush}" />
-                                    <TextBlock Text="{Binding DiskText}" Style="{StaticResource StatValueStyle}" FontSize="22" AutomationProperties.Name="Read and written" />
+                                    <TextBlock Text="{Binding DiskText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize22}" AutomationProperties.Name="Read and written" />
                                     <TextBlock Text="{Binding DiskNote}" Style="{StaticResource StatNoteStyle}" />
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource StatCellStyle}">
+                            <Border Style="{StaticResource InsetPlateCellStyle}">
                                 <StackPanel>
                                     <TextBlock Text="CONNECTION" Style="{StaticResource StatLabelStyle}" Foreground="{DynamicResource NetworkBrush}" />
-                                    <TextBlock Text="{Binding ConnectionText}" Style="{StaticResource StatValueStyle}" FontSize="22" AutomationProperties.Name="Outages" />
+                                    <TextBlock Text="{Binding ConnectionText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize22}" AutomationProperties.Name="Outages" />
                                     <TextBlock Text="{Binding ConnectionNote}" Style="{StaticResource StatNoteStyle}" />
                                 </StackPanel>
                             </Border>
                         </controls:FlowGrid>
 
-                        <Border Style="{StaticResource SectionStyle}">
+                        <Border Padding="0,14,0,0">
                             <StackPanel>
-                                <TextBlock Text="The machine over the period" Style="{StaticResource CardTitleStyle}" />
-                                <TextBlock Text="Each lane is the bucket's average, with its peak fainter behind it. Disk and ping are drawn against the busiest bucket in the period; outages are marked in the ping lane. Kept while history is recorded; the connection only while it is being checked."
-                                           TextWrapping="Wrap"
-                                           Style="{StaticResource CardNoteStyle}" />
-
-                                <Grid Margin="0,10,0,0">
-                                    <TextBlock Text="Nothing of the machine was kept for this period. It is recorded from this version on, while history is."
-                                               FontSize="12.5"
-                                               Margin="0,8"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                               Visibility="{Binding HasMachineHistory, Converter={StaticResource InverseBooleanToVisibility}}" />
+                                <Grid>
+                                    <StackPanel Style="{StaticResource EmptyStateStyle}"
+                                                Visibility="{Binding HasMachineHistory, Converter={StaticResource InverseBooleanToVisibility}}">
+                                        <TextBlock Text="Nothing of the machine was kept for this period"
+                                                   Style="{StaticResource EmptyTitleStyle}" />
+                                        <TextBlock Text="Processor, graphics, memory, disk and ping are kept a minute at a time while history is recorded, by this version and later ones. Choose a more recent period, or check that recording is not paused."
+                                                   Style="{StaticResource EmptyNoteStyle}" />
+                                    </StackPanel>
 
                                     <controls:MachineLanesChart x:Name="Lanes"
                                                                 SystemBuckets="{Binding SystemBuckets}"
@@ -610,29 +972,29 @@
                                                 Visibility="Collapsed">
                                             <StackPanel MaxWidth="320">
                                                 <TextBlock Text="{Binding MachineHoverLabel}" Style="{StaticResource CaptionTextStyle}" />
-                                                <TextBlock Margin="0,7,0,0" FontSize="12" TextWrapping="Wrap" Visibility="{Binding HoverProcessor, Converter={StaticResource TextToVisibility}}">
+                                                <TextBlock Margin="0,7,0,0" FontSize="{DynamicResource TextSize12}" TextWrapping="Wrap" Visibility="{Binding HoverProcessor, Converter={StaticResource TextToVisibility}}">
                                                     <Run Text="Processor " Foreground="{DynamicResource ProcessorBrush}" FontWeight="SemiBold" />
                                                     <Run Text="{Binding HoverProcessor, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 </TextBlock>
-                                                <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap" Visibility="{Binding HoverGraphics, Converter={StaticResource TextToVisibility}}">
+                                                <TextBlock Margin="0,4,0,0" FontSize="{DynamicResource TextSize12}" TextWrapping="Wrap" Visibility="{Binding HoverGraphics, Converter={StaticResource TextToVisibility}}">
                                                     <Run Text="Graphics " Foreground="{DynamicResource GraphicsBrush}" FontWeight="SemiBold" />
                                                     <Run Text="{Binding HoverGraphics, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 </TextBlock>
-                                                <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap" Visibility="{Binding HoverMemory, Converter={StaticResource TextToVisibility}}">
+                                                <TextBlock Margin="0,4,0,0" FontSize="{DynamicResource TextSize12}" TextWrapping="Wrap" Visibility="{Binding HoverMemory, Converter={StaticResource TextToVisibility}}">
                                                     <Run Text="Memory " Foreground="{DynamicResource MemoryBrush}" FontWeight="SemiBold" />
                                                     <Run Text="{Binding HoverMemory, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 </TextBlock>
-                                                <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap" Visibility="{Binding HoverDisk, Converter={StaticResource TextToVisibility}}">
+                                                <TextBlock Margin="0,4,0,0" FontSize="{DynamicResource TextSize12}" TextWrapping="Wrap" Visibility="{Binding HoverDisk, Converter={StaticResource TextToVisibility}}">
                                                     <Run Text="Disk " Foreground="{DynamicResource StorageBrush}" FontWeight="SemiBold" />
                                                     <Run Text="{Binding HoverDisk, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 </TextBlock>
-                                                <TextBlock Margin="0,4,0,0" FontSize="12" TextWrapping="Wrap" Visibility="{Binding HoverPing, Converter={StaticResource TextToVisibility}}">
+                                                <TextBlock Margin="0,4,0,0" FontSize="{DynamicResource TextSize12}" TextWrapping="Wrap" Visibility="{Binding HoverPing, Converter={StaticResource TextToVisibility}}">
                                                     <Run Text="Ping " Foreground="{DynamicResource NetworkBrush}" FontWeight="SemiBold" />
                                                     <Run Text="{Binding HoverPing, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 </TextBlock>
                                                 <TextBlock Text="{Binding HoverOffline}"
                                                            Margin="0,4,0,0"
-                                                           FontSize="12"
+                                                           FontSize="{DynamicResource TextSize12}"
                                                            Foreground="{DynamicResource HotBrush}"
                                                            Visibility="{Binding HoverOffline, Converter={StaticResource TextToVisibility}}" />
                                             </StackPanel>
@@ -641,10 +1003,10 @@
                                 </Grid>
                             </StackPanel>
                         </Border>
-                    </controls:RuledPanel>
-                </controls:Card>
+                    </StackPanel>
+                </Border>
 
-                <controls:Card Grid.Row="3" Margin="{StaticResource BlockGap}">
+                <Border Grid.Row="3" Style="{StaticResource FlushBandStyle}" Margin="{StaticResource BandGap}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -674,7 +1036,7 @@
                             </StackPanel>
                         </Button>
 
-                        <DockPanel Grid.Row="0" LastChildFill="True" Margin="20,14,14,8">
+                        <DockPanel Grid.Row="0" LastChildFill="True" Margin="20,16,16,8">
                             <!-- With the choices it undoes, and only while there is something to undo. -->
                             <Button DockPanel.Dock="Right"
                                     Style="{StaticResource ToolbarButtonStyle}"
@@ -697,6 +1059,18 @@
                                            Style="{StaticResource CardNoteStyle}" />
                             </StackPanel>
                         </DockPanel>
+
+                        <!-- What the table will hold, why it holds nothing, and what to do. -->
+                        <StackPanel Grid.Row="2"
+                                    Style="{StaticResource EmptyStateStyle}"
+                                    Margin="16,48,16,24"
+                                    VerticalAlignment="Top"
+                                    Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Text="No minutes were recorded in this period"
+                                       Style="{StaticResource EmptyTitleStyle}" />
+                            <TextBlock Text="A row appears for every stretch Windsock records, at the resolution chosen above. Choose a longer period, or check that recording is not paused."
+                                       Style="{StaticResource EmptyNoteStyle}" />
+                        </StackPanel>
 
                         <DataGrid x:Name="Table"
                                   Grid.Row="2"
@@ -744,6 +1118,20 @@
                                                     MinWidth="90"
                                                     ElementStyle="{StaticResource TableNumberStyle}" />
 
+                                <!-- A blank cell says so, rather than being read by the row's type. -->
+                                <DataGridTextColumn x:Name="NetworkColumn"
+                                                    Binding="{Binding Network}"
+                                                    SortMemberPath="Network"
+                                                    Width="140"
+                                                    MinWidth="90"
+                                                    ElementStyle="{StaticResource TableQuietTextStyle}">
+                                    <DataGridTextColumn.CellStyle>
+                                        <Style TargetType="DataGridCell" BasedOn="{StaticResource TableCellStyle}">
+                                            <Setter Property="AutomationProperties.Name" Value="{Binding NetworkSpoken}" />
+                                        </Style>
+                                    </DataGridTextColumn.CellStyle>
+                                </DataGridTextColumn>
+
                                 <DataGridTextColumn x:Name="PeakDownColumn"
                                                     Binding="{Binding PeakDown}"
                                                     SortMemberPath="PeakDownBytes"
@@ -776,12 +1164,18 @@
                                                         CanUserResize="False"
                                                         CanUserReorder="False"
                                                         HeaderStyle="{StaticResource ActionsHeaderStyle}">
+                                    <!-- The cell holds only the button: named for it, not by the row's type. -->
+                                    <DataGridTemplateColumn.CellStyle>
+                                        <Style TargetType="DataGridCell" BasedOn="{StaticResource TableCellStyle}">
+                                            <Setter Property="AutomationProperties.Name" Value="Row actions" />
+                                        </Style>
+                                    </DataGridTemplateColumn.CellStyle>
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ToggleButton x:Name="RowMenu"
                                                           Style="{StaticResource RowMenuStyle}"
                                                           Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                          AutomationProperties.Name="Row actions"
+                                                          AutomationProperties.Name="{Binding ActionsName}"
                                                           ToolTip="More for this row">
                                                 <Grid>
                                                     <StackPanel Orientation="Vertical"
@@ -796,6 +1190,7 @@
                                                     </StackPanel>
 
                                                     <Popup IsOpen="{Binding IsChecked, ElementName=RowMenu, Mode=TwoWay}"
+                                                           controls:Flyout.MovesFocus="True"
                                                            PlacementTarget="{Binding ElementName=RowMenu}"
                                                            Placement="Bottom"
                                                            HorizontalOffset="-130"
@@ -806,12 +1201,21 @@
                                                         <Border Style="{StaticResource FlyoutStyle}"
                                                                 MinWidth="156"
                                                                 Padding="4">
+                                                            <StackPanel>
+                                                            <Button Style="{StaticResource MenuItemStyle}"
+                                                                    Content="Add a note"
+                                                                    Command="{Binding Tag.Marks.NoteForRowCommand, ElementName=RowMenu}"
+                                                                    CommandParameter="{Binding}"
+                                                                    IsEnabled="{Binding Tag.Marks.CanWriteNotes, ElementName=RowMenu}"
+                                                                    AutomationProperties.Name="Add a note about this row"
+                                                                    ToolTip="Say what was going on in this stretch of time" />
                                                             <Button Style="{StaticResource MenuItemStyle}"
                                                                     Content="Delete"
                                                                     Command="{Binding Tag.DeleteRowCommand, ElementName=RowMenu}"
                                                                     CommandParameter="{Binding}"
                                                                     AutomationProperties.Name="Delete this row"
                                                                     ToolTip="Forget everything recorded in this stretch of time" />
+                                                            </StackPanel>
                                                         </Border>
                                                     </Popup>
                                                 </Grid>
@@ -824,10 +1228,10 @@
 
                         <!-- One page of the period at a time; see PagedView. -->
                         <views:PagerBar Grid.Row="3"
-                                        Margin="20,2,14,14"
+                                        Margin="20,2,16,16"
                                         DataContext="{Binding Pager}" />
                     </Grid>
-                </controls:Card>
+                </Border>
             </Grid>
         </ScrollViewer>
     </controls:SectionPage>

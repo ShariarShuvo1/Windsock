@@ -43,9 +43,9 @@ public interface IOutageStore
 /// damaged file aside and vacuums on erase, and both are simpler to reason about
 /// when nothing else holds the file open.
 /// </remarks>
-public sealed class SqliteOutageStore : IOutageStore, IDisposable
+public sealed partial class SqliteOutageStore : IOutageStore, IDisposable
 {
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 3;
     private const int Corrupt = 11;
     private const int NotADatabase = 26;
 
@@ -140,6 +140,7 @@ public sealed class SqliteOutageStore : IOutageStore, IDisposable
             CREATE INDEX IF NOT EXISTS outage_start ON outage (start_ms);
             """);
 
+        CreateConnectionTables(connection);
         Execute(connection, $"PRAGMA user_version={SchemaVersion};");
     }
 

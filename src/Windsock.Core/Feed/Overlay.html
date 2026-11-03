@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Windsock overlay</title>
+<style>
+html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+body { font: 600 var(--size, 28px)/1.25 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .85), 0 0 6px rgba(0, 0, 0, .6); }
+#meter { display: flex; gap: .9em; padding: .25em .5em; align-items: baseline; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#meter.column { flex-direction: column; gap: .1em; }
+#meter.right { justify-content: flex-end; }
+.cell { display: inline-flex; gap: .3em; align-items: baseline; }
+.mark { font-size: .8em; }
+.unit { font-size: .6em; font-weight: 500; opacity: .85; }
+.down .mark { color: #2dc1fc; }
+.up .mark { color: #f5b23d; }
+.ping .mark, .today .mark, .cpu .mark { color: #c9d4e0; }
+.stale { opacity: .45; }
+</style>
+</head>
+<body>
+<div id="meter" aria-live="off"></div>
+<script>
+(() => {
+  const query = new URLSearchParams(location.search);
+  const token = query.get("token") || "";
+  const shown = (query.get("show") || "down,up,ping").split(",").map(s => s.trim()).filter(Boolean);
+  const bits = query.get("units") === "bits";
+  const meter = document.getElementById("meter");
+  const fontSize = parseInt(query.get("size") || "", 10);
+  if (fontSize >= 8 && fontSize <= 200) document.body.style.setProperty("--size", fontSize + "px");
+  if (query.get("layout") === "column") meter.classList.add("column");
+  if (query.get("align") === "right") meter.classList.add("right");
+
+  const cells = {};
+  const marks = { down: "↓", up: "↑", ping: "●", today: "Σ", cpu: "CPU" };
+  for (const name of shown) {
+    if (!Object.hasOwn(marks, name)) continue;
+    const cell = document.createElement("span");
+    cell.className = "cell " + name;
+    const mark = document.createElement("span");
+    mark.className = "mark";
+    mark.textContent = marks[name];
+    const value = document.createElement("span");
+    value.textContent = "—";
+    const unit = document.createElement("span");
+    unit.className = "unit";
+    cell.append(mark, value, unit);
+    meter.append(cell);
+    cells[name] = { value, unit };
+  }
+
+  function rate(bytes) {
+    if (bytes == null) return ["—", ""];
+    let n = bits ? bytes * 8 : bytes;
+    const step = bits ? 1000 : 1024;
+    const units = bits ? ["b/s", "Kb/s", "Mb/s", "Gb/s"] : ["B/s", "KB/s", "MB/s", "GB/s"];
+    let i = 0;
+    while (n >= step && i < units.length - 1) { n /= step; i++; }
+    return [i === 0 ? Math.round(n).toString() : n.toFixed(n >= 100 ? 0 : n >= 10 ? 1 : 2), units[i]];
+  }
+
+  function size(bytes) {
+    if (bytes == null) return ["—", ""];
+    let n = bytes;
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let i = 0;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+    return [i === 0 ? Math.round(n).toString() : n.toFixed(n >= 100 ? 0 : n >= 10 ? 1 : 2), units[i]];
+  }
+
+  function put(name, pair) {
+    const cell = cells[name];
+    if (!cell) return;
+    cell.value.textContent = pair[0];
+    cell.unit.textContent = pair[1];
+  }
+
+  function show(status) {
+    const rates = status.rates || {};
+    const connection = status.connection || {};
+    put("down", rate(rates.downBytesPerSecond));
+    put("up", rate(rates.upBytesPerSecond));
+    const ms = connection.internetMs != null ? connection.internetMs : connection.routerMs;
+    put("ping", connection.status === "offline" ? ["offline", ""] : ms == null ? ["—", ""] : [ms < 1 ? "<1" : Math.round(ms).toString(), "ms"]);
+    put("today", size(status.usage && status.usage.today ? status.usage.today.bytesTotal : null));
+    const cpu = status.system ? status.system.processorPercent : null;
+    put("cpu", cpu == null ? ["—", ""] : [Math.round(cpu).toString(), "%"]);
+    meter.classList.remove("stale");
+  }
+
+  const events = new EventSource("/v1/events?token=" + encodeURIComponent(token));
+  events.addEventListener("status", e => { try { show(JSON.parse(e.data)); } catch (_) { } });
+  events.onerror = () => meter.classList.add("stale");
+})();
+</script>
+</body>
+</html>

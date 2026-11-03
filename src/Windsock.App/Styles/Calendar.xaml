@@ -18,7 +18,7 @@
         <Setter Property="Width" Value="28" />
         <Setter Property="Height" Value="28" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -48,11 +48,11 @@
     <Style x:Key="CalendarHeaderStyle" TargetType="Button">
         <Setter Property="Height" Value="28" />
         <Setter Property="Padding" Value="10,0" />
-        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -86,10 +86,10 @@
         <Setter Property="Width" Value="30" />
         <Setter Property="Height" Value="30" />
         <Setter Property="Margin" Value="1" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:CalendarDayButton">
@@ -161,10 +161,10 @@
         <Setter Property="Width" Value="56" />
         <Setter Property="Height" Value="38" />
         <Setter Property="Margin" Value="2" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="primitives:CalendarButton">
@@ -221,7 +221,7 @@
                     <ControlTemplate.Resources>
                         <DataTemplate x:Key="{x:Static primitives:CalendarItem.DayTitleTemplateResourceKey}">
                             <TextBlock Text="{Binding}"
-                                       FontSize="11"
+                                       FontSize="{DynamicResource TextSize11}"
                                        FontWeight="SemiBold"
                                        Margin="0,0,0,4"
                                        HorizontalAlignment="Center"
@@ -353,13 +353,14 @@
     <!--
         The time field, stripped back. The themed text box brings a clear
         button with it, which inside a field this narrow leaves the four digits
-        of a time with nowhere to sit.
+        of a time with nowhere to sit. It keeps the fields' accent edge while it
+        has the caret, as every text field does.
     -->
     <Style x:Key="TimeFieldStyle" TargetType="TextBox">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="0" />
-        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12_5}" />
         <Setter Property="TextAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
@@ -369,11 +370,24 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
-                    <ScrollViewer x:Name="PART_ContentHost"
-                                  Focusable="False"
-                                  VerticalAlignment="Center"
-                                  HorizontalScrollBarVisibility="Hidden"
-                                  VerticalScrollBarVisibility="Hidden" />
+                    <Border x:Name="Edge"
+                            CornerRadius="6"
+                            BorderThickness="1"
+                            BorderBrush="Transparent"
+                            Background="Transparent"
+                            SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Focusable="False"
+                                      VerticalAlignment="Center"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Edge" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -387,7 +401,7 @@
     <Style TargetType="{x:Type controls:DateTimeBox}">
         <Setter Property="Height" Value="30" />
         <Setter Property="MinWidth" Value="150" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource TextSize12}" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
@@ -395,11 +409,22 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type controls:DateTimeBox}">
                     <Grid>
+                        <!--
+                            The one Tab stop: the field around it takes no focus.
+                            Named with what the field is for and the moment it
+                            holds, since a name on the field would reach nobody.
+                            Stretched to the field: the theme's toggle style
+                            centres it at its content's height, which drew the
+                            pill 16 px tall beside 30 px buttons and put the
+                            focus ring round that sliver.
+                        -->
                         <ToggleButton x:Name="PART_Toggle"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
                                       Cursor="Hand"
-                                      AutomationProperties.Name="{Binding Path=(AutomationProperties.Name), RelativeSource={RelativeSource TemplatedParent}}"
+                                      AutomationProperties.Name="{TemplateBinding SpokenText}"
                                       Focusable="True"
-                                      FocusVisualStyle="{x:Null}"
+                                      FocusVisualStyle="{StaticResource FocusRingStyle}"
                                       IsChecked="{Binding IsOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
@@ -447,11 +472,13 @@
                             </Grid>
                         </ToggleButton>
 
+                        <!-- Opened from the keyboard, the keyboard goes in with it, and back to the field on closing. -->
                         <Popup x:Name="PART_Popup"
                                PlacementTarget="{Binding ElementName=PART_Toggle}"
                                Placement="Bottom"
                                VerticalOffset="6"
                                StaysOpen="False"
+                               controls:Flyout.MovesFocus="True"
                                AllowsTransparency="True"
                                PopupAnimation="Fade"
                                IsOpen="{Binding IsOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
@@ -480,7 +507,7 @@
                                         <TextBlock Grid.Row="0"
                                                    Grid.Column="0"
                                                    Text="Time"
-                                                   FontSize="12"
+                                                   FontSize="{DynamicResource TextSize12}"
                                                    VerticalAlignment="Center"
                                                    Margin="2,0,10,0"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -507,7 +534,8 @@
                                                 Grid.Column="2"
                                                 Style="{DynamicResource ToolbarButtonStyle}"
                                                 Content="{Binding Meridiem, RelativeSource={RelativeSource TemplatedParent}}"
-                                                Height="30"
+                                                Visibility="{Binding Uses12Hour, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibility}}"
+                                                MinHeight="30"
                                                 MinWidth="46"
                                                 Margin="6,0,0,0"
                                                 AutomationProperties.Name="Half of the day"

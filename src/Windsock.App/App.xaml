@@ -18,6 +18,7 @@
                 <ResourceDictionary Source="Styles/System.xaml" />
                 <ResourceDictionary Source="Styles/Taskbar.xaml" />
                 <ResourceDictionary Source="Styles/Calendar.xaml" />
+                <ResourceDictionary Source="Styles/Usage.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

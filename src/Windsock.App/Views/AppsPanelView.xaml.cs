@@ -4,28 +4,37 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Windsock.App.Controls;
+using Windsock.App.Services;
 using Windsock.App.ViewModels;
+using Windsock.Core.Security;
 
 namespace Windsock.App.Views;
 
 /// <summary>
-/// The Apps page: every app on the network, live with the network map above
-/// it, or totalled over a period of history.
+/// The Apps page: every app on the network, live or totalled over a period of
+/// history. The map of where they connect is the Map page's.
 /// </summary>
 public partial class AppsPanelView : UserControl
 {
-    private const double MapRoom = 260;
     private const string DefaultTotalsSort = nameof(AppRowViewModel.BytesTotal);
 
     private readonly AppsPanelViewModel _viewModel;
     private readonly LiveAppsViewModel _live;
     private readonly ProcessMonitorLauncher _monitors;
+    private readonly InsightActions _actions;
+    private readonly ReputationService _reputation;
 
-    private GridLength _mapShare = new(420);
-
-    public AppsPanelView(AppsPanelViewModel viewModel, ProcessMonitorLauncher monitors)
+    public AppsPanelView(
+        AppsPanelViewModel viewModel,
+        ProcessMonitorLauncher monitors,
+        InsightActions insight,
+        ReputationService reputation,
+        UpdateShareViewModel updates)
     {
         InitializeComponent();
+
+        // Windows Update's band reads its own figures; see UpdateShareViewModel.
+        UpdateBand.DataContext = updates;
 
 #if STORE
         // The Store edition never asks for administrator rights and has no
@@ -45,16 +54,15 @@ public partial class AppsPanelView : UserControl
         _viewModel = viewModel;
         _live = viewModel.Live;
         _monitors = monitors;
+        _actions = insight;
+        _reputation = reputation;
         DataContext = viewModel;
 
         AttachLive();
         AttachTotals();
 
         // Visibility rather than Loaded: a minimised window stays loaded, and so
-        // did this page's collection, every second, with nobody looking. The
-        // map follows the same rule, since it opens with the page: it is built
-        // when the live view is seen and let go when it is not, unless it has
-        // been taken out into a window of its own, where it is still looked at.
+        // did this page's collection, every second, with nobody looking.
         IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is true)
@@ -65,25 +73,9 @@ public partial class AppsPanelView : UserControl
             {
                 _viewModel.Stop();
             }
-
-            ApplyMap();
         };
 
-        Unloaded += (_, _) =>
-        {
-            _viewModel.Stop();
-            MapHost.Recall();
-        };
-
-        viewModel.PropertyChanged += (_, changed) =>
-        {
-            if (changed.PropertyName == nameof(AppsPanelViewModel.SelectedPeriod))
-            {
-                ApplyMap();
-            }
-        };
-
-        ApplyMap();
+        Unloaded += (_, _) => _viewModel.Stop();
     }
 
     // ------------------------------------------------------------------ live
@@ -105,6 +97,7 @@ public partial class AppsPanelView : UserControl
         Attach(LiveTransferredColumn, _live.TransferredColumn);
         Attach(LiveUptimeColumn, _live.UptimeColumn);
         Attach(LivePathColumn, _live.PathColumn);
+        Attach(LivePublisherColumn, _live.PublisherColumn);
 
         ShowLiveSort();
 
@@ -113,85 +106,44 @@ public partial class AppsPanelView : UserControl
         LiveTable.MouseDoubleClick += OnLiveDoubleClick;
         LiveTable.PreviewMouseLeftButtonDown += OnLivePressed;
         LiveTable.PreviewMouseRightButtonDown += OnLiveRightPressed;
+        LiveTable.PreviewKeyDown += OnLiveKey;
 
-        _live.WatchRequested += (_, processId) => _monitors.Show(processId);
-        _live.WatchAppRequested += (_, key) => _monitors.ShowApp(key);
-        _live.ViewReset += (_, _) => ShowLiveSort();
-        _live.PropertyChanged += (_, changed) =>
+        // The rows re-sort every second; under the keyboard that moves the row
+        // being read away from the reader. While the keyboard is working in the
+        // table the order holds (the figures still change), and lets go when
+        // the focus leaves or the mouse is used in it. Decided by the keyboard
+        // itself - a key moving about the table, or a key press that brought
+        // the focus in - never by the focus alone: focus also comes back with
+        // no key pressed when the window is activated again or a menu closes,
+        // and a mouse user who had clicked a row must never see the table stop
+        // sorting.
+        KeyPress.Watch();
+        LiveTable.GotKeyboardFocus += (_, _) =>
         {
-            if (changed.PropertyName == nameof(LiveAppsViewModel.IsMapOpen))
+            if (KeyPress.IsBeingHandled)
             {
-                ApplyMap();
+                _live.HoldsOrder = true;
+            }
+        };
+        LiveTable.PreviewMouseDown += (_, _) => _live.HoldsOrder = false;
+        LiveTable.IsKeyboardFocusWithinChanged += (_, e) =>
+        {
+            if (e.NewValue is not true)
+            {
+                _live.HoldsOrder = false;
             }
         };
 
-        MapHost.DetachedChanged += (_, _) => ApplyMap();
-    }
+        _live.WatchRequested += (_, processId) => _monitors.Show(processId);
+        _live.WatchAppRequested += (_, key) => _monitors.ShowApp(key);
 
-    private void ApplyMap()
-    {
-        // A period of history has no map. One out in a window of its own comes
-        // home and goes with the rest, so nothing goes on tracing routes for a
-        // view nobody chose.
-        if (!_viewModel.IsLivePeriod && MapHost.IsDetached)
-        {
-            MapHost.Recall();
-        }
-
-        bool shown = _viewModel.IsLivePeriod && (IsVisible || MapHost.IsDetached);
-
-        if (_live.IsMapOpen)
-        {
-            if (shown)
-            {
-                _live.Map ??= _monitors.CreateMap();
-            }
-            else if (!MapHost.IsDetached)
-            {
-                LetGoOfMap();
-            }
-
-            if (MapHost.IsDetached)
-            {
-                Remember();
-
-                MapRow.MinHeight = 0;
-                MapRow.Height = GridLength.Auto;
-            }
-            else
-            {
-                MapRow.MinHeight = MapRoom;
-                MapRow.Height = _mapShare;
-            }
-
-            TableRow.Height = new GridLength(1, GridUnitType.Star);
-
-            return;
-        }
-
-        Remember();
-        MapHost.Recall();
-
-        MapRow.MinHeight = 0;
-        MapRow.Height = GridLength.Auto;
-        TableRow.Height = new GridLength(1, GridUnitType.Star);
-
-        LetGoOfMap();
-    }
-
-    private void LetGoOfMap()
-    {
-        NetworkMapViewModel? was = _live.Map;
-        _live.Map = null;
-        was?.Dispose();
-    }
-
-    private void Remember()
-    {
-        if (MapRow.Height.IsAbsolute && MapRow.Height.Value > 0)
-        {
-            _mapShare = MapRow.Height;
-        }
+        // Each asks first, in a dialog of its own, and says how it went.
+        _live.EndRequested += async (_, target) => await InsightActions.EndAsync(Window.GetWindow(this), target).ConfigureAwait(true);
+        _live.ReputationRequested += (_, target) => InsightActions.CheckReputation(Window.GetWindow(this), target, _reputation);
+#if !STORE
+        _live.BlockRequested += (_, target) => _actions.ToggleBlock(Window.GetWindow(this), target);
+#endif
+        _live.ViewReset += (_, _) => ShowLiveSort();
     }
 
     private void OnLiveDoubleClick(object sender, MouseButtonEventArgs e)
@@ -207,6 +159,39 @@ public partial class AppsPanelView : UserControl
         }
 
         _live.WatchCommand.Execute(row);
+    }
+
+    /// <summary>
+    /// The keyboard's double-click and group click: Enter opens the focused
+    /// row's details window, Space opens or folds a group of processes.
+    /// </summary>
+    private void OnLiveKey(object sender, KeyEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+
+        if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right or Key.PageUp or Key.PageDown or Key.Home or Key.End)
+        {
+            _live.HoldsOrder = true;
+        }
+
+        if (Keyboard.Modifiers != ModifierKeys.None
+            || e.Key is not (Key.Enter or Key.Space)
+            || e.OriginalSource is ButtonBase
+            || Ancestry.Find<DataGridRow>(e.OriginalSource as DependencyObject) is not { Item: ProcessRowViewModel row })
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter && row.CanOpenDetails)
+        {
+            _live.WatchCommand.Execute(row);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Space && row.IsExpandable)
+        {
+            _live.ToggleGroupCommand.Execute(row);
+            e.Handled = true;
+        }
     }
 
     private void OnLiveSorting(object sender, DataGridSortingEventArgs e)
@@ -280,6 +265,11 @@ public partial class AppsPanelView : UserControl
         TableWheel.Attach(TotalsTable);
         TotalsTable.Sorting += OnTotalsSorting;
         totals.ViewReset += (_, _) => SortTotals(DefaultTotalsSort, ListSortDirection.Descending, isDefault: true);
+
+        // An app opened from a row's menu may be far above the row; bring it to the reader.
+        totals.Timeline.Opened += (_, _) => Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Loaded,
+            new Action(() => TimelineBand.BringIntoView()));
 
         SortTotals(DefaultTotalsSort, ListSortDirection.Descending, isDefault: true);
     }

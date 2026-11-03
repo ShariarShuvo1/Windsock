@@ -33,6 +33,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
     private readonly IProcessConnectionDetailSource _details;
     private readonly IProcessEndpointSource _endpoints;
     private readonly NetworkRouteCache _routes;
+    private readonly OutsideContacts _contacts;
     private readonly HostNameCache _hosts;
     private readonly PlaceFinder _where;
     private readonly Dispatcher _dispatcher;
@@ -54,6 +55,14 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
     private readonly EndpointMeter _meter;
     private readonly RecentAppFigures _figures;
     private readonly string? _appKey;
+
+    /// <summary>
+    /// When the process this window opened on started. A process id is
+    /// reused; a process under the same id that started at another time is
+    /// someone else, and the window says this one has exited rather than
+    /// follow it.
+    /// </summary>
+    private readonly DateTimeOffset? _startedAt;
     private HashSet<int> _processes = [];
     private ProcessIdentity _identity;
 
@@ -91,6 +100,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         IProcessConnectionDetailSource details,
         IProcessEndpointSource endpoints,
         NetworkRouteCache routes,
+        OutsideContacts contacts,
         HostNameCache hosts,
         RecentAppFigures figures,
         IpLocations? places,
@@ -100,6 +110,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         Dispatcher dispatcher)
     {
         ArgumentNullException.ThrowIfNull(identity);
+        ArgumentNullException.ThrowIfNull(contacts);
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(routes);
@@ -109,12 +120,14 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         ProcessId = appKey is null ? processId : 0;
         _appKey = appKey;
         _identity = identity;
+        _startedAt = identity.StartedAt;
         _figures = figures;
         _meter = new EndpointMeter(endpoints);
         _monitor = monitor;
         _details = details;
         _endpoints = endpoints;
         _routes = routes;
+        _contacts = contacts;
         _hosts = hosts;
         _where = new PlaceFinder(places);
         World = world;
@@ -136,7 +149,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         SelectedScale = scale;
 
         Started = identity.StartedAt is { } startedAt
-            ? startedAt.ToLocalTime().ToString("d MMM yyyy, h:mm:ss tt", CultureInfo.CurrentCulture)
+            ? startedAt.ToLocalTime().ToString("d MMM yyyy, " + ClockFormat.Current.LongTime, ClockFormat.Current.Format)
             : "—";
 
         Title = appKey is null
@@ -195,6 +208,10 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         _hosts.Resolved += OnNamesResolved;
         _routes.RouteChanged += OnRouteFound;
 
+        // One setting with the map's and the privacy page's; see OutsideContacts.
+        ShowRoutes = contacts.TraceRoutes;
+        _contacts.Changed += OnContactsChanged;
+
         Follow(appKey is null ? [processId] : Mine(_monitor.Latest).Select(usage => usage.ProcessId));
         Refresh();
     }
@@ -220,13 +237,20 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         foreach (ProcessUsage row in rows)
         {
             if (keys is null
-                ? row.ProcessId == ProcessId
+                ? row.ProcessId == ProcessId && IsSameProcess(row.Identity.StartedAt, _startedAt)
                 : RunningApps.KeyComparer.Equals(keys[row.ProcessId], _appKey))
             {
                 yield return row;
             }
         }
     }
+
+    /// <summary>
+    /// Whether a reading's process is the one a window opened on, by start
+    /// time: the same when either is unknown or they agree to within a second.
+    /// </summary>
+    internal static bool IsSameProcess(DateTimeOffset? seen, DateTimeOffset? opened) =>
+        seen is not { } now || opened is not { } then || (now - then).Duration() < TimeSpan.FromSeconds(1);
 
     /// <summary>Takes in processes that joined and lets go of those that left.</summary>
     private void Follow(IEnumerable<int> processIds)
@@ -406,10 +430,12 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
 
     /// <summary>
     /// Whether the way to each far end is drawn, or only the far end. Off
-    /// until asked for, as on the Apps page's map.
+    /// until asked for, and the same setting as the map's.
     /// </summary>
     [ObservableProperty]
     public partial bool ShowRoutes { get; set; }
+
+    private void OnContactsChanged(object? sender, EventArgs e) => ShowRoutes = _contacts.TraceRoutes;
 
     /// <summary>Whether the countries with something on them are named.</summary>
     [ObservableProperty]
@@ -1109,7 +1135,11 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
 
     partial void OnIsWorldChanged(bool value) => Redraw();
 
-    partial void OnShowRoutesChanged(bool value) => Regraph();
+    partial void OnShowRoutesChanged(bool value)
+    {
+        _contacts.TraceRoutes = value;
+        Regraph();
+    }
 
     partial void OnShowNamesChanged(bool value)
     {
@@ -1425,6 +1455,7 @@ public sealed partial class ProcessMonitorViewModel : ObservableObject, IDisposa
         _figures.Changed -= OnFiguresChanged;
         _hosts.Resolved -= OnNamesResolved;
         _routes.RouteChanged -= OnRouteFound;
+        _contacts.Changed -= OnContactsChanged;
 
         _watch?.Dispose();
         _watch = null;

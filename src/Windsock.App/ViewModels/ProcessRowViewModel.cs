@@ -67,6 +67,23 @@ public sealed partial class ProcessRowViewModel : ObservableObject
         _countedLive = ratesKnown;
     }
 
+    private ProcessRowViewModel(string key, ProcessIdentity identity, bool ratesKnown)
+    {
+        _kind = RowKind.Group;
+        Key = key;
+        ProcessIdText = string.Empty;
+        _identity = identity;
+        _ratesKnown = ratesKnown;
+        _countedLive = ratesKnown;
+    }
+
+    /// <summary>
+    /// Creates a row that sums the processes running one file, keyed by the
+    /// file, so programs that share a name but not a file stay apart.
+    /// </summary>
+    public static ProcessRowViewModel ForFile(string key, string name, string? path, bool ratesKnown) =>
+        new(key, new ProcessIdentity(name, null, path, null), ratesKnown);
+
     /// <summary>Creates a row that sums every process of one app.</summary>
     /// <param name="key">The app's key, from <see cref="RunningApps.KeyOf"/>.</param>
     /// <param name="name">What the app is called before its processes are read.</param>
@@ -139,6 +156,35 @@ public sealed partial class ProcessRowViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     public partial ImageSource? Icon { get; set; }
+
+    /// <summary>
+    /// Who signed the program, "Not signed", or a dash while it is being checked
+    /// or for a row with no file to check.
+    /// </summary>
+    [ObservableProperty]
+    public partial string Publisher { get; set; } = Unknown;
+
+    /// <summary>What the signature check found, in a sentence, for the tooltip.</summary>
+    [ObservableProperty]
+    public partial string? SignatureNote { get; set; }
+
+    /// <summary>
+    /// Whether the program is unsigned, or signed in a way that does not hold,
+    /// and is talking to the network: marked beside its publisher.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsFlagged { get; set; }
+
+    /// <summary>
+    /// Whether one of the row's connections reaches an address on a blocklist
+    /// the person switched on; <see cref="ListedNote"/> says which.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsListed { get; set; }
+
+    /// <summary>Which list, and which address, for the mark's tooltip; empty when not listed.</summary>
+    [ObservableProperty]
+    public partial string ListedNote { get; set; } = string.Empty;
 
     /// <summary>
     /// Whether this row is the one being held at the top of the table.
@@ -421,6 +467,21 @@ public sealed partial class ProcessRowViewModel : ObservableObject
         || Description.Contains(term, StringComparison.OrdinalIgnoreCase)
         || FilePath.Contains(term, StringComparison.OrdinalIgnoreCase)
         || ProcessIdText.Contains(term, StringComparison.Ordinal);
+
+    /// <summary>
+    /// What the row says, which is what a screen reader names the table's row
+    /// by: "Brave (12), download 1.2 MB/s, upload 40 KB/s". Built only when
+    /// asked, never on the refresh.
+    /// </summary>
+    public override string ToString()
+    {
+        string name = CountText.Length > 0 ? string.Concat(DisplayName, " ", CountText) : DisplayName;
+        string process = ProcessIdText.Length > 0 && !IsApp ? string.Concat(", process ", ProcessIdText) : string.Empty;
+
+        return string.Concat(name, process, ", download ", Said(ReceiveText), ", upload ", Said(SendText));
+    }
+
+    private static string Said(string figure) => figure == Unknown ? "not known" : figure;
 
     private void Read(in ProcessUsage usage) =>
         Apply(

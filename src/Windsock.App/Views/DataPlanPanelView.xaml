@@ -1,0 +1,701 @@
+<UserControl x:Class="Windsock.App.Views.DataPlanPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Windsock.App.Controls"
+             xmlns:fluent="clr-namespace:FluentIcons.Wpf;assembly=FluentIcons.Wpf"
+             xmlns:vm="clr-namespace:Windsock.App.ViewModels"
+             x:Name="Root"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DataPlanPanelViewModel}"
+             d:DesignWidth="880"
+             d:DesignHeight="900">
+
+    <UserControl.Resources>
+        <ResourceDictionary Source="../Styles/Usage.xaml" />
+    </UserControl.Resources>
+
+    <!--
+        Usage › Data plan. The plan the page leads with - the one for the
+        network in use, unless another is chosen - sits on the page: what is
+        left, for how long, the budget, the bar with its alert levels, the
+        forecast and each day. Everything else is a band: the other plans, the
+        split by network, earlier cycles, and the networks with their names and
+        hotspot markings. The editor takes the lead's place while it is open.
+    -->
+    <controls:SectionPage Title="Data plan" Subtitle="{Binding Subtitle}">
+        <controls:SectionPage.Actions>
+            <Button Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding AddPlanCommand}"
+                    Visibility="{Binding IsEditing, Converter={StaticResource InverseBooleanToVisibility}}"
+                    AutomationProperties.Name="Add a data plan"
+                    ToolTip="Set up an allowance to keep count against">
+                <StackPanel Orientation="Horizontal">
+                    <fluent:SymbolIcon Symbol="Add" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBlock Text="Add a plan" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </controls:SectionPage.Actions>
+
+        <ScrollViewer x:Name="Body"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="{StaticResource PagePadding}">
+            <StackPanel>
+                <!-- The history file belongs to a newer Windsock. -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Visibility="{Binding FileNotice, Converter={StaticResource TextToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <fluent:SymbolIcon DockPanel.Dock="Left" Symbol="LockClosed" FontSize="15" Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="{Binding FileNotice}" FontSize="{DynamicResource TextSize12_5}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </DockPanel>
+                </Border>
+
+                <!-- On a phone's hotspot: its plan comes forward. -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Visibility="{Binding HotspotNotice, Converter={StaticResource TextToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <fluent:SymbolIcon DockPanel.Dock="Left" Symbol="Phone" FontSize="15" Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="{Binding HotspotNotice}"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </DockPanel>
+                </Border>
+
+                <!-- What saving or deleting just did. -->
+                <Border Style="{StaticResource NoticeStyle}"
+                        Visibility="{Binding Notice, Converter={StaticResource TextToVisibility}}">
+                    <DockPanel LastChildFill="True">
+                        <fluent:SymbolIcon DockPanel.Dock="Left" Symbol="Info" FontSize="15" Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="{Binding Notice}"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </DockPanel>
+                </Border>
+
+                <!-- ===================== No plan yet ===================== -->
+                <Border Style="{StaticResource BandStyle}"
+                        Visibility="{Binding ShowsEmpty, Converter={StaticResource BooleanToVisibility}}">
+
+                    <StackPanel Style="{StaticResource EmptyStateStyle}">
+                        <fluent:SymbolIcon Symbol="DataPie" FontSize="24" Margin="0,0,0,8" HorizontalAlignment="Center" Foreground="{DynamicResource AccentBrush}" />
+                        <TextBlock Text="No data plan yet" Style="{StaticResource EmptyTitleStyle}" />
+                        <TextBlock Text="A plan keeps count against an allowance that starts again each month, week or day - your broadband's cap, or a phone's data pack - and says what is left, how long it lasts at this pace, and what you can use each day. It counts what Windsock has already recorded, so a plan added today knows this cycle so far."
+                                   Style="{StaticResource EmptyNoteStyle}" />
+                        <Button Style="{StaticResource PrimaryButtonStyle}"
+                                Margin="0,14,0,0"
+                                HorizontalAlignment="Center"
+                                Command="{Binding AddPlanCommand}"
+                                AutomationProperties.Name="Add your first data plan">
+                            <StackPanel Orientation="Horizontal">
+                                <fluent:SymbolIcon Symbol="Add" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBlock Text="Add a plan" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===================== The editor ===================== -->
+                <Border Style="{StaticResource BandStyle}"
+                        DataContext="{Binding Editor}"
+                        Visibility="{Binding DataContext.IsEditing, ElementName=Root, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="{Binding Title}" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Amounts are in the units the rest of Windsock shows. Everything can be changed later; history is never touched."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <!-- Windows' own limit, when it has one for this network. -->
+                        <Border Background="{DynamicResource InsetBrush}" CornerRadius="8" Padding="14,10" Margin="0,4,0,12">
+                            <controls:AdaptiveRow Style="{StaticResource SettingLayoutStyle}">
+                                <TextBlock Text="{Binding WindowsLimitText}" FontSize="{DynamicResource TextSize12_5}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <Button HorizontalAlignment="Left"
+                                        Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding DataContext.UseWindowsLimitCommand, ElementName=Root}"
+                                        IsEnabled="{Binding CanUseWindowsLimit}"
+                                        AutomationProperties.Name="Use the limit set in Windows"
+                                        ToolTip="Fill the plan in from the data limit Windows holds for this network">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="Window" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Use Windows' limit" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </controls:AdaptiveRow>
+                        </Border>
+
+                        <controls:FlowRow Spacing="14" LineSpacing="12">
+                            <StackPanel Style="{StaticResource FieldStyle}" MinWidth="220">
+                                <TextBlock Text="Name" Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox Style="{StaticResource FieldBoxStyle}"
+                                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Plan name" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource FieldStyle}">
+                                <TextBlock Text="Allowance each cycle" Style="{StaticResource FieldLabelStyle}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox Style="{StaticResource FieldBoxStyle}"
+                                             Width="110"
+                                             Tag="No limit"
+                                             Text="{Binding LimitAmount, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Allowance"
+                                             ToolTip="Leave empty for a plan that only keeps count" />
+                                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                                     Margin="6,0,0,0"
+                                                     MinWidth="70"
+                                                     ItemsSource="{Binding Units}"
+                                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                     SelectedValuePath="Value"
+                                                     SelectedValue="{Binding LimitUnit, Mode=TwoWay}"
+                                                     AutomationProperties.Name="Unit for every amount" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource FieldStyle}">
+                                <TextBlock Text="Starts again" Style="{StaticResource FieldLabelStyle}" />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="200"
+                                                 ItemsSource="{Binding Cycles}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding Cycle, Mode=TwoWay}"
+                                                 AutomationProperties.Name="How often the allowance starts again" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource FieldStyle}" Visibility="{Binding IsMonthly, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Text="On the" Style="{StaticResource FieldLabelStyle}" />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="200"
+                                                 ItemsSource="{Binding ResetDays}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding ResetDay, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Day of the month it starts again" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource FieldStyle}" Visibility="{Binding IsWeekly, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Text="On" Style="{StaticResource FieldLabelStyle}" />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="160"
+                                                 ItemsSource="{Binding Weekdays}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding ResetWeekday, Mode=TwoWay}"
+                                                 AutomationProperties.Name="Day of the week it starts again" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource FieldStyle}" Visibility="{Binding IsOneOff, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Text="From" Style="{StaticResource FieldLabelStyle}" />
+                                <controls:DateTimeBox Value="{Binding OneOffStart, Mode=TwoWay}" Label="One-off plan starts" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource FieldStyle}" Visibility="{Binding IsOneOff, Converter={StaticResource BooleanToVisibility}}">
+                                <TextBlock Text="Until" Style="{StaticResource FieldLabelStyle}" />
+                                <controls:DateTimeBox Value="{Binding OneOffEnd, Mode=TwoWay}" Label="One-off plan ends" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource FieldStyle}">
+                                <TextBlock Text="Counts" Style="{StaticResource FieldLabelStyle}" />
+                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                 MinWidth="180"
+                                                 ItemsSource="{Binding Directions}"
+                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                 SelectedValuePath="Value"
+                                                 SelectedValue="{Binding Counts, Mode=TwoWay}"
+                                                 AutomationProperties.Name="What the plan counts" />
+                            </StackPanel>
+
+                            <StackPanel Style="{StaticResource FieldStyle}">
+                                <TextBlock Text="Alert at (percent)" Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox Style="{StaticResource FieldBoxStyle}"
+                                         Width="140"
+                                         HorizontalAlignment="Left"
+                                         Text="{Binding AlertLevelsText, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Alert levels in percent"
+                                         ToolTip="The shares of the allowance to be told about, such as 80, 100" />
+                            </StackPanel>
+                        </controls:FlowRow>
+
+                        <!-- Rollover, for a plan that starts again. -->
+                        <StackPanel Margin="0,16,0,0" Visibility="{Binding HasCycles, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Text="Unused allowance" Style="{StaticResource CardTitleStyle}" FontSize="{DynamicResource TextSize13}" />
+                            <controls:FlowRow Spacing="14" LineSpacing="12" Margin="0,8,0,0">
+                                <StackPanel Style="{StaticResource FieldStyle}">
+                                    <TextBlock Text="At the end of a cycle" Style="{StaticResource FieldLabelStyle}" />
+                                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                                     MinWidth="250"
+                                                     ItemsSource="{Binding Rollovers}"
+                                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                     SelectedValuePath="Value"
+                                                     SelectedValue="{Binding Rollover, Mode=TwoWay}"
+                                                     AutomationProperties.Name="What happens to unused allowance" />
+                                </StackPanel>
+
+                                <StackPanel Style="{StaticResource FieldStyle}" Visibility="{Binding HasRollover, Converter={StaticResource BooleanToVisibility}}">
+                                    <TextBlock Text="Carried at most" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox Style="{StaticResource FieldBoxStyle}"
+                                             Width="110"
+                                             HorizontalAlignment="Left"
+                                             Tag="No cap"
+                                             Text="{Binding RolloverCapAmount, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Most that can be carried over"
+                                             ToolTip="Empty for no cap" />
+                                </StackPanel>
+
+                                <StackPanel Style="{StaticResource FieldStyle}">
+                                    <TextBlock Text="Plan began" Style="{StaticResource FieldLabelStyle}" />
+                                    <controls:DateTimeBox Value="{Binding Since, Mode=TwoWay}"
+                                                          Label="When the plan began"
+                                                          ToolTip="Rollover is counted from the cycle holding this moment" />
+                                </StackPanel>
+
+                                <StackPanel Style="{StaticResource FieldStyle}">
+                                    <TextBlock Text="Carried into its first cycle" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox Style="{StaticResource FieldBoxStyle}"
+                                             Width="110"
+                                             HorizontalAlignment="Left"
+                                             Tag="Nothing"
+                                             Text="{Binding CarriedInAmount, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Allowance carried into the first cycle" />
+                                </StackPanel>
+                            </controls:FlowRow>
+                        </StackPanel>
+
+                        <!-- Free hours. -->
+                        <StackPanel Margin="0,16,0,0">
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      HorizontalAlignment="Left"
+                                      Content="Free hours each night, not counted"
+                                      IsChecked="{Binding OffPeakEnabled, Mode=TwoWay}"
+                                      AutomationProperties.Name="Free hours each night" />
+
+                            <controls:FlowRow Spacing="14" LineSpacing="12" Margin="0,10,0,0"
+                                              Visibility="{Binding OffPeakEnabled, Converter={StaticResource BooleanToVisibility}}">
+                                <StackPanel Style="{StaticResource FieldStyle}">
+                                    <TextBlock Text="From" Style="{StaticResource FieldLabelStyle}" />
+                                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                                     MinWidth="110"
+                                                     ItemsSource="{Binding Times}"
+                                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                     SelectedValuePath="Value"
+                                                     SelectedValue="{Binding OffPeakStart, Mode=TwoWay}"
+                                                     AutomationProperties.Name="Free hours begin" />
+                                </StackPanel>
+
+                                <StackPanel Style="{StaticResource FieldStyle}">
+                                    <TextBlock Text="To" Style="{StaticResource FieldLabelStyle}" />
+                                    <controls:Picker Style="{StaticResource PickerStyle}"
+                                                     MinWidth="110"
+                                                     ItemsSource="{Binding Times}"
+                                                     ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                     SelectedValuePath="Value"
+                                                     SelectedValue="{Binding OffPeakEnd, Mode=TwoWay}"
+                                                     AutomationProperties.Name="Free hours end" />
+                                </StackPanel>
+
+                                <StackPanel Style="{StaticResource FieldStyle}">
+                                    <TextBlock Text="Their own allowance" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox Style="{StaticResource FieldBoxStyle}"
+                                             Width="110"
+                                             HorizontalAlignment="Left"
+                                             Tag="Unlimited"
+                                             Text="{Binding OffPeakLimitAmount, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Free hours' own allowance"
+                                             ToolTip="Empty when what is used in them is simply free" />
+                                </StackPanel>
+                            </controls:FlowRow>
+                        </StackPanel>
+
+                        <!-- Networks. -->
+                        <StackPanel Margin="0,16,0,0">
+                            <TextBlock Text="Networks" Style="{StaticResource CardTitleStyle}" FontSize="{DynamicResource TextSize13}" />
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      Margin="0,8,0,0"
+                                      HorizontalAlignment="Left"
+                                      Content="Every network, including ones not known"
+                                      IsChecked="{Binding EveryNetwork, Mode=TwoWay}"
+                                      AutomationProperties.Name="The plan covers every network" />
+
+                            <ItemsControl ItemsSource="{Binding Networks}"
+                                          Margin="0,8,0,0"
+                                          Focusable="False"
+                                          Visibility="{Binding ChoosesNetworks, Converter={StaticResource BooleanToVisibility}}"
+                                          AutomationProperties.Name="Networks the plan covers">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:PlanNetworkOption}">
+                                        <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                                  Margin="0,0,0,4"
+                                                  HorizontalAlignment="Left"
+                                                  IsChecked="{Binding IsChosen, Mode=TwoWay}"
+                                                  AutomationProperties.Name="{Binding Name}">
+                                            <TextBlock TextWrapping="Wrap">
+                                                <Run Text="{Binding Name, Mode=OneWay}" />
+                                                <Run Text="{Binding Note, Mode=OneWay}" FontSize="{DynamicResource TextSize11_5}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                            </TextBlock>
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <CheckBox Style="{StaticResource ToolbarCheckStyle}"
+                                      Margin="0,8,0,0"
+                                      HorizontalAlignment="Left"
+                                      IsChecked="{Binding CountWindowsEstimates, Mode=TwoWay}"
+                                      Visibility="{Binding EveryNetwork, Converter={StaticResource BooleanToVisibility}}"
+                                      Content="Count what Windows counted while Windsock was closed"
+                                      AutomationProperties.Name="Count Windows' figures for time Windsock was closed" />
+                        </StackPanel>
+
+                        <!-- What stops it being saved. -->
+                        <TextBlock Text="{Binding Problems}"
+                                   Margin="0,14,0,0"
+                                   FontSize="{DynamicResource TextSize12_5}"
+                                   TextWrapping="Wrap"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Foreground="{DynamicResource HotBrush}"
+                                   Visibility="{Binding Problems, Converter={StaticResource TextToVisibility}}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                            <Button Style="{StaticResource PrimaryButtonStyle}"
+                                    Command="{Binding DataContext.SavePlanCommand, ElementName=Root}"
+                                    IsEnabled="{Binding CanSave}"
+                                    Content="Save the plan"
+                                    AutomationProperties.Name="Save the plan" />
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding DataContext.CancelEditCommand, ElementName=Root}"
+                                    Content="Cancel"
+                                    AutomationProperties.Name="Cancel and keep the plan as it was" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===================== The plan the page leads with ===================== -->
+                <StackPanel Visibility="{Binding ShowsPlan, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel DataContext="{Binding Selected}">
+                        <controls:AdaptiveRow Breakpoint="520" Spacing="10" LeadFills="True" LeadMinimumWidth="240" Margin="4,0,4,12">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontSize="{DynamicResource TextSize18}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock FontSize="{DynamicResource TextSize12}" Margin="0,2,0,0" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                    <Run Text="{Binding NetworksText, Mode=OneWay}" />
+                                    <Run Text=" · " />
+                                    <Run Text="{Binding CycleText, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <controls:FlowRow Spacing="8" LineSpacing="8" VerticalAlignment="Center">
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding DataContext.EditPlanCommand, ElementName=Root}"
+                                        CommandParameter="{Binding}"
+                                        AutomationProperties.Name="Change this plan">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="Edit" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Change" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Button Style="{StaticResource ToolbarButtonStyle}"
+                                        Command="{Binding DataContext.AskDeleteCommand, ElementName=Root}"
+                                        CommandParameter="{Binding}"
+                                        Visibility="{Binding DataContext.IsConfirmingDelete, ElementName=Root, Converter={StaticResource InverseBooleanToVisibility}}"
+                                        AutomationProperties.Name="Delete this plan"
+                                        ToolTip="Forget the plan. History is untouched. You will be asked first.">
+                                    <StackPanel Orientation="Horizontal">
+                                        <fluent:SymbolIcon Symbol="Delete" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Delete" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <StackPanel Orientation="Horizontal"
+                                            Visibility="{Binding DataContext.IsConfirmingDelete, ElementName=Root, Converter={StaticResource BooleanToVisibility}}">
+                                    <TextBlock Text="Delete the plan?" VerticalAlignment="Center" FontSize="{DynamicResource TextSize12}" Margin="0,0,8,0" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <Button Style="{StaticResource PrimaryButtonStyle}"
+                                            Command="{Binding DataContext.DeletePlanCommand, ElementName=Root}"
+                                            Content="Delete"
+                                            Margin="0,0,6,0"
+                                            AutomationProperties.Name="Confirm deleting the plan" />
+                                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                                            Command="{Binding DataContext.KeepPlanCommand, ElementName=Root}"
+                                            Content="Keep"
+                                            AutomationProperties.Name="Keep the plan" />
+                                </StackPanel>
+                            </controls:FlowRow>
+                        </controls:AdaptiveRow>
+
+                        <!-- The answer first, on plates. -->
+                        <controls:FlowGrid Style="{StaticResource PlateStripStyle}">
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding LeftLabel}" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding LeftValue}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="{Binding LeftText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource StatValueStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOver}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding AllowanceText}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="TIME LEFT" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding TimeLeftValue}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="Time left in the cycle" />
+                                    <TextBlock Text="{Binding ResetsText}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource PlateCellStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="EACH DAY" Style="{StaticResource StatLabelStyle}" />
+                                    <TextBlock Text="{Binding BudgetText}" Style="{StaticResource StatValueStyle}" FontSize="{DynamicResource TextSize24}" AutomationProperties.Name="What can be used each day" />
+                                    <TextBlock Text="{Binding BudgetNote}" Style="{StaticResource StatNoteStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </controls:FlowGrid>
+
+                        <!-- How much of the allowance, the levels it alerts at, and where it is heading. -->
+                        <controls:PlanBar Margin="4,16,4,0"
+                                          Fraction="{Binding Fraction}"
+                                          ProjectedFraction="{Binding ProjectedFraction}"
+                                          Levels="{Binding Levels}"
+                                          TrackBrush="{DynamicResource MeterTrackBrush}"
+                                          FillBrush="{DynamicResource AccentBrush}"
+                                          OverBrush="{DynamicResource HotBrush}"
+                                          TickBrush="{DynamicResource TextFillColorSecondaryBrush}"
+                                          ProjectedBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                                          Visibility="{Binding HasLimit, Converter={StaticResource BooleanToVisibility}}"
+                                          AutomationProperties.Name="{Binding AutomationName}" />
+
+                        <controls:FlowRow Spacing="14" LineSpacing="4" Margin="4,8,4,0" Visibility="{Binding HasLimit, Converter={StaticResource BooleanToVisibility}}">
+                            <StackPanel Orientation="Horizontal">
+                                <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource AccentBrush}" />
+                                <TextBlock Text="Used" Style="{StaticResource KeyTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Rectangle Style="{StaticResource SwatchStyle}" Width="2" Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="Alert levels" Style="{StaticResource KeyTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="Where this pace ends the cycle" Style="{StaticResource KeyTextStyle}" />
+                            </StackPanel>
+                        </controls:FlowRow>
+
+                        <TextBlock Text="{Binding ForecastText}" Style="{StaticResource LeadNoteStyle}" Margin="4,14,4,0" AutomationProperties.Name="Forecast" />
+                        <TextBlock Text="{Binding RunsOutText}" Style="{StaticResource QuietNoteStyle}" Visibility="{Binding RunsOutText, Converter={StaticResource TextToVisibility}}" />
+                        <TextBlock Text="{Binding OffPeakText}" Style="{StaticResource QuietNoteStyle}" Visibility="{Binding OffPeakText, Converter={StaticResource TextToVisibility}}" />
+                        <TextBlock Text="{Binding LocalText}" Style="{StaticResource QuietNoteStyle}" Visibility="{Binding LocalText, Converter={StaticResource TextToVisibility}}" />
+                        <TextBlock Text="{Binding RecordedText}" Style="{StaticResource QuietNoteStyle}" Visibility="{Binding RecordedText, Converter={StaticResource TextToVisibility}}" />
+
+                        <!-- Each day of the cycle. -->
+                        <controls:AdaptiveRow Breakpoint="420" Spacing="10" LeadFills="True" LeadMinimumWidth="200" Margin="4,22,4,0">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Each day of the cycle" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Point at a day, or reach the chart with Tab and move with the arrow keys. The dashed line is what can be used each day and stay within the allowance."
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+
+                            <controls:FlowRow Spacing="14" LineSpacing="4" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource AccentBrush}" />
+                                    <TextBlock Text="Counted" Style="{StaticResource KeyTextStyle}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource AccentBrush}" Opacity="0.4" />
+                                    <TextBlock Text="Counted by Windows" Style="{StaticResource KeyTextStyle}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Style="{StaticResource SwatchStyle}" Fill="{DynamicResource GoodBrush}" />
+                                    <TextBlock Text="Free hours" Style="{StaticResource KeyTextStyle}" />
+                                </StackPanel>
+                            </controls:FlowRow>
+                        </controls:AdaptiveRow>
+
+                        <controls:BarSeriesChart x:Name="DaysChart"
+                                                 Height="200"
+                                                 Margin="0,10,0,0"
+                                                 Items="{Binding Days}"
+                                                 ReferenceValue="{Binding DailyBudget}"
+                                                 ReferenceLabel="Each day"
+                                                 PrimaryBrush="{DynamicResource AccentBrush}"
+                                                 SecondaryBrush="{DynamicResource GoodBrush}"
+                                                 TrackBrush="{DynamicResource MeterTrackBrush}"
+                                                 ReferenceBrush="{DynamicResource TextFillColorSecondaryBrush}"
+                                                 GridBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                 AxisBrush="{DynamicResource TextFillColorTertiaryBrush}"
+                                                 HighlightBrush="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                 FocusVisualStyle="{StaticResource FocusRingStyle}"
+                                                 AutomationProperties.Name="Each day of the cycle" />
+                        <TextBlock Text="{Binding SelectedDetail, ElementName=DaysChart}" Style="{StaticResource ChartDetailStyle}" controls:LiveRegion.Speaks="True" />
+                    </StackPanel>
+
+                    <!-- ===================== Every plan, when there is more than one ===================== -->
+                    <Border Style="{StaticResource BandStyle}" Margin="0,20,0,0"
+                            Visibility="{Binding HasManyPlans, Converter={StaticResource BooleanToVisibility}}">
+                        <StackPanel>
+                            <StackPanel Style="{StaticResource BandHeadStyle}">
+                                <TextBlock Text="Your plans" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Choose one to see it above. The one marked is the plan for the network in use; the taskbar and alerts follow it."
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding Plans}" Focusable="False" AutomationProperties.Name="Your plans">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:PlanCardViewModel}">
+                                        <Button Style="{StaticResource ChoiceTileStyle}"
+                                                Tag="{Binding IsChosen}"
+                                                Command="{Binding DataContext.ChooseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                AutomationProperties.Name="{Binding AutomationName}">
+                                            <DockPanel LastChildFill="True">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding ShortText}" Margin="12,0,0,0" FontWeight="SemiBold" VerticalAlignment="Center" Typography.NumeralAlignment="Tabular" />
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <Border Margin="8,0,0,0" Padding="6,1" CornerRadius="8" Background="{DynamicResource AccentSoftBrush}"
+                                                                Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibility}}">
+                                                            <TextBlock Text="In use" FontSize="{DynamicResource TextSize11}" Foreground="{DynamicResource AccentBrush}" />
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding NetworksText}" FontSize="{DynamicResource TextSize12}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ===================== By network ===================== -->
+                    <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}"
+                            DataContext="{Binding Selected}"
+                            Visibility="{Binding HasNetworkSplit, Converter={StaticResource BooleanToVisibility}}">
+                        <StackPanel>
+                            <StackPanel Style="{StaticResource BandHeadStyle}">
+                                <TextBlock Text="This cycle by network" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Each minute is put down to the network that carried most of it." TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding Networks}" Focusable="False" AutomationProperties.Name="This cycle by network">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:PlanNetworkRow}">
+                                        <Border Style="{StaticResource TileStyle}">
+                                            <DockPanel LastChildFill="True">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding ShareText}" Style="{StaticResource ListValueStyle}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Amount}" Style="{StaticResource ListValueStyle}" />
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" Style="{StaticResource ListNameStyle}" />
+                                                    <TextBlock Text="{Binding Note}" FontSize="{DynamicResource TextSize11_5}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Visibility="{Binding Note, Converter={StaticResource TextToVisibility}}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="{Binding LeftOutText}" Style="{StaticResource QuietNoteStyle}" Margin="2,8,2,0" Visibility="{Binding LeftOutText, Converter={StaticResource TextToVisibility}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ===================== Earlier cycles ===================== -->
+                    <Border Style="{StaticResource BandStyle}" Margin="{StaticResource BandGap}"
+                            Visibility="{Binding HasEarlier, Converter={StaticResource BooleanToVisibility}}">
+                        <StackPanel>
+                            <StackPanel Style="{StaticResource BandHeadStyle}">
+                                <TextBlock Text="Earlier cycles" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="The plan's last few cycles as they ended, counted with today's settings." TextWrapping="Wrap" Style="{StaticResource CardNoteStyle}" />
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding Earlier}" Focusable="False" AutomationProperties.Name="Earlier cycles">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:EarlierCycleRow}">
+                                        <Border Style="{StaticResource TileStyle}">
+                                            <DockPanel LastChildFill="True">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Verdict}" FontWeight="Normal">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource ListValueStyle}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsOver}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource HotBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Used}" Style="{StaticResource ListValueStyle}" />
+                                                <TextBlock Text="{Binding Period}" Style="{StaticResource ListNameStyle}" TextTrimming="None" TextWrapping="Wrap" />
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- ===================== Networks: names and hotspots ===================== -->
+                <Border Style="{StaticResource BandStyle}" Margin="0,20,0,0"
+                        Visibility="{Binding HasNetworkRows, Converter={StaticResource BooleanToVisibility}}">
+                    <StackPanel>
+                        <StackPanel Style="{StaticResource BandHeadStyle}">
+                            <TextBlock Text="Networks" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Give a network your own name, and say whether it is a phone's hotspot. Windows' metered setting decides when you say nothing; on a hotspot the meter changes tint and its plan comes first."
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource CardNoteStyle}" />
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding NetworkRows}" Focusable="False" AutomationProperties.Name="Networks">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:NetworkChoiceRow}">
+                                    <Border Style="{StaticResource TileStyle}">
+                                        <controls:AdaptiveRow Breakpoint="0" Spacing="10" LeadFills="True" LeadMinimumWidth="200">
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding WindowsName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <TextBlock Text="{Binding Details}" FontSize="{DynamicResource TextSize11_5}" Margin="0,2,0,0" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+
+                                            <controls:FlowRow Spacing="8" LineSpacing="8" VerticalAlignment="Center">
+                                                <TextBox Style="{StaticResource FieldBoxStyle}"
+                                                         Width="150"
+                                                         Tag="Your own name"
+                                                         Text="{Binding Label, UpdateSourceTrigger=PropertyChanged}"
+                                                         ToolTip="Your own name for this network; empty for Windows' name"
+                                                         AutomationProperties.Name="{Binding WindowsName, StringFormat=Your name for {0}}" />
+                                                <controls:Picker Style="{StaticResource PickerStyle}"
+                                                                 MinWidth="150"
+                                                                 ItemsSource="{Binding DataContext.Markings, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                 ItemTemplate="{StaticResource OptionLabelTemplate}"
+                                                                 SelectedValuePath="Value"
+                                                                 SelectedValue="{Binding Marking, Mode=TwoWay}"
+                                                                 AutomationProperties.Name="{Binding WindowsName, StringFormat=Hotspot marking for {0}}" />
+                                            </controls:FlowRow>
+                                        </controls:AdaptiveRow>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </controls:SectionPage>
+</UserControl>

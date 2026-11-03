@@ -10,50 +10,78 @@ namespace Windsock.Core.Hardware;
 public sealed partial class ProcessorProbe
 {
     private const string TotalCounter = "cpu.total";
+    private const string UtilityCounter = "cpu.utility";
     private const string CoreCounter = "cpu.cores";
     private const string ClockCounter = "cpu.clock";
     private const string KernelCounter = "cpu.kernel";
     private const string CpuKey = @"HARDWARE\DESCRIPTION\System\CentralProcessor\0";
 
     private readonly List<(int Group, int Index, double Value)> _ordered = [];
+    private readonly Dictionary<(int Group, int Index), CoreKind> _kinds = [];
 
     private int _baseMegahertz;
 
-    /// <summary>Adds the counters this probe reads to a shared query.</summary>
+    /// <summary>
+    /// Adds the counters this probe reads to a shared query.
+    /// </summary>
+    /// <remarks>
+    /// The headline and every core read <c>% Processor Time</c>, the share of
+    /// time not idle, which is what Task Manager has shown on its Performance
+    /// and Processes pages since KB5064081 (August 2025) on Windows 11 24H2,
+    /// and on 25H2. Until 2026-10-05 Windsock read <c>% Processor Utility</c>
+    /// here instead, clamped at 100, which reads well above Task Manager on a
+    /// turbo-boosting chip with a few cores busy and well below it on a
+    /// throttled one. Utility is still read, once, for the page to show as a
+    /// second, labelled figure.
+    /// </remarks>
     public void Register(PerformanceQuery query, ProcessorFacts facts)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(facts);
 
         _baseMegahertz = facts.BaseMegahertz;
-        if (!query.Add(TotalCounter, @"\Processor Information(_Total)\% Processor Utility"))
+        _kinds.Clear();
+
+        foreach (LogicalProcessor processor in facts.Logical)
         {
-            _ = query.Add(TotalCounter, @"\Processor Information(_Total)\% Processor Time");
+            if (processor.Kind != CoreKind.Uniform)
+            {
+                _kinds[(processor.Group, processor.Index)] = processor.Kind;
+            }
         }
 
-        if (!query.Add(CoreCounter, @"\Processor Information(*)\% Processor Utility", wildcard: true))
-        {
-            _ = query.Add(CoreCounter, @"\Processor Information(*)\% Processor Time", wildcard: true);
-        }
-
+        _ = query.Add(TotalCounter, @"\Processor Information(_Total)\% Processor Time");
+        _ = query.Add(UtilityCounter, @"\Processor Information(_Total)\% Processor Utility");
+        _ = query.Add(CoreCounter, @"\Processor Information(*)\% Processor Time", wildcard: true);
         _ = query.Add(KernelCounter, @"\Processor Information(_Total)\% Privileged Time");
         _ = query.Add(ClockCounter, @"\Processor Information(_Total)\% Processor Performance");
     }
 
     /// <summary>Takes a reading from the last collection.</summary>
-    public ProcessorReading Read(PerformanceQuery query, SystemCounts counts, double? celsius = null)
+    public ProcessorReading Read(PerformanceQuery query, SystemCounts counts, double? celsius = null, double? watts = null)
     {
         ArgumentNullException.ThrowIfNull(query);
+
+        List<double> cores = Cores(query);
+        (double? performance, double? efficiency) = _kinds.Count > 0
+            ? CoreSplit.Average(_ordered, _kinds)
+            : (null, null);
 
         return new ProcessorReading(
             Percent(query.Value(TotalCounter)),
             Percent(query.Value(KernelCounter)),
-            Cores(query),
+            cores,
             Clock(query),
             counts.Processes,
             counts.Threads,
             counts.Handles,
-            celsius);
+            celsius)
+        {
+            UtilityPercent = query.Has(UtilityCounter) ? Math.Max(0, query.Value(UtilityCounter)) : null,
+            PerformancePercent = performance,
+            EfficiencyPercent = efficiency,
+            Watts = watts,
+        };
     }
 
     private List<double> Cores(PerformanceQuery query)
@@ -117,7 +145,10 @@ public sealed partial class ProcessorProbe
             topology.LevelTwo,
             topology.LevelThree,
             topology.Performance,
-            topology.Efficiency);
+            topology.Efficiency)
+        {
+            Logical = CpuSets.Read(),
+        };
     }
 
     private readonly record struct Topology(

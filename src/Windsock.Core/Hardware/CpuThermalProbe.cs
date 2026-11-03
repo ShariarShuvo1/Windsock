@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
@@ -13,12 +14,20 @@ internal sealed partial class CpuThermalProbe : IDisposable
     private const long IntelPackageThermStatus = 0x1B1;
     private const long IntelThermStatus = 0x19C;
     private const long AmdCurrentTemperature = 0x00059800;
+
+    // Energy: RAPL on Intel, its namesake on AMD. Both sets are on the read
+    // allowlist of the modules embedded (0.2.11); nothing here writes.
+    private const long IntelPowerUnit = 0x606;
+    private const long IntelPackageEnergy = 0x611;
+    private const long AmdPowerUnit = 0xC0010299;
+    private const long AmdPackageEnergy = 0xC001029B;
     private const double Coldest = 1;
     private const double Hottest = 150;
     private const int FirstZenFamily = 0x17;
     private readonly PawnIo? _channel;
     private readonly bool _intel;
     private readonly long _intelTarget;
+    private readonly CpuEnergyMeter? _energy;
 
     public CpuThermalProbe()
     {
@@ -64,7 +73,17 @@ internal sealed partial class CpuThermalProbe : IDisposable
                 ? target
                 : 0;
         }
+
+        if (State is PawnIoState.Running
+            && _channel?.Call("ioctl_read_msr", [_intel ? IntelPowerUnit : AmdPowerUnit], 1) is [long unit]
+            && CpuEnergyMeter.JoulesPerCount(unit) is { } joules)
+        {
+            _energy = new CpuEnergyMeter(joules);
+        }
     }
+
+    /// <summary>Whether the package's energy counter is being read.</summary>
+    public bool ReadsPower => _energy is not null;
 
     /// <summary>Whether a reading is being taken, and if not, why not.</summary>
     public PawnIoState State { get; }
@@ -108,6 +127,22 @@ internal sealed partial class CpuThermalProbe : IDisposable
         }
 
         return _intel ? ReadIntel() : ReadAmd();
+    }
+
+    /// <summary>
+    /// The processor package's power since the last call, or nothing where it
+    /// cannot be read or this is the first reading after a pause.
+    /// </summary>
+    public double? ReadWatts()
+    {
+        if (_energy is null || _channel is null || State is not PawnIoState.Running)
+        {
+            return null;
+        }
+
+        return _channel.Call("ioctl_read_msr", [_intel ? IntelPackageEnergy : AmdPackageEnergy], 1) is [long energy]
+            ? _energy.Next(energy, Stopwatch.GetTimestamp())
+            : null;
     }
 
     public void Dispose() => _channel?.Dispose();
